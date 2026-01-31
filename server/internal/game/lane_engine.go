@@ -1,0 +1,420 @@
+package game
+
+import (
+	"math/rand"
+
+	"github.com/kiddiechess/server/internal/models"
+)
+
+// TurnResult contains the results of executing a turn phase
+type TurnResult struct {
+	Success        bool               `json:"success"`
+	Phase          models.LaneTurnPhase `json:"phase"`
+	LaneIndex      int                `json:"laneIndex,omitempty"`      // For auto-placement
+	LaneWinner     models.PlayerSide  `json:"laneWinner,omitempty"`     // If a lane was won
+	GameWinner     models.PlayerSide  `json:"gameWinner,omitempty"`     // If game is over
+	PerkExecuted   int                `json:"perkExecuted,omitempty"`   // Perk ID that was executed
+	Error          string             `json:"error,omitempty"`
+}
+
+// LaneEngine handles V2 lane game logic
+type LaneEngine struct {
+	game *models.LaneGame
+}
+
+// NewLaneEngine creates a new lane engine for a game
+func NewLaneEngine(game *models.LaneGame) *LaneEngine {
+	return &LaneEngine{
+		game: game,
+	}
+}
+
+// ExecuteAutoPlacement performs the auto-placement phase
+// Returns the result of the placement
+func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
+	result := &TurnResult{
+		Phase: models.PhaseAutoPlacement,
+	}
+
+	if e.game.Status != models.LaneStatusPlaying {
+		result.Error = "Game is not in progress"
+		return result
+	}
+
+	if e.game.CurrentPhase != models.PhaseAutoPlacement {
+		result.Error = "Not in auto-placement phase"
+		return result
+	}
+
+	// Get current player
+	currentPlayer := e.game.CurrentPlayer
+
+	// Place piece on random available lane
+	laneIndex := e.game.AutoPlace(currentPlayer)
+	if laneIndex == -1 {
+		// No available lanes - this shouldn't happen in normal gameplay
+		result.Error = "No available lanes for placement"
+		return result
+	}
+
+	result.Success = true
+	result.LaneIndex = laneIndex
+
+	// Check if lane was won
+	laneWinner := e.game.CheckLaneWin(laneIndex)
+	if laneWinner != 0 {
+		result.LaneWinner = laneWinner
+
+		// Check if game was won
+		gameWinner := e.game.CheckGameWin()
+		if gameWinner != 0 {
+			result.GameWinner = gameWinner
+			return result
+		}
+	}
+
+	// Advance to perk selection phase
+	e.game.AdvancePhase()
+
+	// Generate perk options
+	e.game.GeneratePerkSlots()
+
+	return result
+}
+
+// ExecutePerkSelection handles perk selection (or pass)
+// perkID: 0 = pass, 1 = PlaceAnother, 2 = RemoveEnemy
+// targetLane: which lane to target (-1 for no target)
+func (e *LaneEngine) ExecutePerkSelection(perkID int, targetLane int) *TurnResult {
+	result := &TurnResult{
+		Phase: models.PhasePerkSelection,
+	}
+
+	if e.game.Status != models.LaneStatusPlaying {
+		result.Error = "Game is not in progress"
+		return result
+	}
+
+	if e.game.CurrentPhase != models.PhasePerkSelection {
+		result.Error = "Not in perk selection phase"
+		return result
+	}
+
+	currentPlayer := e.game.CurrentPlayer
+
+	// Handle pass
+	if perkID == 0 {
+		result.Success = true
+		result.PerkExecuted = 0
+		e.game.AdvancePhase() // This will switch turns
+		return result
+	}
+
+	// Execute perk based on ID
+	switch perkID {
+	case 1: // PlaceAnother
+		return e.executePlaceAnother(currentPlayer, targetLane)
+	case 2: // RemoveEnemy
+		return e.executeRemoveEnemy(currentPlayer, targetLane)
+	default:
+		result.Error = "Unknown perk ID"
+		return result
+	}
+}
+
+// executePlaceAnother handles the PlaceAnother perk (#1)
+func (e *LaneEngine) executePlaceAnother(player models.PlayerSide, targetLane int) *TurnResult {
+	result := &TurnResult{
+		Phase:        models.PhasePerkSelection,
+		PerkExecuted: 1,
+	}
+
+	// Validate target lane
+	if targetLane < 0 || targetLane >= models.DefaultLaneCount {
+		result.Error = "Invalid target lane"
+		return result
+	}
+
+	// Check if lane is available
+	lane := e.game.Lanes[targetLane]
+	if lane.IsWon() {
+		result.Error = "Cannot target a won lane"
+		return result
+	}
+
+	if lane.IsSideFull(player) {
+		result.Error = "Your side of this lane is already full"
+		return result
+	}
+
+	// Place the piece
+	if !e.game.PlacePiece(targetLane, player) {
+		result.Error = "Failed to place piece"
+		return result
+	}
+
+	result.Success = true
+	result.LaneIndex = targetLane
+
+	// Check lane win
+	laneWinner := e.game.CheckLaneWin(targetLane)
+	if laneWinner != 0 {
+		result.LaneWinner = laneWinner
+
+		// Check game win
+		gameWinner := e.game.CheckGameWin()
+		if gameWinner != 0 {
+			result.GameWinner = gameWinner
+			return result
+		}
+	}
+
+	// Advance phase (switch turns)
+	e.game.AdvancePhase()
+
+	return result
+}
+
+// executeRemoveEnemy handles the RemoveEnemy perk (#2)
+func (e *LaneEngine) executeRemoveEnemy(player models.PlayerSide, targetLane int) *TurnResult {
+	result := &TurnResult{
+		Phase:        models.PhasePerkSelection,
+		PerkExecuted: 2,
+	}
+
+	opponent := player.Opponent()
+
+	// Validate target lane
+	if targetLane < 0 || targetLane >= models.DefaultLaneCount {
+		result.Error = "Invalid target lane"
+		return result
+	}
+
+	// Check if lane is available
+	lane := e.game.Lanes[targetLane]
+	if lane.IsWon() {
+		result.Error = "Cannot target a won lane"
+		return result
+	}
+
+	// Check if opponent has pieces on this lane
+	if lane.CountPieces(opponent) == 0 {
+		result.Error = "No enemy pieces on this lane"
+		return result
+	}
+
+	// Remove the frontmost piece
+	if !e.game.RemovePiece(targetLane, opponent) {
+		result.Error = "Failed to remove piece"
+		return result
+	}
+
+	result.Success = true
+	result.LaneIndex = targetLane
+
+	// RemoveEnemy doesn't cause lane wins (you're removing opponent's pieces)
+	// Just advance phase
+
+	// Advance phase (switch turns)
+	e.game.AdvancePhase()
+
+	return result
+}
+
+// LaneAI handles AI decision making for lane games
+type LaneAI struct {
+	difficulty string
+}
+
+// NewLaneAI creates a new AI for lane games
+func NewLaneAI(difficulty string) *LaneAI {
+	return &LaneAI{
+		difficulty: difficulty,
+	}
+}
+
+// ChoosePerk selects a perk and target for the AI
+// Returns perkID and targetLane
+func (ai *LaneAI) ChoosePerk(game *models.LaneGame) (int, int) {
+	player := game.CurrentPlayer
+	opponent := player.Opponent()
+
+	switch ai.difficulty {
+	case "easy":
+		return ai.chooseEasy(game, player)
+	case "medium":
+		return ai.chooseMedium(game, player, opponent)
+	case "hard":
+		return ai.chooseHard(game, player, opponent)
+	default:
+		return ai.chooseEasy(game, player)
+	}
+}
+
+// chooseEasy makes random decisions
+func (ai *LaneAI) chooseEasy(game *models.LaneGame, player models.PlayerSide) (int, int) {
+	// 50% chance to pass
+	if rand.Intn(2) == 0 {
+		return 0, -1 // Pass
+	}
+
+	// 50% PlaceAnother, 50% RemoveEnemy
+	if rand.Intn(2) == 0 {
+		available := game.GetAvailableLanes(player)
+		if len(available) > 0 {
+			return 1, available[rand.Intn(len(available))]
+		}
+	}
+
+	// Try RemoveEnemy
+	opponent := player.Opponent()
+	nonEmpty := game.GetNonEmptyLanes(opponent)
+	if len(nonEmpty) > 0 {
+		return 2, nonEmpty[rand.Intn(len(nonEmpty))]
+	}
+
+	// Fallback to pass
+	return 0, -1
+}
+
+// chooseMedium prefers strategic moves
+func (ai *LaneAI) chooseMedium(game *models.LaneGame, player, opponent models.PlayerSide) (int, int) {
+	// Try to complete a lane that's close to winning
+	for i, lane := range game.Lanes {
+		if lane.IsWon() {
+			continue
+		}
+		pieceCount := lane.CountPieces(player)
+		// If we have 4 pieces, try to place the 5th
+		if pieceCount == 4 && !lane.IsSideFull(player) {
+			return 1, i // PlaceAnother
+		}
+	}
+
+	// Try to disrupt opponent's near-win lanes
+	for i, lane := range game.Lanes {
+		if lane.IsWon() {
+			continue
+		}
+		opponentCount := lane.CountPieces(opponent)
+		// If opponent has 4+ pieces, try to remove
+		if opponentCount >= 4 {
+			return 2, i // RemoveEnemy
+		}
+	}
+
+	// Default to placing in lane with most pieces
+	bestLane := -1
+	bestCount := -1
+	for i, lane := range game.Lanes {
+		if lane.IsWon() || lane.IsSideFull(player) {
+			continue
+		}
+		count := lane.CountPieces(player)
+		if count > bestCount {
+			bestCount = count
+			bestLane = i
+		}
+	}
+
+	if bestLane != -1 {
+		return 1, bestLane
+	}
+
+	return 0, -1 // Pass
+}
+
+// chooseHard uses evaluation
+func (ai *LaneAI) chooseHard(game *models.LaneGame, player, opponent models.PlayerSide) (int, int) {
+	bestPerk := 0
+	bestTarget := -1
+	bestScore := -1000
+
+	// Evaluate passing
+	passScore := 0
+
+	// Evaluate PlaceAnother on each lane
+	for i, lane := range game.Lanes {
+		if lane.IsWon() || lane.IsSideFull(player) {
+			continue
+		}
+
+		score := ai.evaluatePlacement(game, player, i)
+		if score > bestScore {
+			bestScore = score
+			bestPerk = 1
+			bestTarget = i
+		}
+	}
+
+	// Evaluate RemoveEnemy on each lane
+	for i, lane := range game.Lanes {
+		if lane.IsWon() || lane.CountPieces(opponent) == 0 {
+			continue
+		}
+
+		score := ai.evaluateRemoval(game, opponent, i)
+		if score > bestScore {
+			bestScore = score
+			bestPerk = 2
+			bestTarget = i
+		}
+	}
+
+	// If best action is worse than passing, pass
+	if bestScore < passScore {
+		return 0, -1
+	}
+
+	return bestPerk, bestTarget
+}
+
+// evaluatePlacement scores a placement action
+func (ai *LaneAI) evaluatePlacement(game *models.LaneGame, player models.PlayerSide, laneIndex int) int {
+	lane := game.Lanes[laneIndex]
+	currentPieces := lane.CountPieces(player)
+
+	// Winning move is very valuable
+	if currentPieces == 4 {
+		return 1000
+	}
+
+	// More pieces = higher priority (concentrate)
+	return currentPieces * 10
+}
+
+// evaluateRemoval scores a removal action
+func (ai *LaneAI) evaluateRemoval(game *models.LaneGame, opponent models.PlayerSide, laneIndex int) int {
+	lane := game.Lanes[laneIndex]
+	opponentPieces := lane.CountPieces(opponent)
+
+	// Blocking opponent's win is very valuable
+	if opponentPieces == 5 {
+		return 900
+	}
+
+	// More opponent pieces = higher priority to disrupt
+	return opponentPieces * 8
+}
+
+// ExecuteAITurn runs a full turn for the AI
+func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
+	results := make([]*TurnResult, 0, 2)
+
+	// Phase 1: Deferred resolution (skip for now)
+
+	// Phase 2: Auto-placement
+	autoResult := e.ExecuteAutoPlacement()
+	results = append(results, autoResult)
+
+	if autoResult.GameWinner != 0 {
+		return results // Game over
+	}
+
+	// Phase 3: Perk selection
+	perkID, targetLane := ai.ChoosePerk(e.game)
+	perkResult := e.ExecutePerkSelection(perkID, targetLane)
+	results = append(results, perkResult)
+
+	return results
+}
