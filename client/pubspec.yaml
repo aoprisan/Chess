@@ -30,4 +30,5 @@ flutter:
     - assets/images/characters/
     - assets/images/pieces/
     - assets/images/board/
+    - assets/images/ui/
     - assets/audio/

@@ -213,22 +213,28 @@ class _HeroCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Placeholder for hero image
+            // Hero image
             Container(
-              width: 70,
-              height: 70,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: const Color(0xFFFFF8E1),
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(0xFFFFB300), width: 2),
               ),
-              child: Center(
-                child: Text(
-                  hero.name[0],
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
+              child: ClipOval(
+                child: Image.asset(
+                  hero.imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Center(
+                    child: Text(
+                      hero.name[0],
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5D4037),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -270,20 +276,26 @@ class _HeroDetailsPanel extends StatelessWidget {
         children: [
           // Hero avatar
           Container(
-            width: 80,
-            height: 80,
+            width: 90,
+            height: 90,
             decoration: BoxDecoration(
               color: const Color(0xFFFFF8E1),
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFFFB300), width: 3),
             ),
-            child: Center(
-              child: Text(
-                hero.name[0],
-                style: const TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5D4037),
+            child: ClipOval(
+              child: Image.asset(
+                hero.imagePath,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Center(
+                  child: Text(
+                    hero.name[0],
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5D4037),
+                    ),
+                  ),
                 ),
               ),
             ),

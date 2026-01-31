@@ -6,7 +6,7 @@ A kid-friendly chess game with cute characters and special abilities (perks).
 
 - **Frontend**: Flutter + Flame (2D game engine)
 - **Backend**: Go (WebSocket server)
-- **Database**: PostgreSQL + Redis (planned)
+- **Database**: SQLite (local, file-based)
 
 ## Project Structure
 
@@ -34,6 +34,8 @@ Chess/
 │   ├── cmd/server/
 │   │   └── main.go         # Server entry point
 │   ├── internal/
+│   │   ├── database/       # SQLite database
+│   │   │   └── database.go # Migrations, queries
 │   │   ├── models/         # Shared models
 │   │   │   └── game.go
 │   │   ├── handlers/       # WebSocket handlers
@@ -42,6 +44,7 @@ Chess/
 │   │   │   └── engine.go
 │   │   └── matchmaking/    # Player matchmaking
 │   │       └── matchmaker.go
+│   ├── data/               # SQLite database file
 │   └── go.mod
 │
 └── html.zip               # Original UI mockups
@@ -115,6 +118,44 @@ Each hero has unique perks:
 - **vs Friend**: Local 2-player
 - **vs AI**: Play against AI (Easy/Medium/Hard)
 - **Online**: Matchmaking against other players
+
+## Database
+
+SQLite database is automatically created at `./data/kiddiechess.db` with:
+
+- **users**: Player accounts, stats, and ratings
+- **games**: Game records with board state
+- **game_moves**: Detailed move history
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8080` | Server port |
+| `DB_PATH` | `./data/kiddiechess.db` | SQLite database path |
+
+## REST API
+
+### Users
+
+```bash
+# Create user
+POST /api/users
+{"id": "uuid", "username": "player1", "email": "optional@email.com"}
+
+# Get user by ID
+GET /api/users?id=uuid
+
+# Get user by username
+GET /api/users?username=player1
+```
+
+### Leaderboard
+
+```bash
+# Get top 50 players
+GET /api/leaderboard
+```
 
 ## WebSocket Protocol
 

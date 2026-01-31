@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/kiddiechess/server/internal/database"
 	"github.com/kiddiechess/server/internal/matchmaking"
 	"github.com/kiddiechess/server/internal/models"
 )
@@ -62,11 +63,12 @@ type Hub struct {
 	Unregister  chan *Client
 	Broadcast   chan []byte
 	Matchmaker  *matchmaking.Matchmaker
+	DB          *database.DB
 	mu          sync.RWMutex
 }
 
 // NewHub creates a new Hub
-func NewHub(mm *matchmaking.Matchmaker) *Hub {
+func NewHub(mm *matchmaking.Matchmaker, db *database.DB) *Hub {
 	return &Hub{
 		Clients:    make(map[string]*Client),
 		Games:      make(map[string]*models.Game),
@@ -74,6 +76,7 @@ func NewHub(mm *matchmaking.Matchmaker) *Hub {
 		Unregister: make(chan *Client),
 		Broadcast:  make(chan []byte),
 		Matchmaker: mm,
+		DB:         db,
 	}
 }
 
