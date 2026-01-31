@@ -65,6 +65,27 @@ func main() {
 		handleLeaderboard(db, w, r)
 	})
 
+	// Serve Flutter web build
+	webDir := os.Getenv("WEB_DIR")
+	if webDir == "" {
+		webDir = "../client/build/web"
+	}
+	if _, err := os.Stat(webDir); err == nil {
+		fs := http.FileServer(http.Dir(webDir))
+		http.Handle("/", fs)
+		log.Println("Serving frontend from", webDir)
+	} else {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"status":    "ok",
+				"message":   "Kiddie Chess API",
+				"endpoints": "/health, /api/users, /api/leaderboard, /ws",
+			})
+		})
+		log.Println("Frontend not found at", webDir, "- serving API only")
+	}
+
 	// CORS middleware for development
 	handler := corsMiddleware(http.DefaultServeMux)
 

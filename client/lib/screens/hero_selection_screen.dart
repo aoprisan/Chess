@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Hero;
 import 'package:provider/provider.dart';
 import '../models/hero.dart';
 import '../services/game_service.dart';
@@ -19,231 +19,111 @@ class HeroSelectionScreen extends StatefulWidget {
 }
 
 class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
-  Hero? _selectedHero;
-  AIDifficulty _difficulty = AIDifficulty.medium;
+  int _currentPlayer = 1; // 1 or 2
+  Hero? _player1Hero;
+  Hero? _player2Hero;
+  bool _aiModeEnabled = true; // Default to true when in vsAI mode
+  String _difficulty = 'medium';
+
+  Hero? get _selectedHero => _currentPlayer == 1 ? _player1Hero : _player2Hero;
+
+  bool get _needsTwoPlayers => !widget.vsAI && !widget.online;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFFFF8E1), Color(0xFFFFE0B2)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: const Text(
-                  'Choose Your Hero',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
-                  ),
-                ),
-              ),
-              // Hero Grid
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.8,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: Hero.allHeroes.length,
-                    itemBuilder: (context, index) {
-                      final hero = Hero.allHeroes[index];
-                      final isSelected = _selectedHero?.type == hero.type;
-                      return _HeroCard(
-                        hero: hero,
-                        isSelected: isSelected,
-                        onTap: () => setState(() => _selectedHero = hero),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              // Hero Details Panel
-              if (_selectedHero != null)
-                Expanded(
-                  flex: 1,
-                  child: _HeroDetailsPanel(hero: _selectedHero!),
-                ),
-              // AI Difficulty (if vs AI)
-              if (widget.vsAI) _buildDifficultySelector(),
-              // Action Buttons
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(color: Color(0xFF8D6E63)),
-                        ),
-                        child: const Text(
-                          'Back',
-                          style:
-                              TextStyle(fontSize: 18, color: Color(0xFF8D6E63)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: _selectedHero != null ? _startGame : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFB300),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          widget.online ? 'Find Match' : 'Start Game',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDifficultySelector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          const Text(
-            'AI Difficulty: ',
-            style: TextStyle(fontSize: 16, color: Color(0xFF5D4037)),
+          // Pirate doodle tiled background
+          Image.asset(
+            'assets/images/ui/main-bg.png',
+            fit: BoxFit.cover,
+            repeat: ImageRepeat.repeat,
           ),
-          const SizedBox(width: 12),
-          SegmentedButton<AIDifficulty>(
-            segments: const [
-              ButtonSegment(value: AIDifficulty.easy, label: Text('Easy')),
-              ButtonSegment(value: AIDifficulty.medium, label: Text('Medium')),
-              ButtonSegment(value: AIDifficulty.hard, label: Text('Hard')),
-            ],
-            selected: {_difficulty},
-            onSelectionChanged: (set) {
-              setState(() => _difficulty = set.first);
-            },
+          // Content
+          SafeArea(
+            child: Column(
+              children: [
+                // Title Bar
+                _buildTitleBar(),
+                // Main content: Hero grid + Details panel
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Hero Grid (left side)
+                        Expanded(
+                          flex: 3,
+                          child: _buildHeroGrid(),
+                        ),
+                        const SizedBox(width: 24),
+                        // Details Panel (right side)
+                        Expanded(
+                          flex: 2,
+                          child: _buildDetailsPanel(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Bottom Bar with buttons
+                _buildBottomBar(),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _startGame() {
-    final gameService = context.read<GameService>();
-    gameService.selectHero(_selectedHero!);
-    gameService.setAIMode(widget.vsAI);
-    gameService.setAIDifficulty(_difficulty);
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => GameScreen(
-          vsAI: widget.vsAI,
-          online: widget.online,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroCard extends StatelessWidget {
-  final Hero hero;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _HeroCard({
-    required this.hero,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFE082) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFFFB300) : Colors.transparent,
-            width: 3,
+  Widget _buildTitleBar() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      child: Container(
+        height: 60,
+        width: 350,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/ui/title-bg.png'),
+            fit: BoxFit.contain,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected ? Colors.amber.withOpacity(0.4) : Colors.black12,
-              blurRadius: isSelected ? 12 : 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Hero image
+            // Player badge
             Container(
               width: 80,
-              height: 80,
+              height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFFB300), width: 2),
+                image: DecorationImage(
+                  image: AssetImage(
+                    _currentPlayer == 1
+                        ? 'assets/images/ui/player-1-player-bg.png'
+                        : 'assets/images/ui/player-2-player-bg.png',
+                  ),
+                  fit: BoxFit.contain,
+                ),
               ),
-              child: ClipOval(
-                child: Image.asset(
-                  hero.imagePath,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(
-                    child: Text(
-                      hero.name[0],
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF5D4037),
-                      ),
-                    ),
+              child: Center(
+                child: Text(
+                  'Player $_currentPlayer',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              hero.name,
-              style: const TextStyle(
-                fontSize: 16,
+            const SizedBox(width: 8),
+            const Text(
+              'Choose your hero',
+              style: TextStyle(
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF5D4037),
               ),
@@ -253,45 +133,276 @@ class _HeroCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _HeroDetailsPanel extends StatelessWidget {
-  final Hero hero;
+  Widget _buildHeroGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: Hero.allHeroes.length,
+      itemBuilder: (context, index) {
+        final hero = Hero.allHeroes[index];
+        final isSelectedByPlayer1 = _player1Hero?.type == hero.type;
+        final isSelectedByPlayer2 = _player2Hero?.type == hero.type;
+        final isCurrentSelection = _selectedHero?.type == hero.type;
 
-  const _HeroDetailsPanel({required this.hero});
+        // Disable hero if already selected by the other player
+        final isDisabled = (_currentPlayer == 2 && isSelectedByPlayer1);
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+        return _HeroCard(
+          hero: hero,
+          isSelected: isCurrentSelection,
+          selectedByPlayer: isSelectedByPlayer1 ? 1 : (isSelectedByPlayer2 ? 2 : null),
+          isDisabled: isDisabled,
+          onTap: isDisabled
+              ? null
+              : () {
+                  setState(() {
+                    if (_currentPlayer == 1) {
+                      _player1Hero = hero;
+                    } else {
+                      _player2Hero = hero;
+                    }
+                  });
+                },
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailsPanel() {
+    return Column(
+      children: [
+        // Hero details container
+        Expanded(
+          child: Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/ui/hero-details-panel-bg.png'),
+                fit: BoxFit.fill,
+              ),
+            ),
+            child: _selectedHero == null
+                ? const Center(
+                    child: Text(
+                      'Select a hero',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF8D6E63),
+                      ),
+                    ),
+                  )
+                : Row(
+                    children: [
+                      // Large hero image
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Image.asset(
+                                  _selectedHero!.imagePath,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.person, size: 100),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                _selectedHero!.name,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF5D4037),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Perks list
+                      Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Perks',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF5D4037),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // All perks list
+                              ...Perk.values.map((perk) {
+                                final hasPerk = _selectedHero!.perks.contains(perk);
+                                return _PerkRow(
+                                  perkName: _getPerkDisplayName(perk),
+                                  isActive: hasPerk,
+                                );
+                              }),
+                              const Spacer(),
+                              // AI Mode checkbox (only in vsAI mode)
+                              if (widget.vsAI) ...[
+                                _buildAIModeCheckbox(),
+                                const SizedBox(height: 8),
+                                if (_aiModeEnabled) _buildDifficultySelector(),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAIModeCheckbox() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _aiModeEnabled = !_aiModeEnabled;
+        });
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage(
+                  _aiModeEnabled
+                      ? 'assets/images/ui/checkbox-active-bg.png'
+                      : 'assets/images/ui/checkbox-bg.png',
+                ),
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'AI Mode',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF5D4037),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDifficultySelector() {
+    return Container(
+      height: 36,
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/ui/ai-mode-group-buttons-bg.png'),
+          fit: BoxFit.fill,
+        ),
       ),
       child: Row(
         children: [
-          // Hero avatar
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF8E1),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFFFB300), width: 3),
+          _DifficultyButton(
+            label: 'Easy',
+            isSelected: _difficulty == 'easy',
+            backgroundAsset: 'assets/images/ui/eazy-level-bg.png',
+            onTap: () => setState(() => _difficulty = 'easy'),
+          ),
+          _DifficultyButton(
+            label: 'Medium',
+            isSelected: _difficulty == 'medium',
+            backgroundAsset: 'assets/images/ui/medium-level-bg.png',
+            onTap: () => setState(() => _difficulty = 'medium'),
+          ),
+          _DifficultyButton(
+            label: 'Hard',
+            isSelected: _difficulty == 'hard',
+            backgroundAsset: 'assets/images/ui/hard-level-bg.png',
+            onTap: () => setState(() => _difficulty = 'hard'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Back button
+          GestureDetector(
+            onTap: () {
+              if (_currentPlayer == 2 && _needsTwoPlayers) {
+                // Go back to Player 1 selection
+                setState(() {
+                  _currentPlayer = 1;
+                  _player2Hero = null;
+                });
+              } else {
+                Navigator.pop(context);
+              }
+            },
+            child: Container(
+              width: 140,
+              height: 45,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/ui/grey-btn-bg.png'),
+                  fit: BoxFit.fill,
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  'Back to menu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+              ),
             ),
-            child: ClipOval(
-              child: Image.asset(
-                hero.imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Center(
+          ),
+          const SizedBox(width: 16),
+          // Continue button
+          GestureDetector(
+            onTap: _selectedHero != null ? _handleContinue : null,
+            child: Opacity(
+              opacity: _selectedHero != null ? 1.0 : 0.5,
+              child: Container(
+                width: 160,
+                height: 45,
+                decoration: const BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/ui/yellow-btn-bg.png'),
+                    fit: BoxFit.fill,
+                  ),
+                ),
+                child: Center(
                   child: Text(
-                    hero.name[0],
+                    widget.online ? 'Find Match' : 'Continue',
                     style: const TextStyle(
-                      fontSize: 40,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF5D4037),
                     ),
@@ -300,69 +411,242 @@ class _HeroDetailsPanel extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Perks list
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  hero.name,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Perks:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF8D6E63),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: hero.perks.map((perk) {
-                    final count = hero.perkCounts[perk] ?? 1;
-                    return Chip(
-                      label: Text(
-                        '${_perkName(perk)} x$count',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      backgroundColor: const Color(0xFFE3F2FD),
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
-  String _perkName(Perk perk) {
+  void _handleContinue() {
+    if (_needsTwoPlayers && _currentPlayer == 1) {
+      // Move to Player 2 selection
+      setState(() {
+        _currentPlayer = 2;
+      });
+    } else {
+      // Start the game
+      _startGame();
+    }
+  }
+
+  void _startGame() {
+    final gameService = context.read<GameService>();
+
+    // Set Player 1's hero
+    gameService.selectHero(_player1Hero!);
+
+    // Set AI mode and difficulty
+    if (widget.vsAI && _aiModeEnabled) {
+      gameService.setAIMode(true);
+      gameService.setAIDifficulty(_getDifficulty());
+    } else {
+      gameService.setAIMode(false);
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GameScreen(
+          vsAI: widget.vsAI && _aiModeEnabled,
+          online: widget.online,
+          player2Hero: _player2Hero,
+        ),
+      ),
+    );
+  }
+
+  AIDifficulty _getDifficulty() {
+    switch (_difficulty) {
+      case 'easy':
+        return AIDifficulty.easy;
+      case 'hard':
+        return AIDifficulty.hard;
+      default:
+        return AIDifficulty.medium;
+    }
+  }
+
+  String _getPerkDisplayName(Perk perk) {
     switch (perk) {
       case Perk.anotherMove:
-        return 'Extra Move';
+        return 'Another move';
       case Perk.removeEnemy:
-        return 'Remove';
+        return 'Remove enemy';
       case Perk.placeAnother:
-        return 'Place';
+        return 'Place another';
       case Perk.scatterAround:
-        return 'Scatter';
+        return 'Scatter around';
       case Perk.freeze:
         return 'Freeze';
       case Perk.cancelMove:
-        return 'Undo';
+        return 'Cancel move';
     }
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  final Hero hero;
+  final bool isSelected;
+  final int? selectedByPlayer;
+  final bool isDisabled;
+  final VoidCallback? onTap;
+
+  const _HeroCard({
+    required this.hero,
+    required this.isSelected,
+    this.selectedByPlayer,
+    this.isDisabled = false,
+    this.onTap,
+  });
+
+  String get _backgroundAsset {
+    if (isSelected && selectedByPlayer == 1) {
+      return 'assets/images/ui/hero-panel-player-1-acitve.png';
+    } else if (isSelected && selectedByPlayer == 2) {
+      return 'assets/images/ui/hero-panel-player-2-acitve.png';
+    } else if (!isSelected && selectedByPlayer == 1) {
+      // Show green border for previously selected by player 1 (when player 2 is selecting)
+      return 'assets/images/ui/hero-panel-player-1-acitve.png';
+    }
+    return 'assets/images/ui/hero-panel.png';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: isDisabled ? 0.5 : 1.0,
+        child: Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage(_backgroundAsset),
+              fit: BoxFit.fill,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Image.asset(
+                    hero.imagePath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Center(
+                      child: Text(
+                        hero.name[0],
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF5D4037),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  hero.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PerkRow extends StatelessWidget {
+  final String perkName;
+  final bool isActive;
+
+  const _PerkRow({
+    required this.perkName,
+    required this.isActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/ui/perk-bg.png'),
+          fit: BoxFit.fill,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Text(
+              perkName,
+              style: TextStyle(
+                fontSize: 12,
+                color: isActive ? const Color(0xFF5D4037) : const Color(0xFFB0A090),
+              ),
+            ),
+          ),
+          if (isActive)
+            Image.asset(
+              'assets/images/ui/active-perk-icon.png',
+              width: 12,
+              height: 12,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DifficultyButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final String backgroundAsset;
+  final VoidCallback onTap;
+
+  const _DifficultyButton({
+    required this.label,
+    required this.isSelected,
+    required this.backgroundAsset,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: isSelected
+              ? BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(backgroundAsset),
+                    fit: BoxFit.fill,
+                  ),
+                )
+              : null,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: const Color(0xFF5D4037),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

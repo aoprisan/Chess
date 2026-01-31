@@ -4,16 +4,19 @@ import 'package:provider/provider.dart';
 import '../game/chess_game.dart';
 import '../services/game_service.dart';
 import '../models/game_state.dart';
-import '../models/hero.dart';
+import '../models/hero.dart' as hero_model;
+import '../models/hero.dart' show Perk;
 
 class GameScreen extends StatefulWidget {
   final bool vsAI;
   final bool online;
+  final hero_model.Hero? player2Hero;
 
   const GameScreen({
     super.key,
     this.vsAI = false,
     this.online = false,
+    this.player2Hero,
   });
 
   @override
@@ -37,123 +40,77 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFFFF8E1), Color(0xFFFFE0B2)],
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/ui/game-field-bg.png',
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Top bar with opponent info
-              _buildPlayerBar(isOpponent: true),
-              // Game board
-              Expanded(
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      margin: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: GameWidget(game: _game),
-                      ),
-                    ),
-                  ),
+          // Main content
+          SafeArea(
+            child: Column(
+              children: [
+                // Top section - Player panels and turn indicator
+                _buildTopSection(),
+                // Middle section - Perk slots and game board
+                Expanded(
+                  child: _buildMiddleSection(),
                 ),
-              ),
-              // Perks bar
-              _buildPerksBar(),
-              // Bottom bar with player info
-              _buildPlayerBar(isOpponent: false),
-            ],
+                // Bottom section - Skip Turn button
+                _buildBottomSection(),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildPlayerBar({required bool isOpponent}) {
+  Widget _buildTopSection() {
     return Consumer<GameService>(
       builder: (context, gameService, child) {
-        final hero = isOpponent ? null : gameService.selectedHero;
-        final isMyTurn = !isOpponent &&
-            gameService.gameState?.currentTurn == gameService.playerColor;
+        final player1Hero = gameService.selectedHero;
+        final player2Hero = widget.player2Hero;
+        final isPlayer1Turn = gameService.gameState?.currentTurn == PlayerColor.white;
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: isOpponent ? const Color(0xFFEF5350) : const Color(0xFF4CAF50),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isMyTurn ? Colors.amber : Colors.transparent,
-                    width: 3,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    hero?.name[0] ?? (isOpponent ? 'O' : 'P'),
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Name and status
+              // Player 1 panel (left)
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isOpponent
-                          ? (widget.vsAI ? 'AI Opponent' : 'Opponent')
-                          : (hero?.name ?? 'Player'),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF5D4037),
-                      ),
-                    ),
-                    if (isMyTurn)
-                      const Text(
-                        'Your turn',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF4CAF50),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
+                child: _PlayerPanel(
+                  hero: player1Hero,
+                  playerNumber: 1,
+                  isCurrentTurn: isPlayer1Turn,
+                  score: 0,
+                  label: player1Hero?.name ?? 'Player 1',
                 ),
               ),
-              // Menu button (only on player bar)
-              if (!isOpponent)
-                IconButton(
-                  onPressed: () => _showGameMenu(context),
-                  icon: const Icon(Icons.menu, color: Color(0xFF5D4037)),
+              // Turn indicator (center)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _TurnIndicator(
+                  currentPlayerName: isPlayer1Turn
+                      ? (player1Hero?.name ?? 'Player 1')
+                      : (player2Hero?.name ?? (widget.vsAI ? 'AI' : 'Player 2')),
+                  isPlayer1Turn: isPlayer1Turn,
                 ),
+              ),
+              // Player 2 panel (right)
+              Expanded(
+                child: _PlayerPanel(
+                  hero: player2Hero,
+                  playerNumber: 2,
+                  isCurrentTurn: !isPlayer1Turn,
+                  score: 0,
+                  label: player2Hero?.name ?? (widget.vsAI ? 'AI Opponent' : 'Player 2'),
+                ),
+              ),
             ],
           ),
         );
@@ -161,44 +118,126 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildPerksBar() {
+  Widget _buildMiddleSection() {
     return Consumer<GameService>(
       builder: (context, gameService, child) {
-        final hero = gameService.selectedHero;
-        if (hero == null) return const SizedBox.shrink();
+        final player1Hero = gameService.selectedHero;
+        final player2Hero = widget.player2Hero;
 
-        final perksRemaining = gameService.playerColor == PlayerColor.white
-            ? gameService.gameState?.player1PerksRemaining ?? {}
-            : gameService.gameState?.player2PerksRemaining ?? {};
+        final player1PerksRemaining = gameService.gameState?.player1PerksRemaining ?? {};
+        final player2PerksRemaining = gameService.gameState?.player2PerksRemaining ?? {};
 
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        return Row(
+          children: [
+            // Player 1 perk slots (left side)
+            _PerkSlotsColumn(
+              hero: player1Hero,
+              playerNumber: 1,
+              perksRemaining: player1PerksRemaining,
+              onPerkTap: (perk) => _usePerk(context, gameService, perk),
+            ),
+            // Game board (center)
+            Expanded(
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _StyledGameBoard(game: _game),
+                ),
+              ),
+            ),
+            // Player 2 perk slots (right side)
+            _PerkSlotsColumn(
+              hero: player2Hero,
+              playerNumber: 2,
+              perksRemaining: player2PerksRemaining,
+              onPerkTap: null, // Player 2 perks not controllable by current player
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomSection() {
+    return Consumer<GameService>(
+      builder: (context, gameService, child) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: hero.perks.map((perk) {
-              final count = perksRemaining[perk] ?? 0;
-              final isAvailable = count > 0;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _PerkButton(
-                  perk: perk,
-                  count: count,
-                  isAvailable: isAvailable,
-                  onTap: isAvailable
-                      ? () => _usePerk(context, gameService, perk)
-                      : null,
+            children: [
+              // Skip Turn button
+              GestureDetector(
+                onTap: () => _skipTurn(gameService),
+                child: Container(
+                  width: 140,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/ui/red-btn-bg.png'),
+                      fit: BoxFit.fill,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Skip Turn',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            blurRadius: 2,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              );
-            }).toList(),
+              ),
+              const SizedBox(width: 16),
+              // Menu button
+              GestureDetector(
+                onTap: () => _showGameMenu(context),
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: const Icon(
+                    Icons.menu,
+                    color: Color(0xFF5D4037),
+                    size: 28,
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
+  void _skipTurn(GameService gameService) {
+    final gameState = gameService.gameState;
+    if (gameState == null) return;
+
+    // Switch turns without making a move
+    final newState = gameState.copyWith(
+      currentTurn: gameState.currentTurn == PlayerColor.white
+          ? PlayerColor.black
+          : PlayerColor.white,
+    );
+    gameService.updateGameState(newState);
+  }
+
   void _usePerk(BuildContext context, GameService gameService, Perk perk) {
-    // Show dialog to confirm perk usage
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -242,7 +281,6 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Offer Draw'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Implement draw offer
               },
             ),
             ListTile(
@@ -274,7 +312,7 @@ class _GameScreenState extends State<GameScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context); // Return to menu
+              Navigator.pop(context);
             },
             child: const Text('Resign'),
           ),
@@ -330,59 +368,104 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-class _PerkButton extends StatelessWidget {
-  final Perk perk;
-  final int count;
-  final bool isAvailable;
-  final VoidCallback? onTap;
+// Player panel widget for top corners
+class _PlayerPanel extends StatelessWidget {
+  final hero_model.Hero? hero;
+  final int playerNumber;
+  final bool isCurrentTurn;
+  final int score;
+  final String label;
 
-  const _PerkButton({
-    required this.perk,
-    required this.count,
-    required this.isAvailable,
-    this.onTap,
+  const _PlayerPanel({
+    required this.hero,
+    required this.playerNumber,
+    required this.isCurrentTurn,
+    required this.score,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          color: isAvailable ? const Color(0xFF4CAF50) : Colors.grey,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isAvailable
-              ? [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Stack(
+    final isPlayer1 = playerNumber == 1;
+    final titleBg = isPlayer1
+        ? 'assets/images/ui/player-1-title-bg.png'
+        : 'assets/images/ui/player-2-title-bg.png';
+    final scoreBg = isPlayer1
+        ? 'assets/images/ui/player-1-title-score-bg.png'
+        : 'assets/images/ui/player-2-title-score-bg.png';
+    final activePanelBg = isPlayer1
+        ? 'assets/images/ui/hero-panel-player-1-acitve.png'
+        : 'assets/images/ui/hero-panel-player-2-acitve.png';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: isPlayer1 ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      children: [
+        // Hero avatar with active indicator
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: Icon(
-                _perkIcon(perk),
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            Positioned(
-              right: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.amber,
-                  shape: BoxShape.circle,
+            if (!isPlayer1) const Spacer(),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Active panel background
+                if (isCurrentTurn)
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage(activePanelBg),
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                // Hero avatar
+                Container(
+                  width: isCurrentTurn ? 60 : 50,
+                  height: isCurrentTurn ? 60 : 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isPlayer1 ? const Color(0xFF4CAF50) : const Color(0xFFEF5350),
+                    border: Border.all(
+                      color: isCurrentTurn ? Colors.amber : Colors.white,
+                      width: isCurrentTurn ? 3 : 2,
+                    ),
+                  ),
+                  child: hero?.imagePath != null
+                      ? ClipOval(
+                          child: Image.asset(
+                            hero!.imagePath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildFallbackAvatar(),
+                          ),
+                        )
+                      : _buildFallbackAvatar(),
                 ),
+              ],
+            ),
+            if (isPlayer1) const Spacer(),
+          ],
+        ),
+        const SizedBox(height: 4),
+        // Name panel with score badge
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Title background
+            Container(
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(titleBg),
+                  fit: BoxFit.fill,
+                ),
+              ),
+              child: Center(
                 child: Text(
-                  '$count',
+                  label.length > 10 ? '${label.substring(0, 10)}...' : label,
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -391,8 +474,197 @@ class _PerkButton extends StatelessWidget {
                 ),
               ),
             ),
+            // Score badge
+            Positioned(
+              right: isPlayer1 ? -8 : null,
+              left: isPlayer1 ? null : -8,
+              top: -4,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(scoreBg),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    '$score',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _buildFallbackAvatar() {
+    return Center(
+      child: Text(
+        label.isNotEmpty ? label[0].toUpperCase() : 'P',
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+// Turn indicator widget for center-top
+class _TurnIndicator extends StatelessWidget {
+  final String currentPlayerName;
+  final bool isPlayer1Turn;
+
+  const _TurnIndicator({
+    required this.currentPlayerName,
+    required this.isPlayer1Turn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Banner with player name
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            "$currentPlayerName's Turn",
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF5D4037),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Turn flag arrow
+        Transform.rotate(
+          angle: isPlayer1Turn ? -0.5 : 0.5, // Point towards current player
+          child: Image.asset(
+            'assets/images/ui/turn-flag.png',
+            width: 30,
+            height: 20,
+            errorBuilder: (_, __, ___) => Icon(
+              isPlayer1Turn ? Icons.arrow_back : Icons.arrow_forward,
+              color: Colors.amber,
+              size: 20,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Perk slots column for sides of the board
+class _PerkSlotsColumn extends StatelessWidget {
+  final hero_model.Hero? hero;
+  final int playerNumber;
+  final Map<Perk, int> perksRemaining;
+  final void Function(Perk)? onPerkTap;
+
+  const _PerkSlotsColumn({
+    required this.hero,
+    required this.playerNumber,
+    required this.perksRemaining,
+    this.onPerkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPlayer1 = playerNumber == 1;
+    final itemBg = isPlayer1
+        ? 'assets/images/ui/player-1-item-bg.png'
+        : 'assets/images/ui/player-2-item-bg.png';
+
+    final perks = hero?.perks ?? [];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(6, (index) {
+          final perk = index < perks.length ? perks[index] : null;
+          final count = perk != null ? (perksRemaining[perk] ?? 0) : 0;
+          final isAvailable = count > 0 && onPerkTap != null;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GestureDetector(
+              onTap: isAvailable && perk != null ? () => onPerkTap!(perk) : null,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(itemBg),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                child: perk != null
+                    ? Stack(
+                        children: [
+                          Center(
+                            child: Icon(
+                              _perkIcon(perk),
+                              color: isAvailable
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.5),
+                              size: 20,
+                            ),
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              right: 2,
+                              bottom: 2,
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: const BoxDecoration(
+                                  color: Colors.amber,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$count',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : null,
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -406,5 +678,53 @@ class _PerkButton extends StatelessWidget {
       case Perk.freeze: return Icons.ac_unit;
       case Perk.cancelMove: return Icons.undo;
     }
+  }
+}
+
+// Styled game board with center divider overlay
+class _StyledGameBoard extends StatelessWidget {
+  final ChessGame game;
+
+  const _StyledGameBoard({required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // Game board
+            GameWidget(game: game),
+            // Center vertical divider (pink line)
+            Positioned.fill(
+              child: Center(
+                child: Image.asset(
+                  'assets/images/ui/border-vertical-line.png',
+                  height: double.infinity,
+                  fit: BoxFit.fitHeight,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 4,
+                    color: const Color(0xFFE91E63).withOpacity(0.6),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

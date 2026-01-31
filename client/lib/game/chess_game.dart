@@ -11,9 +11,9 @@ class ChessGame extends FlameGame with TapCallbacks {
   late double tileSize;
   late double boardOffset;
 
-  // Colors
-  static const lightSquare = Color(0xFFF0D9B5);
-  static const darkSquare = Color(0xFFB58863);
+  // Colors - white board with light gray grid
+  static const boardBackground = Color(0xFFFFFFFF);
+  static const gridLineColor = Color(0xFFE0E0E0);
   static const highlightColor = Color(0x8044FF44);
   static const selectedColor = Color(0x80FFFF44);
   static const lastMoveColor = Color(0x80FFA500);
@@ -47,28 +47,42 @@ class ChessGame extends FlameGame with TapCallbacks {
   }
 
   void _drawBoard(Canvas canvas) {
-    for (int row = 0; row < 8; row++) {
-      for (int col = 0; col < 8; col++) {
-        final isLight = (row + col) % 2 == 0;
-        final paint = Paint()..color = isLight ? lightSquare : darkSquare;
+    // Draw white background
+    final bgPaint = Paint()..color = boardBackground;
+    canvas.drawRect(
+      Rect.fromLTWH(boardOffset, 0, tileSize * 8, tileSize * 8),
+      bgPaint,
+    );
 
-        canvas.drawRect(
-          Rect.fromLTWH(
-            boardOffset + col * tileSize,
-            row * tileSize,
-            tileSize,
-            tileSize,
-          ),
-          paint,
-        );
-      }
+    // Draw grid lines
+    final gridPaint = Paint()
+      ..color = gridLineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    // Vertical lines
+    for (int col = 0; col <= 8; col++) {
+      canvas.drawLine(
+        Offset(boardOffset + col * tileSize, 0),
+        Offset(boardOffset + col * tileSize, tileSize * 8),
+        gridPaint,
+      );
     }
 
-    // Draw border
+    // Horizontal lines
+    for (int row = 0; row <= 8; row++) {
+      canvas.drawLine(
+        Offset(boardOffset, row * tileSize),
+        Offset(boardOffset + tileSize * 8, row * tileSize),
+        gridPaint,
+      );
+    }
+
+    // Draw outer border
     final borderPaint = Paint()
-      ..color = const Color(0xFF5D4037)
+      ..color = const Color(0xFF9E9E9E)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
+      ..strokeWidth = 2;
 
     canvas.drawRect(
       Rect.fromLTWH(boardOffset, 0, tileSize * 8, tileSize * 8),
