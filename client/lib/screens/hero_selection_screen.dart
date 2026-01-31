@@ -2,7 +2,7 @@ import 'package:flutter/material.dart' hide Hero;
 import 'package:provider/provider.dart';
 import '../models/hero.dart';
 import '../services/game_service.dart';
-import 'game_screen.dart';
+import 'combat_screen.dart';
 
 class HeroSelectionScreen extends StatefulWidget {
   final bool vsAI;
@@ -442,13 +442,18 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
       gameService.setAIMode(false);
     }
 
+    // For AI mode, use the same hero for player 2 if not selected
+    final player2 = _player2Hero ?? Hero.allHeroes.firstWhere(
+      (h) => h.type != _player1Hero!.type,
+    );
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => GameScreen(
+        builder: (context) => CombatScreen(
+          player1Hero: _player1Hero!,
+          player2Hero: player2,
           vsAI: widget.vsAI && _aiModeEnabled,
-          online: widget.online,
-          player2Hero: _player2Hero,
         ),
       ),
     );
