@@ -43,35 +43,59 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
           ),
           // Content
           SafeArea(
-            child: Column(
-              children: [
-                // Title Bar
-                _buildTitleBar(),
-                // Main content: Hero grid + Details panel
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Hero Grid (left side)
-                        Expanded(
-                          flex: 3,
-                          child: _buildHeroGrid(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
+                final screenWidth = constraints.maxWidth;
+                final screenHeight = constraints.maxHeight;
+
+                return Column(
+                  children: [
+                    // Title Bar
+                    _buildTitleBar(screenWidth),
+                    // Main content: Hero grid + Details panel
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.02,
+                          vertical: 8,
                         ),
-                        const SizedBox(width: 24),
-                        // Details Panel (right side)
-                        Expanded(
-                          flex: 2,
-                          child: _buildDetailsPanel(),
-                        ),
-                      ],
+                        child: isWide
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Hero Grid (left side)
+                                  Expanded(
+                                    flex: 1,
+                                    child: _buildHeroGrid(screenWidth, screenHeight),
+                                  ),
+                                  SizedBox(width: screenWidth * 0.02),
+                                  // Details Panel (right side)
+                                  Expanded(
+                                    flex: 1,
+                                    child: _buildDetailsPanel(screenWidth, screenHeight),
+                                  ),
+                                ],
+                              )
+                            : SingleChildScrollView(
+                                child: Column(
+                                  children: [
+                                    _buildHeroGrid(screenWidth, screenHeight),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      height: screenHeight * 0.5,
+                                      child: _buildDetailsPanel(screenWidth, screenHeight),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
                     ),
-                  ),
-                ),
-                // Bottom Bar with buttons
-                _buildBottomBar(),
-              ],
+                    // Bottom Bar with buttons
+                    _buildBottomBar(screenWidth),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -79,12 +103,18 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildTitleBar() {
+  Widget _buildTitleBar(double screenWidth) {
+    final titleWidth = (screenWidth * 0.35).clamp(200.0, 400.0);
+    final titleHeight = titleWidth * 0.17;
+    final badgeWidth = titleWidth * 0.23;
+    final badgeHeight = badgeWidth * 0.5;
+    final fontSize = (screenWidth * 0.018).clamp(10.0, 18.0);
+
     return Container(
-      margin: const EdgeInsets.only(top: 16),
+      margin: const EdgeInsets.only(top: 8),
       child: Container(
-        height: 60,
-        width: 350,
+        height: titleHeight,
+        width: titleWidth,
         decoration: const BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/images/ui/title-bg.png'),
@@ -96,8 +126,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
           children: [
             // Player badge
             Container(
-              width: 80,
-              height: 40,
+              width: badgeWidth,
+              height: badgeHeight,
               decoration: BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage(
@@ -111,8 +141,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               child: Center(
                 child: Text(
                   'Player $_currentPlayer',
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontSize: fontSize * 0.6,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -120,12 +150,12 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Choose your hero',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: fontSize,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF5D4037),
+                color: const Color(0xFF5D4037),
               ),
             ),
           ],
@@ -134,14 +164,18 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildHeroGrid() {
+  Widget _buildHeroGrid(double screenWidth, double screenHeight) {
+    final spacing = (screenWidth * 0.01).clamp(4.0, 12.0);
+    final crossAxisCount = screenWidth > 800 ? 3 : (screenWidth > 500 ? 3 : 2);
+
     return GridView.builder(
       shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: spacing,
+        mainAxisSpacing: spacing,
       ),
       itemCount: Hero.allHeroes.length,
       itemBuilder: (context, index) {
@@ -158,6 +192,7 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
           isSelected: isCurrentSelection,
           selectedByPlayer: isSelectedByPlayer1 ? 1 : (isSelectedByPlayer2 ? 2 : null),
           isDisabled: isDisabled,
+          screenWidth: screenWidth,
           onTap: isDisabled
               ? null
               : () {
@@ -174,7 +209,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildDetailsPanel() {
+  Widget _buildDetailsPanel(double screenWidth, double screenHeight) {
+    final padding = (screenWidth * 0.01).clamp(8.0, 16.0);
+    final heroNameSize = (screenWidth * 0.02).clamp(14.0, 24.0);
+    final perkFontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
+
     return Column(
       children: [
         // Hero details container
@@ -187,12 +226,12 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               ),
             ),
             child: _selectedHero == null
-                ? const Center(
+                ? Center(
                     child: Text(
                       'Select a hero',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF8D6E63),
+                        fontSize: perkFontSize,
+                        color: const Color(0xFF8D6E63),
                       ),
                     ),
                   )
@@ -206,23 +245,23 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                           children: [
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
+                                padding: EdgeInsets.all(padding),
                                 child: Image.asset(
                                   _selectedHero!.imagePath,
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.person, size: 100),
+                                      const Icon(Icons.person, size: 60),
                                 ),
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
+                              padding: EdgeInsets.only(bottom: padding),
                               child: Text(
                                 _selectedHero!.name,
-                                style: const TextStyle(
-                                  fontSize: 24,
+                                style: TextStyle(
+                                  fontSize: heroNameSize,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF5D4037),
+                                  color: const Color(0xFF5D4037),
                                 ),
                               ),
                             ),
@@ -233,33 +272,34 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                       Expanded(
                         flex: 2,
                         child: Padding(
-                          padding: const EdgeInsets.all(12),
+                          padding: EdgeInsets.all(padding * 0.75),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Perks',
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: perkFontSize,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF5D4037),
+                                  color: const Color(0xFF5D4037),
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              SizedBox(height: padding * 0.5),
                               // All perks list
                               ...Perk.values.map((perk) {
                                 final hasPerk = _selectedHero!.perks.contains(perk);
                                 return _PerkRow(
                                   perkName: _getPerkDisplayName(perk),
                                   isActive: hasPerk,
+                                  fontSize: perkFontSize * 0.85,
                                 );
                               }),
                               const Spacer(),
                               // AI Mode checkbox (only in vsAI mode)
                               if (widget.vsAI) ...[
-                                _buildAIModeCheckbox(),
-                                const SizedBox(height: 8),
-                                if (_aiModeEnabled) _buildDifficultySelector(),
+                                _buildAIModeCheckbox(screenWidth),
+                                SizedBox(height: padding * 0.5),
+                                if (_aiModeEnabled) _buildDifficultySelector(screenWidth),
                               ],
                             ],
                           ),
@@ -273,7 +313,10 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildAIModeCheckbox() {
+  Widget _buildAIModeCheckbox(double screenWidth) {
+    final checkboxSize = (screenWidth * 0.025).clamp(20.0, 32.0);
+    final fontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -283,8 +326,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: checkboxSize,
+            height: checkboxSize,
             decoration: BoxDecoration(
               image: DecorationImage(
                 image: AssetImage(
@@ -297,11 +340,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'AI Mode',
             style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF5D4037),
+              fontSize: fontSize,
+              color: const Color(0xFF5D4037),
             ),
           ),
         ],
@@ -309,9 +352,12 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildDifficultySelector() {
+  Widget _buildDifficultySelector(double screenWidth) {
+    final height = (screenWidth * 0.03).clamp(24.0, 40.0);
+    final fontSize = (screenWidth * 0.01).clamp(8.0, 12.0);
+
     return Container(
-      height: 36,
+      height: height,
       decoration: const BoxDecoration(
         image: DecorationImage(
           image: AssetImage('assets/images/ui/ai-mode-group-buttons-bg.png'),
@@ -324,18 +370,21 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
             label: 'Easy',
             isSelected: _difficulty == 'easy',
             backgroundAsset: 'assets/images/ui/eazy-level-bg.png',
+            fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'easy'),
           ),
           _DifficultyButton(
             label: 'Medium',
             isSelected: _difficulty == 'medium',
             backgroundAsset: 'assets/images/ui/medium-level-bg.png',
+            fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'medium'),
           ),
           _DifficultyButton(
             label: 'Hard',
             isSelected: _difficulty == 'hard',
             backgroundAsset: 'assets/images/ui/hard-level-bg.png',
+            fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'hard'),
           ),
         ],
@@ -343,9 +392,14 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar(double screenWidth) {
+    final buttonWidth = (screenWidth * 0.12).clamp(100.0, 160.0);
+    final buttonHeight = (screenWidth * 0.035).clamp(32.0, 50.0);
+    final fontSize = (screenWidth * 0.012).clamp(10.0, 16.0);
+    final padding = (screenWidth * 0.01).clamp(8.0, 16.0);
+
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(padding),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -363,35 +417,35 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               }
             },
             child: Container(
-              width: 140,
-              height: 45,
+              width: buttonWidth,
+              height: buttonHeight,
               decoration: const BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage('assets/images/ui/grey-btn-bg.png'),
                   fit: BoxFit.fill,
                 ),
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
                   'Back to menu',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: fontSize * 0.9,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
+                    color: const Color(0xFF5D4037),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: padding),
           // Continue button
           GestureDetector(
             onTap: _selectedHero != null ? _handleContinue : null,
             child: Opacity(
               opacity: _selectedHero != null ? 1.0 : 0.5,
               child: Container(
-                width: 160,
-                height: 45,
+                width: buttonWidth * 1.1,
+                height: buttonHeight,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage('assets/images/ui/yellow-btn-bg.png'),
@@ -401,10 +455,10 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                 child: Center(
                   child: Text(
                     widget.online ? 'Find Match' : 'Continue',
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: TextStyle(
+                      fontSize: fontSize,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF5D4037),
+                      color: const Color(0xFF5D4037),
                     ),
                   ),
                 ),
@@ -493,6 +547,7 @@ class _HeroCard extends StatelessWidget {
   final bool isSelected;
   final int? selectedByPlayer;
   final bool isDisabled;
+  final double screenWidth;
   final VoidCallback? onTap;
 
   const _HeroCard({
@@ -500,6 +555,7 @@ class _HeroCard extends StatelessWidget {
     required this.isSelected,
     this.selectedByPlayer,
     this.isDisabled = false,
+    required this.screenWidth,
     this.onTap,
   });
 
@@ -517,6 +573,9 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final padding = (screenWidth * 0.01).clamp(6.0, 12.0);
+    final fontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
+
     return GestureDetector(
       onTap: onTap,
       child: Opacity(
@@ -533,17 +592,17 @@ class _HeroCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(padding),
                   child: Image.asset(
                     hero.imagePath,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) => Center(
                       child: Text(
                         hero.name[0],
-                        style: const TextStyle(
-                          fontSize: 40,
+                        style: TextStyle(
+                          fontSize: fontSize * 2.5,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF5D4037),
+                          color: const Color(0xFF5D4037),
                         ),
                       ),
                     ),
@@ -551,13 +610,13 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.only(bottom: padding),
                 child: Text(
                   hero.name,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
+                    color: const Color(0xFF5D4037),
                   ),
                 ),
               ),
@@ -572,17 +631,19 @@ class _HeroCard extends StatelessWidget {
 class _PerkRow extends StatelessWidget {
   final String perkName;
   final bool isActive;
+  final double fontSize;
 
   const _PerkRow({
     required this.perkName,
     required this.isActive,
+    this.fontSize = 12,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: EdgeInsets.symmetric(horizontal: fontSize * 0.8, vertical: fontSize * 0.4),
       decoration: const BoxDecoration(
         image: DecorationImage(
           image: AssetImage('assets/images/ui/perk-bg.png'),
@@ -596,7 +657,7 @@ class _PerkRow extends StatelessWidget {
             child: Text(
               perkName,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: fontSize,
                 color: isActive ? const Color(0xFF5D4037) : const Color(0xFFB0A090),
               ),
             ),
@@ -604,8 +665,8 @@ class _PerkRow extends StatelessWidget {
           if (isActive)
             Image.asset(
               'assets/images/ui/active-perk-icon.png',
-              width: 12,
-              height: 12,
+              width: fontSize,
+              height: fontSize,
             ),
         ],
       ),
@@ -617,12 +678,14 @@ class _DifficultyButton extends StatelessWidget {
   final String label;
   final bool isSelected;
   final String backgroundAsset;
+  final double fontSize;
   final VoidCallback onTap;
 
   const _DifficultyButton({
     required this.label,
     required this.isSelected,
     required this.backgroundAsset,
+    this.fontSize = 11,
     required this.onTap,
   });
 
@@ -644,7 +707,7 @@ class _DifficultyButton extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: fontSize,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: const Color(0xFF5D4037),
               ),
