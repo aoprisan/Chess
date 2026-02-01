@@ -64,15 +64,14 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                             ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Hero Grid (left side)
-                                  Expanded(
-                                    flex: 1,
+                                  // Hero Grid (left side) - more compact
+                                  SizedBox(
+                                    width: screenWidth * 0.42,
                                     child: _buildHeroGrid(screenWidth, screenHeight),
                                   ),
                                   SizedBox(width: screenWidth * 0.02),
-                                  // Details Panel (right side)
+                                  // Details Panel (right side) - takes remaining space
                                   Expanded(
-                                    flex: 1,
                                     child: _buildDetailsPanel(screenWidth, screenHeight),
                                   ),
                                 ],
@@ -104,11 +103,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   Widget _buildTitleBar(double screenWidth) {
-    final titleWidth = (screenWidth * 0.35).clamp(200.0, 400.0);
-    final titleHeight = titleWidth * 0.17;
-    final badgeWidth = titleWidth * 0.23;
+    final titleWidth = (screenWidth * 0.30).clamp(180.0, 350.0);
+    final titleHeight = titleWidth * 0.16;
+    final badgeWidth = titleWidth * 0.22;
     final badgeHeight = badgeWidth * 0.5;
-    final fontSize = (screenWidth * 0.018).clamp(10.0, 18.0);
+    final fontSize = (screenWidth * 0.016).clamp(10.0, 16.0);
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -173,9 +172,9 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: spacing,
-        mainAxisSpacing: spacing,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: spacing * 0.8,
+        mainAxisSpacing: spacing * 0.8,
       ),
       itemCount: Hero.allHeroes.length,
       itemBuilder: (context, index) {
@@ -210,9 +209,9 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   Widget _buildDetailsPanel(double screenWidth, double screenHeight) {
-    final padding = (screenWidth * 0.01).clamp(8.0, 16.0);
-    final heroNameSize = (screenWidth * 0.02).clamp(14.0, 24.0);
-    final perkFontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
+    final padding = (screenWidth * 0.015).clamp(10.0, 20.0);
+    final heroNameSize = (screenWidth * 0.022).clamp(16.0, 28.0);
+    final perkFontSize = (screenWidth * 0.013).clamp(11.0, 15.0);
 
     return Column(
       children: [
@@ -353,8 +352,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   Widget _buildDifficultySelector(double screenWidth) {
-    final height = (screenWidth * 0.03).clamp(24.0, 40.0);
-    final fontSize = (screenWidth * 0.01).clamp(8.0, 12.0);
+    final height = (screenWidth * 0.038).clamp(30.0, 48.0);
+    final fontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
 
     return Container(
       height: height,
@@ -393,10 +392,10 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   Widget _buildBottomBar(double screenWidth) {
-    final buttonWidth = (screenWidth * 0.12).clamp(100.0, 160.0);
-    final buttonHeight = (screenWidth * 0.035).clamp(32.0, 50.0);
-    final fontSize = (screenWidth * 0.012).clamp(10.0, 16.0);
-    final padding = (screenWidth * 0.01).clamp(8.0, 16.0);
+    final buttonWidth = (screenWidth * 0.14).clamp(120.0, 180.0);
+    final buttonHeight = (screenWidth * 0.045).clamp(40.0, 56.0);
+    final fontSize = (screenWidth * 0.014).clamp(11.0, 16.0);
+    final padding = (screenWidth * 0.015).clamp(12.0, 20.0);
 
     return Padding(
       padding: EdgeInsets.all(padding),
