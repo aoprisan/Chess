@@ -408,8 +408,8 @@ class _PlayerPanel extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    final avatarWidth = (screenWidth * 0.08).clamp(50.0, 100.0);
-    final avatarHeight = (screenHeight * 0.12).clamp(60.0, 120.0);
+    final avatarWidth = (screenWidth * 0.12).clamp(70.0, 140.0);
+    final avatarHeight = (screenHeight * 0.16).clamp(80.0, 160.0);
 
     return SizedBox(
       width: avatarWidth,
@@ -437,9 +437,9 @@ class _PlayerPanel extends StatelessWidget {
   }
 
   Widget _buildTitleBar(String bgAsset) {
-    final barWidth = (screenWidth * 0.1).clamp(70.0, 120.0);
-    final barHeight = (screenWidth * 0.04).clamp(28.0, 45.0);
-    final fontSize = (screenWidth * 0.014).clamp(11.0, 18.0);
+    final barWidth = (screenWidth * 0.14).clamp(90.0, 160.0);
+    final barHeight = (screenWidth * 0.05).clamp(34.0, 52.0);
+    final fontSize = (screenWidth * 0.018).clamp(13.0, 20.0);
 
     return Container(
       width: barWidth,
@@ -470,9 +470,9 @@ class _PlayerPanel extends StatelessWidget {
   }
 
   Widget _buildScoreBadge(String bgAsset) {
-    final badgeWidth = (screenWidth * 0.05).clamp(35.0, 60.0);
-    final badgeHeight = (screenWidth * 0.04).clamp(28.0, 45.0);
-    final fontSize = (screenWidth * 0.014).clamp(11.0, 18.0);
+    final badgeWidth = (screenWidth * 0.065).clamp(45.0, 75.0);
+    final badgeHeight = (screenWidth * 0.05).clamp(34.0, 52.0);
+    final fontSize = (screenWidth * 0.018).clamp(13.0, 20.0);
 
     return Container(
       width: badgeWidth,
@@ -511,11 +511,11 @@ class _FlagIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final indicatorWidth = (screenWidth * 0.06).clamp(40.0, 70.0);
-    final indicatorHeight = (screenHeight * 0.12).clamp(60.0, 120.0);
-    final poleWidth = (screenWidth * 0.004).clamp(3.0, 5.0);
-    final flagWidth = (screenWidth * 0.03).clamp(20.0, 40.0);
-    final flagHeight = (screenWidth * 0.04).clamp(28.0, 50.0);
+    final indicatorWidth = (screenWidth * 0.08).clamp(50.0, 90.0);
+    final indicatorHeight = (screenHeight * 0.16).clamp(80.0, 160.0);
+    final poleWidth = (screenWidth * 0.005).clamp(3.0, 6.0);
+    final flagWidth = (screenWidth * 0.04).clamp(28.0, 50.0);
+    final flagHeight = (screenWidth * 0.05).clamp(34.0, 60.0);
 
     return SizedBox(
       width: indicatorWidth,
@@ -576,8 +576,8 @@ class _GameArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding = (screenWidth * 0.01).clamp(4.0, 12.0);
-    final spacing = (screenWidth * 0.005).clamp(2.0, 6.0);
+    final horizontalPadding = (screenWidth * 0.015).clamp(8.0, 16.0);
+    final spacing = (screenWidth * 0.01).clamp(4.0, 10.0);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -630,8 +630,8 @@ class _PlacementSlots extends StatelessWidget {
     final asset = isPlayer1
         ? 'assets/images/ui/combat/player-1-place-btn.png'
         : 'assets/images/ui/combat/player-2-place-btn.png';
-    final slotSize = (screenWidth * 0.04).clamp(30.0, 50.0);
-    final verticalSpacing = (screenHeight * 0.008).clamp(2.0, 6.0);
+    final slotSize = (screenWidth * 0.055).clamp(40.0, 65.0);
+    final verticalSpacing = (screenHeight * 0.012).clamp(4.0, 10.0);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -708,7 +708,7 @@ class _GameBoard extends StatelessWidget {
               builder: (context, constraints) {
                 final cellWidth = constraints.maxWidth / 10;
                 final cellHeight = constraints.maxHeight / 5;
-                final pieceSize = (screenWidth * 0.035).clamp(28.0, 44.0);
+                final pieceSize = (screenWidth * 0.045).clamp(34.0, 55.0);
 
                 return Stack(
                   children: _buildPieces(cellWidth, cellHeight, pieceSize),
