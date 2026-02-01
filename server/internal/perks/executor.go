@@ -174,7 +174,7 @@ func (e *PerkExecutor) Execute(perkID PerkID, player models.PlayerSide, targetLa
 // ============================================================================
 
 func (e *PerkExecutor) executePlaceAnother(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkPlaceAnother, PerkName: "PlaceAnother"}
+	result := &PerkResult{PerkID: PerkPlaceAnother, PerkName: "PlaceAnother", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -212,7 +212,7 @@ func (e *PerkExecutor) executePlaceAnother(player models.PlayerSide, targets []i
 }
 
 func (e *PerkExecutor) executeRemoveEnemy(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkRemoveEnemy, PerkName: "RemoveEnemy"}
+	result := &PerkResult{PerkID: PerkRemoveEnemy, PerkName: "RemoveEnemy", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -262,7 +262,7 @@ func (e *PerkExecutor) executeRemoveEnemy(player models.PlayerSide, targets []in
 // ============================================================================
 
 func (e *PerkExecutor) executeFreeze(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkFreeze, PerkName: "Freeze"}
+	result := &PerkResult{PerkID: PerkFreeze, PerkName: "Freeze", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -296,7 +296,7 @@ func (e *PerkExecutor) executeFreeze(player models.PlayerSide, targets []int) *P
 }
 
 func (e *PerkExecutor) executeRegroup(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkRegroup, PerkName: "Regroup"}
+	result := &PerkResult{PerkID: PerkRegroup, PerkName: "Regroup", Details: make(map[string]interface{})}
 
 	if len(targets) != 2 {
 		result.Error = "Must select exactly 2 lanes"
@@ -352,7 +352,7 @@ func (e *PerkExecutor) executeRegroup(player models.PlayerSide, targets []int) *
 }
 
 func (e *PerkExecutor) executeScatter(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkScatter, PerkName: "Scatter"}
+	result := &PerkResult{PerkID: PerkScatter, PerkName: "Scatter", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -440,7 +440,7 @@ func (e *PerkExecutor) executeShockwave(player models.PlayerSide, targets []int)
 }
 
 func (e *PerkExecutor) executeHydra(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkHydra, PerkName: "Hydra"}
+	result := &PerkResult{PerkID: PerkHydra, PerkName: "Hydra", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -483,7 +483,7 @@ func (e *PerkExecutor) executeHydra(player models.PlayerSide, targets []int) *Pe
 }
 
 func (e *PerkExecutor) executeBackfire(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkBackfire, PerkName: "Backfire"}
+	result := &PerkResult{PerkID: PerkBackfire, PerkName: "Backfire", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -525,7 +525,7 @@ func (e *PerkExecutor) executeBackfire(player models.PlayerSide, targets []int) 
 }
 
 func (e *PerkExecutor) executeAbsorb(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkAbsorb, PerkName: "Absorb"}
+	result := &PerkResult{PerkID: PerkAbsorb, PerkName: "Absorb", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -567,7 +567,7 @@ func (e *PerkExecutor) executeAbsorb(player models.PlayerSide, targets []int) *P
 }
 
 func (e *PerkExecutor) executeRetaliate(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkRetaliate, PerkName: "Retaliate"}
+	result := &PerkResult{PerkID: PerkRetaliate, PerkName: "Retaliate", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -610,7 +610,7 @@ func (e *PerkExecutor) executeRetaliate(player models.PlayerSide, targets []int)
 
 // setupTrigger is a helper for placement trigger setup
 func (e *PerkExecutor) setupTrigger(player models.PlayerSide, targets []int, triggerType models.TriggerType, duration int, perkID PerkID, perkName string) *PerkResult {
-	result := &PerkResult{PerkID: perkID, PerkName: perkName}
+	result := &PerkResult{PerkID: perkID, PerkName: perkName, Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -652,7 +652,7 @@ func (e *PerkExecutor) setupTrigger(player models.PlayerSide, targets []int, tri
 // ============================================================================
 
 func (e *PerkExecutor) executeCloak(player models.PlayerSide) *PerkResult {
-	result := &PerkResult{PerkID: PerkCloak, PerkName: "Cloak"}
+	result := &PerkResult{PerkID: PerkCloak, PerkName: "Cloak", Details: make(map[string]interface{})}
 
 	if e.game.IsCloaked(player) {
 		result.Error = "Already cloaked"
@@ -667,7 +667,7 @@ func (e *PerkExecutor) executeCloak(player models.PlayerSide) *PerkResult {
 }
 
 func (e *PerkExecutor) executeBlind(player models.PlayerSide) *PerkResult {
-	result := &PerkResult{PerkID: PerkBlind, PerkName: "Blind"}
+	result := &PerkResult{PerkID: PerkBlind, PerkName: "Blind", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if e.game.IsBlinded(opponent) {
@@ -683,7 +683,7 @@ func (e *PerkExecutor) executeBlind(player models.PlayerSide) *PerkResult {
 }
 
 func (e *PerkExecutor) executeSanctuary(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkSanctuary, PerkName: "Sanctuary"}
+	result := &PerkResult{PerkID: PerkSanctuary, PerkName: "Sanctuary", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -714,7 +714,7 @@ func (e *PerkExecutor) executeSanctuary(player models.PlayerSide, targets []int)
 }
 
 func (e *PerkExecutor) executeCapture(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkCapture, PerkName: "Capture"}
+	result := &PerkResult{PerkID: PerkCapture, PerkName: "Capture", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -749,7 +749,7 @@ func (e *PerkExecutor) executeCapture(player models.PlayerSide, targets []int) *
 // ============================================================================
 
 func (e *PerkExecutor) executeScramble(player models.PlayerSide) *PerkResult {
-	result := &PerkResult{PerkID: PerkScramble, PerkName: "Scramble"}
+	result := &PerkResult{PerkID: PerkScramble, PerkName: "Scramble", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	// Count and remove all enemy pieces (atomic)
@@ -805,7 +805,7 @@ func (e *PerkExecutor) executeScramble(player models.PlayerSide) *PerkResult {
 }
 
 func (e *PerkExecutor) executeSplit(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkSplit, PerkName: "Split"}
+	result := &PerkResult{PerkID: PerkSplit, PerkName: "Split", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -860,7 +860,7 @@ func (e *PerkExecutor) executeSplit(player models.PlayerSide, targets []int) *Pe
 }
 
 func (e *PerkExecutor) executeKamikaze(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkKamikaze, PerkName: "Kamikaze"}
+	result := &PerkResult{PerkID: PerkKamikaze, PerkName: "Kamikaze", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if len(targets) != 1 {
@@ -907,7 +907,7 @@ func (e *PerkExecutor) executeKamikaze(player models.PlayerSide, targets []int) 
 }
 
 func (e *PerkExecutor) executeDisrupt(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkDisrupt, PerkName: "Disrupt"}
+	result := &PerkResult{PerkID: PerkDisrupt, PerkName: "Disrupt", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if len(targets) != 2 {
@@ -962,7 +962,7 @@ func (e *PerkExecutor) executeDisrupt(player models.PlayerSide, targets []int) *
 }
 
 func (e *PerkExecutor) executeDisperse(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkDisperse, PerkName: "Disperse"}
+	result := &PerkResult{PerkID: PerkDisperse, PerkName: "Disperse", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if len(targets) != 1 {
@@ -1025,7 +1025,7 @@ func (e *PerkExecutor) executeDisperse(player models.PlayerSide, targets []int) 
 }
 
 func (e *PerkExecutor) executeGambit(player models.PlayerSide) *PerkResult {
-	result := &PerkResult{PerkID: PerkGambit, PerkName: "Gambit"}
+	result := &PerkResult{PerkID: PerkGambit, PerkName: "Gambit", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	// Give enemy pieces (random lanes, can repeat)
@@ -1094,7 +1094,7 @@ func (e *PerkExecutor) executeGambit(player models.PlayerSide) *PerkResult {
 }
 
 func (e *PerkExecutor) executeSteal(player models.PlayerSide) *PerkResult {
-	result := &PerkResult{PerkID: PerkSteal, PerkName: "Steal"}
+	result := &PerkResult{PerkID: PerkSteal, PerkName: "Steal", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	// Find enemy pieces
@@ -1137,7 +1137,7 @@ func (e *PerkExecutor) executeSteal(player models.PlayerSide) *PerkResult {
 }
 
 func (e *PerkExecutor) executeRush(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkRush, PerkName: "Rush"}
+	result := &PerkResult{PerkID: PerkRush, PerkName: "Rush", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if len(targets) != 1 {
@@ -1234,7 +1234,7 @@ func (e *PerkExecutor) executeRush(player models.PlayerSide, targets []int) *Per
 }
 
 func (e *PerkExecutor) executeNullify(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkNullify, PerkName: "Nullify"}
+	result := &PerkResult{PerkID: PerkNullify, PerkName: "Nullify", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -1287,7 +1287,7 @@ func (e *PerkExecutor) executeNullify(player models.PlayerSide, targets []int) *
 // ============================================================================
 
 func (e *PerkExecutor) executeSignal(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkSignal, PerkName: "Signal"}
+	result := &PerkResult{PerkID: PerkSignal, PerkName: "Signal", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -1331,7 +1331,7 @@ func (e *PerkExecutor) executeSignal(player models.PlayerSide, targets []int) *P
 }
 
 func (e *PerkExecutor) executeEnlist(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkEnlist, PerkName: "Enlist"}
+	result := &PerkResult{PerkID: PerkEnlist, PerkName: "Enlist", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -1375,7 +1375,7 @@ func (e *PerkExecutor) executeEnlist(player models.PlayerSide, targets []int) *P
 }
 
 func (e *PerkExecutor) executeAmbush(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkAmbush, PerkName: "Ambush"}
+	result := &PerkResult{PerkID: PerkAmbush, PerkName: "Ambush", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -1419,7 +1419,7 @@ func (e *PerkExecutor) executeAmbush(player models.PlayerSide, targets []int) *P
 }
 
 func (e *PerkExecutor) executeReinforce(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkReinforce, PerkName: "Reinforce"}
+	result := &PerkResult{PerkID: PerkReinforce, PerkName: "Reinforce", Details: make(map[string]interface{})}
 
 	if len(targets) != 1 {
 		result.Error = "Must select exactly 1 lane"
@@ -1463,7 +1463,7 @@ func (e *PerkExecutor) executeReinforce(player models.PlayerSide, targets []int)
 }
 
 func (e *PerkExecutor) executeRaid(player models.PlayerSide, targets []int) *PerkResult {
-	result := &PerkResult{PerkID: PerkRaid, PerkName: "Raid"}
+	result := &PerkResult{PerkID: PerkRaid, PerkName: "Raid", Details: make(map[string]interface{})}
 	opponent := player.Opponent()
 
 	if len(targets) != 1 {
