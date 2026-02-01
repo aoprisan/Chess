@@ -9,13 +9,26 @@ import (
 
 // TurnResult contains the results of executing a turn phase
 type TurnResult struct {
-	Success        bool               `json:"success"`
+	Success        bool                 `json:"success"`
 	Phase          models.LaneTurnPhase `json:"phase"`
-	LaneIndex      int                `json:"laneIndex,omitempty"`      // For auto-placement
-	LaneWinner     models.PlayerSide  `json:"laneWinner,omitempty"`     // If a lane was won
-	GameWinner     models.PlayerSide  `json:"gameWinner,omitempty"`     // If game is over
-	PerkExecuted   int                `json:"perkExecuted,omitempty"`   // Perk ID that was executed
-	Error          string             `json:"error,omitempty"`
+	LaneIndex      int                  `json:"laneIndex,omitempty"`      // For auto-placement
+	LaneWinner     models.PlayerSide    `json:"laneWinner,omitempty"`     // If a lane was won
+	GameWinner     models.PlayerSide    `json:"gameWinner,omitempty"`     // If game is over
+	PerkExecuted   int                  `json:"perkExecuted,omitempty"`   // Perk ID that was executed
+	Error          string               `json:"error,omitempty"`
+
+	// Raid resolution results
+	RaidResults []perks.RaidResult `json:"raidResults,omitempty"`
+
+	// Deferred resolution results
+	DeferredResults []perks.DeferredResult `json:"deferredResults,omitempty"`
+
+	// Trigger results (from auto-placement or perk execution)
+	TriggerResults []perks.TriggerResult `json:"triggerResults,omitempty"`
+
+	// Multiple placements/removals from effects
+	Placements []int `json:"placements,omitempty"`
+	Removals   []int `json:"removals,omitempty"`
 }
 
 // LaneEngine handles V2 lane game logic
@@ -28,6 +41,99 @@ func NewLaneEngine(game *models.LaneGame) *LaneEngine {
 	return &LaneEngine{
 		game: game,
 	}
+}
+
+// ExecuteRaidResolution processes pending raids at the start of turn
+func (e *LaneEngine) ExecuteRaidResolution() *TurnResult {
+	result := &TurnResult{
+		Phase:   models.PhaseRaidResolution,
+		Success: true,
+	}
+
+	if e.game.Status != models.LaneStatusPlaying {
+		result.Error = "Game is not in progress"
+		result.Success = false
+		return result
+	}
+
+	if e.game.CurrentPhase != models.PhaseRaidResolution {
+		result.Error = "Not in raid resolution phase"
+		result.Success = false
+		return result
+	}
+
+	currentPlayer := e.game.CurrentPlayer
+	executor := perks.NewPerkExecutor(e.game)
+
+	// Process all pending raids for current player
+	raidResults := executor.ProcessPendingRaids(currentPlayer)
+	result.RaidResults = raidResults
+
+	// Collect all placements from raids
+	for _, rr := range raidResults {
+		if rr.Success {
+			result.Placements = append(result.Placements, rr.Placements...)
+			if rr.LaneWinner != 0 {
+				result.LaneWinner = rr.LaneWinner
+			}
+			if rr.GameWinner != 0 {
+				result.GameWinner = rr.GameWinner
+				return result
+			}
+		}
+	}
+
+	// Advance to deferred resolution phase
+	e.game.AdvancePhase()
+
+	return result
+}
+
+// ExecuteDeferredResolution processes deferred effects at start of turn
+func (e *LaneEngine) ExecuteDeferredResolution() *TurnResult {
+	result := &TurnResult{
+		Phase:   models.PhaseDeferredResolution,
+		Success: true,
+	}
+
+	if e.game.Status != models.LaneStatusPlaying {
+		result.Error = "Game is not in progress"
+		result.Success = false
+		return result
+	}
+
+	if e.game.CurrentPhase != models.PhaseDeferredResolution {
+		result.Error = "Not in deferred resolution phase"
+		result.Success = false
+		return result
+	}
+
+	currentPlayer := e.game.CurrentPlayer
+	executor := perks.NewPerkExecutor(e.game)
+
+	// Process all deferred effects for current player
+	deferredResults := executor.ProcessDeferredEffects(currentPlayer)
+	result.DeferredResults = deferredResults
+
+	// Collect results
+	for _, dr := range deferredResults {
+		if dr.Success {
+			result.Placements = append(result.Placements, dr.Placements...)
+			result.Removals = append(result.Removals, dr.Removals...)
+			if dr.LaneWinner != 0 {
+				result.LaneWinner = dr.LaneWinner
+			}
+			if dr.GameWinner != 0 {
+				result.GameWinner = dr.GameWinner
+				return result
+			}
+		}
+	}
+
+	// Advance to auto-placement phase
+	e.game.AdvancePhase()
+
+	return result
 }
 
 // ExecuteAutoPlacement performs the auto-placement phase
@@ -60,6 +166,7 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 
 	result.Success = true
 	result.LaneIndex = laneIndex
+	result.Placements = []int{laneIndex}
 
 	// Check if lane was won
 	laneWinner := e.game.CheckLaneWin(laneIndex)
@@ -70,6 +177,19 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 		gameWinner := e.game.CheckGameWin()
 		if gameWinner != 0 {
 			result.GameWinner = gameWinner
+			return result
+		}
+	}
+
+	// Fire placement triggers (opponent's triggers react to our placement)
+	executor := perks.NewPerkExecutor(e.game)
+	triggerResults := executor.FirePlacementTriggers(laneIndex, currentPlayer, 0)
+	result.TriggerResults = triggerResults
+
+	// Check if any trigger resulted in game win
+	for _, tr := range triggerResults {
+		if tr.GameWinner != 0 {
+			result.GameWinner = tr.GameWinner
 			return result
 		}
 	}
@@ -319,11 +439,25 @@ func (ai *LaneAI) evaluateRemoval(game *models.LaneGame, opponent models.PlayerS
 
 // ExecuteAITurn runs a full turn for the AI
 func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
-	results := make([]*TurnResult, 0, 2)
+	results := make([]*TurnResult, 0, 4)
 
-	// Phase 1: Deferred resolution (skip for now)
+	// Phase 1: Raid resolution
+	raidResult := e.ExecuteRaidResolution()
+	results = append(results, raidResult)
 
-	// Phase 2: Auto-placement
+	if raidResult.GameWinner != 0 {
+		return results // Game over
+	}
+
+	// Phase 2: Deferred resolution
+	deferredResult := e.ExecuteDeferredResolution()
+	results = append(results, deferredResult)
+
+	if deferredResult.GameWinner != 0 {
+		return results // Game over
+	}
+
+	// Phase 3: Auto-placement
 	autoResult := e.ExecuteAutoPlacement()
 	results = append(results, autoResult)
 
@@ -331,10 +465,54 @@ func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
 		return results // Game over
 	}
 
-	// Phase 3: Perk selection
+	// Phase 4: Perk selection
 	perkID, targetLane := ai.ChoosePerk(e.game)
 	perkResult := e.ExecutePerkSelection(perkID, targetLane)
 	results = append(results, perkResult)
+
+	return results
+}
+
+// ExecuteFullTurn runs a complete turn with all phases for a player
+// This is useful for testing and human players
+func (e *LaneEngine) ExecuteFullTurn(perkID int, targetLane int, targetLanes ...int) []*TurnResult {
+	results := make([]*TurnResult, 0, 4)
+
+	// Phase 1: Raid resolution
+	if e.game.CurrentPhase == models.PhaseRaidResolution {
+		raidResult := e.ExecuteRaidResolution()
+		results = append(results, raidResult)
+
+		if raidResult.GameWinner != 0 {
+			return results
+		}
+	}
+
+	// Phase 2: Deferred resolution
+	if e.game.CurrentPhase == models.PhaseDeferredResolution {
+		deferredResult := e.ExecuteDeferredResolution()
+		results = append(results, deferredResult)
+
+		if deferredResult.GameWinner != 0 {
+			return results
+		}
+	}
+
+	// Phase 3: Auto-placement
+	if e.game.CurrentPhase == models.PhaseAutoPlacement {
+		autoResult := e.ExecuteAutoPlacement()
+		results = append(results, autoResult)
+
+		if autoResult.GameWinner != 0 {
+			return results
+		}
+	}
+
+	// Phase 4: Perk selection
+	if e.game.CurrentPhase == models.PhasePerkSelection {
+		perkResult := e.ExecutePerkSelection(perkID, targetLane, targetLanes...)
+		results = append(results, perkResult)
+	}
 
 	return results
 }
