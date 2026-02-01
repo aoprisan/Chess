@@ -44,8 +44,8 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 │    Handlers     │       │   Game Engine   │       │    Database     │
 ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
 │ • WebSocket Hub │──────►│ • LaneEngine    │       │ • SQLite + WAL  │
-│ • Message Route │       │ • ChessEngine   │       │ • Users         │
-│ • Client Mgmt   │       │ • AI (3 levels) │       │ • Games         │
+│ • Message Route │       │ • AI (3 levels) │       │ • Users         │
+│ • Client Mgmt   │       │                 │       │ • Games         │
 └─────────────────┘       └────────┬────────┘       │ • Moves         │
                                    │                └─────────────────┘
                                    ▼
@@ -60,7 +60,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ---
 
-## 2. Turn Phase State Machine (Lane Game V2)
+## 2. Turn Phase State Machine
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -206,9 +206,9 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
     │  connect                │  connected                            │
     │  joinGame               │  matchFound                           │
     │  selectPerk             │  laneGameState                        │
-    │  makeMove (chess v1)    │  autoPlacement                        │
-    │  usePerk (chess v1)     │  perkResult                           │
-    │  disconnect             │  laneWon                              │
+    │  disconnect             │  autoPlacement                        │
+    │                         │  perkResult                           │
+    │                         │  laneWon                              │
     │                         │  gameWon                              │
     │                         │  error                                │
     │                         │  opponentDisconnected                 │
@@ -322,7 +322,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PERK SLOT SYSTEM (V2 LANE GAME)                         │
+│                           PERK SLOT SYSTEM                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   Each turn, player sees 4 perk options:
@@ -398,58 +398,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ---
 
-## 6. Hero-Perk Assignments (V1 Chess Game)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         HERO-PERK ASSIGNMENTS                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                          │
-  │     🐼 PANDA                    🦥 SLOTH                                 │
-  │     ────────                    ─────────                                │
-  │     ┌─────────────────┐         ┌─────────────────┐                      │
-  │     │ AnotherMove (2) │         │ Freeze      (2) │                      │
-  │     │ RemoveEnemy (1) │         │ CancelMove  (1) │                      │
-  │     └─────────────────┘         └─────────────────┘                      │
-  │                                                                          │
-  │     🦊 FOX                      🐰 BUNNY                                 │
-  │     ───────                     ────────                                 │
-  │     ┌───────────────────┐       ┌───────────────────┐                    │
-  │     │ ScatterAround (2) │       │ PlaceAnother  (2) │                    │
-  │     │ Freeze        (1) │       │ AnotherMove   (1) │                    │
-  │     └───────────────────┘       └───────────────────┘                    │
-  │                                                                          │
-  │     🐻 BEAR                     🦉 OWL                                   │
-  │     ────────                    ───────                                  │
-  │     ┌─────────────────┐         ┌─────────────────┐                      │
-  │     │ RemoveEnemy (2) │         │ CancelMove  (2) │                      │
-  │     │ Freeze      (1) │         │ RemoveEnemy (1) │                      │
-  │     └─────────────────┘         └─────────────────┘                      │
-  │                                                                          │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                         V1 PERK EFFECTS                                  │
-  ├─────────────────────────────────────────────────────────────────────────┤
-  │                                                                          │
-  │   PERK           │  EFFECT                                               │
-  │   ────           │  ──────                                               │
-  │   AnotherMove    │  Take an extra turn (don't switch players)           │
-  │   RemoveEnemy    │  Remove one of opponent's pieces from the board      │
-  │   PlaceAnother   │  Place an additional piece on the board              │
-  │   ScatterAround  │  Randomly reposition pieces on the board             │
-  │   Freeze         │  Opponent skips their next turn                      │
-  │   CancelMove     │  Undo the last move made                             │
-  │                                                                          │
-  └─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Client State Management Flow
+## 6. Client State Management Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -468,20 +417,20 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
                     │               │               │
                     ▼               ▼               ▼
           ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-          │  GameService    │ │ CombatService   │ │ WebSocketService│
-          │ (ChangeNotifier)│ │ (ChangeNotifier)│ │ (Stream-based)  │
+          │ CombatService   │ │ WebSocketService│ │   LaneGame      │
+          │ (ChangeNotifier)│ │ (Stream-based)  │ │   (Model)       │
           └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
                    │                   │                   │
                    │                   │                   │
                    ▼                   ▼                   ▼
           ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-          │   GameState     │ │  LaneGame       │ │  WSMessage      │
-          │   ───────────   │ │  ────────       │ │  ─────────      │
-          │ • boardState    │ │ • lanes[5]      │ │ • type          │
-          │ • currentTurn   │ │ • currentPlayer │ │ • payload       │
-          │ • perksRemaining│ │ • perkSlots[4]  │ │                 │
-          │ • playerFrozen  │ │ • turnPhase     │ │                 │
-          │ • heroes        │ │ • lanesWon      │ │                 │
+          │  LaneGame       │ │  WSMessage      │ │  Lane State     │
+          │  ────────       │ │  ─────────      │ │  ──────────     │
+          │ • lanes[5]      │ │ • type          │ │ • pieces        │
+          │ • currentPlayer │ │ • payload       │ │ • triggers      │
+          │ • perkSlots[4]  │ │                 │ │ • winner        │
+          │ • turnPhase     │ │                 │ │                 │
+          │ • lanesWon      │ │                 │ │                 │
           └─────────────────┘ └─────────────────┘ └─────────────────┘
 
 
@@ -529,7 +478,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ---
 
-## 8. Complete Game Session Flow
+## 7. Complete Game Session Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -598,7 +547,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ---
 
-## 9. Trigger Chain Resolution
+## 8. Trigger Chain Resolution
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -683,10 +632,11 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 ## Summary
 
-The Kiddie Chess game features a sophisticated perk system with:
+The Kiddie Chess lane game features a sophisticated perk system with:
 
-1. **Two game modes**: V1 Chess (hero-based perks) and V2 Lane Game (slot-based perks)
-2. **Server-driven architecture**: All game logic runs on Go server, client is display-only
-3. **Rich perk interactions**: 30+ perks with triggers, durations, and deferred effects
-4. **4-phase turn system**: Raid → Deferred → AutoPlace → PerkSelect
+1. **Server-driven architecture**: All game logic runs on Go server, client is display-only
+2. **Rich perk interactions**: 30+ perks with triggers, durations, and deferred effects
+3. **4-phase turn system**: Raid → Deferred → AutoPlace → PerkSelect
+4. **Slot-based perk selection**: 4 slots per turn (2 fixed commons + 2 random from pools)
 5. **Trigger chains**: Perks can trigger other perks in sequence with depth limiting
+6. **Win conditions**: First to capture 3 lanes (4 pieces per lane) wins
