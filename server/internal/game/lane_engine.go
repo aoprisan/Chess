@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/kiddiechess/server/internal/models"
+	"github.com/kiddiechess/server/internal/perks"
 )
 
 // TurnResult contains the results of executing a turn phase
@@ -83,9 +84,10 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 }
 
 // ExecutePerkSelection handles perk selection (or pass)
-// perkID: 0 = pass, 1 = PlaceAnother, 2 = RemoveEnemy
+// perkID: 0 = pass, others are perk IDs from the perks package
 // targetLane: which lane to target (-1 for no target)
-func (e *LaneEngine) ExecutePerkSelection(perkID int, targetLane int) *TurnResult {
+// targetLane2: second lane for two-lane perks like Regroup/Disrupt
+func (e *LaneEngine) ExecutePerkSelection(perkID int, targetLane int, targetLanes ...int) *TurnResult {
 	result := &TurnResult{
 		Phase: models.PhasePerkSelection,
 	}
@@ -110,113 +112,31 @@ func (e *LaneEngine) ExecutePerkSelection(perkID int, targetLane int) *TurnResul
 		return result
 	}
 
-	// Execute perk based on ID
-	switch perkID {
-	case 1: // PlaceAnother
-		return e.executePlaceAnother(currentPlayer, targetLane)
-	case 2: // RemoveEnemy
-		return e.executeRemoveEnemy(currentPlayer, targetLane)
-	default:
-		result.Error = "Unknown perk ID"
-		return result
+	// Build target lanes array
+	targets := []int{}
+	if targetLane >= 0 {
+		targets = append(targets, targetLane)
 	}
-}
+	targets = append(targets, targetLanes...)
 
-// executePlaceAnother handles the PlaceAnother perk (#1)
-func (e *LaneEngine) executePlaceAnother(player models.PlayerSide, targetLane int) *TurnResult {
-	result := &TurnResult{
-		Phase:        models.PhasePerkSelection,
-		PerkExecuted: 1,
+	// Use the perk executor
+	executor := perks.NewPerkExecutor(e.game)
+	perkResult := executor.Execute(perks.PerkID(perkID), currentPlayer, targets)
+
+	// Convert perk result to turn result
+	result.Success = perkResult.Success
+	result.Error = perkResult.Error
+	result.PerkExecuted = perkID
+	if len(perkResult.AffectedLanes) > 0 {
+		result.LaneIndex = perkResult.AffectedLanes[0]
 	}
+	result.LaneWinner = perkResult.LaneWinner
+	result.GameWinner = perkResult.GameWinner
 
-	// Validate target lane
-	if targetLane < 0 || targetLane >= models.DefaultLaneCount {
-		result.Error = "Invalid target lane"
-		return result
+	if result.Success && result.GameWinner == 0 {
+		// Advance phase (switch turns)
+		e.game.AdvancePhase()
 	}
-
-	// Check if lane is available
-	lane := e.game.Lanes[targetLane]
-	if lane.IsWon() {
-		result.Error = "Cannot target a won lane"
-		return result
-	}
-
-	if lane.IsSideFull(player) {
-		result.Error = "Your side of this lane is already full"
-		return result
-	}
-
-	// Place the piece
-	if !e.game.PlacePiece(targetLane, player) {
-		result.Error = "Failed to place piece"
-		return result
-	}
-
-	result.Success = true
-	result.LaneIndex = targetLane
-
-	// Check lane win
-	laneWinner := e.game.CheckLaneWin(targetLane)
-	if laneWinner != 0 {
-		result.LaneWinner = laneWinner
-
-		// Check game win
-		gameWinner := e.game.CheckGameWin()
-		if gameWinner != 0 {
-			result.GameWinner = gameWinner
-			return result
-		}
-	}
-
-	// Advance phase (switch turns)
-	e.game.AdvancePhase()
-
-	return result
-}
-
-// executeRemoveEnemy handles the RemoveEnemy perk (#2)
-func (e *LaneEngine) executeRemoveEnemy(player models.PlayerSide, targetLane int) *TurnResult {
-	result := &TurnResult{
-		Phase:        models.PhasePerkSelection,
-		PerkExecuted: 2,
-	}
-
-	opponent := player.Opponent()
-
-	// Validate target lane
-	if targetLane < 0 || targetLane >= models.DefaultLaneCount {
-		result.Error = "Invalid target lane"
-		return result
-	}
-
-	// Check if lane is available
-	lane := e.game.Lanes[targetLane]
-	if lane.IsWon() {
-		result.Error = "Cannot target a won lane"
-		return result
-	}
-
-	// Check if opponent has pieces on this lane
-	if lane.CountPieces(opponent) == 0 {
-		result.Error = "No enemy pieces on this lane"
-		return result
-	}
-
-	// Remove the frontmost piece
-	if !e.game.RemovePiece(targetLane, opponent) {
-		result.Error = "Failed to remove piece"
-		return result
-	}
-
-	result.Success = true
-	result.LaneIndex = targetLane
-
-	// RemoveEnemy doesn't cause lane wins (you're removing opponent's pieces)
-	// Just advance phase
-
-	// Advance phase (switch turns)
-	e.game.AdvancePhase()
 
 	return result
 }
