@@ -1,0 +1,5 @@
+# Core dependencies
+# No external dependencies - uses only Python stdlib
+
+# Testing (optional)
+pytest>=7.0.0
