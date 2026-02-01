@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../models/hero.dart';
 import '../models/combat_state.dart';
 import '../services/combat_service.dart';
+import '../widgets/perk_card.dart';
+import '../widgets/perk_selection_panel.dart';
+import '../widgets/lane_selector.dart';
 
 class CombatScreen extends StatefulWidget {
   final Hero player1Hero;
@@ -23,6 +26,10 @@ class CombatScreen extends StatefulWidget {
 class _CombatScreenState extends State<CombatScreen> {
   late CombatService _combatService;
   bool _initialized = false;
+
+  // Perk selection state
+  int? _selectedPerkId;
+  bool _showingLaneSelector = false;
 
   @override
   void initState() {
@@ -73,10 +80,87 @@ class _CombatScreenState extends State<CombatScreen> {
                   ? _buildContent()
                   : const Center(child: CircularProgressIndicator()),
             ),
+            // Lane selector overlay
+            if (_showingLaneSelector && _selectedPerkId != null)
+              _buildLaneSelectorOverlay(),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildLaneSelectorOverlay() {
+    final gameState = _combatService.gameState;
+    if (gameState == null) return const SizedBox.shrink();
+
+    final playerSide = PlayerSide.player1; // For local game, always player 1
+    final validLanes = LaneValidator.getValidLanesForPerk(
+      _selectedPerkId!,
+      gameState,
+      playerSide,
+    );
+
+    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
+
+    return LaneSelectorOverlay(
+      perkId: _selectedPerkId!,
+      perkName: perkInfo?.name ?? 'Unknown',
+      gameState: gameState,
+      playerSide: playerSide,
+      validLanes: validLanes,
+      onLaneSelected: (laneIndex) {
+        _executePerk(_selectedPerkId!, laneIndex);
+        setState(() {
+          _showingLaneSelector = false;
+          _selectedPerkId = null;
+        });
+      },
+      onCancel: () {
+        setState(() {
+          _showingLaneSelector = false;
+          _selectedPerkId = null;
+        });
+      },
+    );
+  }
+
+  void _onPerkSelected(int perkId) {
+    if (LaneValidator.perkRequiresTarget(perkId)) {
+      setState(() {
+        _selectedPerkId = perkId;
+        _showingLaneSelector = true;
+      });
+    } else {
+      _executePerk(perkId, -1);
+    }
+  }
+
+  void _executePerk(int perkId, int targetLane) {
+    // For local game, we execute locally
+    // In server-driven mode, this would send to server
+    final gameState = _combatService.gameState;
+    if (gameState == null) return;
+
+    // For now, simulate perk execution locally
+    switch (perkId) {
+      case 1: // PlaceAnother
+        if (targetLane >= 0) {
+          _combatService.autoPlace(); // Simplified - just place on that lane
+        }
+        break;
+      case 2: // RemoveEnemy
+        // Would need to implement remove logic
+        break;
+    }
+
+    // End turn
+    _combatService.skipTurn();
+    _combatService.executeTurn();
+  }
+
+  void _onPass() {
+    _combatService.skipTurn();
+    _combatService.executeTurn();
   }
 
   Widget _buildContent() {
@@ -124,21 +208,35 @@ class _CombatScreenState extends State<CombatScreen> {
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.01),
-                // Skip turn button
-                _SkipTurnButton(
-                  onPressed: gameState.status == CombatStatus.playing
-                      ? () {
-                          _combatService.skipTurn();
-                          // Auto-place for next turn
-                          _combatService.executeTurn();
-                        }
-                      : null,
-                  isGameOver: gameState.status == CombatStatus.finished,
-                  winner: gameState.gameWinner,
-                  player1Name: widget.player1Hero.name,
-                  player2Name: widget.player2Hero.name,
-                  screenWidth: screenWidth,
-                ),
+                // Perk selection or game over UI
+                if (gameState.status == CombatStatus.finished)
+                  _SkipTurnButton(
+                    onPressed: null,
+                    isGameOver: true,
+                    winner: gameState.gameWinner,
+                    player1Name: widget.player1Hero.name,
+                    player2Name: widget.player2Hero.name,
+                    screenWidth: screenWidth,
+                  )
+                else if (gameState.currentPhase == TurnPhase.perkSelection)
+                  _PerkSelectionArea(
+                    isMyTurn: gameState.currentPlayer == PlayerSide.player1,
+                    onPerkSelected: _onPerkSelected,
+                    onPass: _onPass,
+                    screenWidth: screenWidth,
+                  )
+                else
+                  _SkipTurnButton(
+                    onPressed: () {
+                      _combatService.skipTurn();
+                      _combatService.executeTurn();
+                    },
+                    isGameOver: false,
+                    winner: null,
+                    player1Name: widget.player1Hero.name,
+                    player2Name: widget.player2Hero.name,
+                    screenWidth: screenWidth,
+                  ),
                 SizedBox(height: screenHeight * 0.02),
               ],
             );
@@ -795,6 +893,37 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Perk selection area during perk selection phase
+class _PerkSelectionArea extends StatelessWidget {
+  final bool isMyTurn;
+  final Function(int perkId) onPerkSelected;
+  final VoidCallback onPass;
+  final double screenWidth;
+
+  const _PerkSelectionArea({
+    required this.isMyTurn,
+    required this.onPerkSelected,
+    required this.onPass,
+    required this.screenWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Create mock perk slots for local game
+    final perkSlots = [
+      PerkSlot(slotIndex: 0, perkId: 1, perkName: 'PlaceAnother'),
+      PerkSlot(slotIndex: 1, perkId: 2, perkName: 'RemoveEnemy'),
+    ];
+
+    return CompactPerkBar(
+      perkSlots: perkSlots,
+      isMyTurn: isMyTurn,
+      onPerkSelected: onPerkSelected,
+      onPass: onPass,
+    );
+  }
 }
 
 /// Skip turn button at the bottom

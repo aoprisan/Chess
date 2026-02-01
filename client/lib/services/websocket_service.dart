@@ -14,6 +14,16 @@ enum MessageType {
   error,
   matchFound,
   opponentDisconnected,
+  // V2 Lane Game message types
+  joinLaneGame,
+  laneGameState,
+  autoPlacement,
+  selectPerk,
+  perkResult,
+  turnPhaseChanged,
+  laneWon,
+  gameWon,
+  laneMatchFound,
 }
 
 /// WebSocket message wrapper
@@ -122,6 +132,42 @@ class WebSocketService {
         'data': perkData,
       },
     ));
+  }
+
+  // ============================================================================
+  // V2 Lane Game Methods
+  // ============================================================================
+
+  /// Request to join a V2 lane game
+  void joinLaneGame(String playerId, String heroType, bool vsAI, String? aiDifficulty) {
+    send(WSMessage(
+      type: MessageType.joinLaneGame,
+      payload: {
+        'playerId': playerId,
+        'heroType': heroType,
+        'vsAI': vsAI,
+        'aiDifficulty': aiDifficulty,
+      },
+    ));
+  }
+
+  /// Select a perk during perk selection phase
+  /// perkId: 0 = pass, 1 = PlaceAnother, 2 = RemoveEnemy
+  /// targetLane: which lane to target (required for most perks)
+  void selectPerk(String gameId, int perkId, {int? targetLane}) {
+    send(WSMessage(
+      type: MessageType.selectPerk,
+      payload: {
+        'gameId': gameId,
+        'perkId': perkId,
+        if (targetLane != null) 'targetLane': targetLane,
+      },
+    ));
+  }
+
+  /// Pass on perk selection (equivalent to selectPerk with perkId 0)
+  void passPerk(String gameId) {
+    selectPerk(gameId, 0);
   }
 
   void dispose() {
