@@ -52,7 +52,7 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
                          ┌─────────────────┐
                          │  Perk Executor  │
                          ├─────────────────┤
-                         │ • 30+ Perks     │
+                         │ • 32 Perks      │
                          │ • Triggers      │
                          │ • Effects       │
                          └─────────────────┘
@@ -125,8 +125,8 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
     ┌────────────────────────────────────────────────────────────────┐
     │                    WIN CONDITIONS                               │
     ├────────────────────────────────────────────────────────────────┤
-    │  LANE WIN:  First to 4 pieces in a lane captures it            │
-    │  GAME WIN:  First to capture 3 lanes wins the game             │
+    │  LANE WIN:  Fill all slots on your side (default: 5 pieces)    │
+    │  GAME WIN:  Capture more than half the lanes (3 of 5)          │
     └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -341,22 +341,72 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │                         PERK POOLS                                       │
+  │                    PERK POOLS (32 Total Perks)                           │
   ├─────────────────────────────────────────────────────────────────────────┤
   │                                                                          │
-  │   SLOT 3 POOL (React & Protect)    │   SLOT 4 POOL (Act & Disrupt)      │
-  │   ─────────────────────────────    │   ──────────────────────────       │
-  │                                    │                                     │
-  │   [4]  Freeze     Block enemy      │   [3]  Scramble   Swap 2 lanes     │
-  │   [22] Cloak      Hide your lane   │   [5]  Split      Divide pieces    │
-  │   [24] Portal     Swap on place    │   [6]  Steal      Take enemy perk  │
-  │   [25] Trap       Remove attacker  │   [7]  Snipe      Remove from lane │
-  │   [26] Mirror     Copy placement   │   [8]  Rally      Add to 2 lanes   │
-  │   [27] Echo       Duplicate piece  │   [9]  Surge      Add 2 to 1 lane  │
-  │   [28] Sanctuary  Protect lane     │   [10] Sabotage   Block perk use   │
-  │   [29] Redirect   Move attackers   │   [11] Raid       Delayed attack   │
-  │                                    │   [12] Reinforce  Extra placement  │
-  │                                    │                                     │
+  │  FIXED COMMONS (Slots 1-2)                                               │
+  │  ─────────────────────────                                               │
+  │  #1  PlaceAnother    +1 your piece on chosen lane                        │
+  │  #2  RemoveEnemy     -1 enemy piece from chosen lane                     │
+  │                                                                          │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  SLOT 3 POOL: React & Protect (15 perks)                                 │
+  │  ───────────────────────────────────────                                 │
+  │                                                                          │
+  │  Duration:                                                               │
+  │    #4  Freeze       Block lane placement 1 turn                          │
+  │    #22 Cloak        Hide your pieces 2 turns                             │
+  │    #49 Sanctuary    Redirect your losses to this lane                    │
+  │                                                                          │
+  │  Placement Triggers (fire when enemy places):                            │
+  │    #24 Portal       Teleport placed piece to random lane                 │
+  │    #25 Trap         Remove placed piece                                  │
+  │    #26 Mirror       You get +2 on same lane                              │
+  │    #27 Echo         You get +2 on random lanes                           │
+  │    #28 Shockwave    Enemy loses 2 from other lanes                       │
+  │    #52 Retaliate    Spawn counter-raid piece                             │
+  │                                                                          │
+  │  Removal Triggers (fire when enemy removes your piece):                  │
+  │    #29 Hydra        You get +2 on random lanes                           │
+  │    #30 Backfire     Enemy loses 2 pieces                                 │
+  │    #46 Absorb       Removed piece reappears elsewhere                    │
+  │                                                                          │
+  │  Immediate:                                                              │
+  │    #33 Regroup      Swap your pieces between 2 lanes                     │
+  │    #35 Scatter      Spread your pieces to random lanes                   │
+  │                                                                          │
+  │  Deferred:                                                               │
+  │    #43 Signal       Pull piece from most populated lane                  │
+  │                                                                          │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                          │
+  │  SLOT 4 POOL: Act & Disrupt (15 perks)                                   │
+  │  ─────────────────────────────────────                                   │
+  │                                                                          │
+  │  Duration:                                                               │
+  │    #23 Blind        Hide enemy pieces from them 2 turns                  │
+  │    #50 Capture      Convert removed enemies to your pieces               │
+  │                                                                          │
+  │  Immediate (auto-target):                                                │
+  │    #13 Scramble     Redistribute all enemy pieces randomly               │
+  │    #37 Gambit       Enemy +3 spread, you +2 concentrated                 │
+  │    #38 Steal        Enemy -1 random, you +1 random                       │
+  │                                                                          │
+  │  Immediate (choose target):                                              │
+  │    #31 Split        Sacrifice 1 yours → +2 random lanes                  │
+  │    #32 Kamikaze     Sacrifice 1 yours → enemy -2                         │
+  │    #34 Disrupt      Swap enemy pieces between 2 lanes                    │
+  │    #36 Disperse     Spread enemy pieces to random lanes                  │
+  │    #39 Rush         Both +2 same lane, you -1 elsewhere                  │
+  │    #48 Nullify      Cancel all triggers on your lane                     │
+  │                                                                          │
+  │  Deferred:                                                               │
+  │    #40 Enlist       Capture + relocate enemy piece next turn             │
+  │    #41 Ambush       Remove enemy from lane/adjacent next turn            │
+  │    #42 Reinforce    +1 bonus piece next turn                             │
+  │    #51 Raid         Place on enemy side, roll for recruits               │
+  │                                                                          │
   └─────────────────────────────────────────────────────────────────────────┘
 
 
@@ -366,12 +416,19 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
   │                                                                          │
   │   TARGET TYPE       │  DESCRIPTION              │  EXAMPLE PERKS         │
   │   ────────────      │  ───────────              │  ──────────────        │
-  │   auto              │  No selection needed      │  Freeze, Scramble      │
-  │   yourLane          │  Select 1 of your lanes   │  PlaceAnother, Portal  │
-  │   enemyLane         │  Select 1 enemy lane      │  RemoveEnemy, Snipe    │
-  │   twoYourLanes      │  Select 2 of your lanes   │  Rally, Split          │
-  │   anyLane           │  Select any lane          │  Raid                  │
-  │                                                                          │
+  │   None (auto)       │  No selection needed      │  Scramble, Gambit,     │
+  │                     │                           │  Steal, Cloak, Blind   │
+  │                     │                           │                        │
+  │   Your Lane         │  Select 1 of your lanes   │  PlaceAnother, Freeze, │
+  │                     │                           │  Sanctuary, Signal     │
+  │                     │                           │                        │
+  │   Enemy Lane        │  Select 1 enemy lane      │  RemoveEnemy, Portal,  │
+  │                     │                           │  Trap, Disperse, Raid  │
+  │                     │                           │                        │
+  │   Your Piece        │  Select 1 of your pieces  │  Split, Kamikaze       │
+  │                     │                           │                        │
+  │   Two Lanes         │  Select 2 lanes           │  Regroup, Disrupt      │
+  │                     │                           │                        │
   └─────────────────────────────────────────────────────────────────────────┘
 
 
@@ -382,16 +439,23 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
   │   TIMING        │  WHEN IT EXECUTES              │  EXAMPLES             │
   │   ──────        │  ─────────────────              │  ────────             │
   │   Instant       │  Immediately on selection       │  PlaceAnother,        │
-  │                 │                                 │  RemoveEnemy, Freeze  │
+  │                 │                                 │  RemoveEnemy, Scramble│
+  │                 │                                 │  Split, Kamikaze      │
   │                 │                                 │                       │
-  │   Trigger       │  On opponent's action          │  Portal (on placement)│
-  │                 │  (fires automatically)          │  Mirror, Trap, Echo   │
+  │   Trigger       │  On opponent's action          │  Portal, Trap, Mirror │
+  │   (Placement)   │  when they place a piece       │  Echo, Shockwave,     │
+  │                 │                                 │  Retaliate            │
   │                 │                                 │                       │
-  │   Duration      │  Lasts multiple turns          │  Cloak (3 turns)      │
-  │                 │                                 │  Sanctuary, Blind     │
+  │   Trigger       │  On opponent's action          │  Hydra, Backfire,     │
+  │   (Removal)     │  when they remove your piece   │  Absorb               │
   │                 │                                 │                       │
-  │   Deferred      │  After specific game event     │  Signal (on capture)  │
-  │                 │                                 │  Raid (after X turns) │
+  │   Duration      │  Lasts 1-2 turns               │  Freeze (1), Cloak (2)│
+  │                 │                                 │  Blind (2), Sanctuary │
+  │                 │                                 │  Capture              │
+  │                 │                                 │                       │
+  │   Deferred      │  Executes at START of your     │  Signal, Enlist,      │
+  │                 │  NEXT turn                      │  Ambush, Reinforce,   │
+  │                 │                                 │  Raid                 │
   │                 │                                 │                       │
   └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -634,9 +698,15 @@ This document contains ASCII diagrams documenting the gameplay flow, perks syste
 
 The Kiddie Chess lane game features a sophisticated perk system with:
 
-1. **Server-driven architecture**: All game logic runs on Go server, client is display-only
-2. **Rich perk interactions**: 30+ perks with triggers, durations, and deferred effects
-3. **4-phase turn system**: Raid → Deferred → AutoPlace → PerkSelect
-4. **Slot-based perk selection**: 4 slots per turn (2 fixed commons + 2 random from pools)
-5. **Trigger chains**: Perks can trigger other perks in sequence with depth limiting
-6. **Win conditions**: First to capture 3 lanes (4 pieces per lane) wins
+1. **32 total perks**: 2 fixed commons + 15 React & Protect + 15 Act & Disrupt
+2. **Slot-based selection**: Each turn offers 4 perk options:
+   - Slot 1: PlaceAnother (always available)
+   - Slot 2: RemoveEnemy (always available)
+   - Slot 3: Random from React & Protect pool
+   - Slot 4: Random from Act & Disrupt pool
+   - Pass option always available
+3. **4-phase turn system**: Deferred Resolution → Auto-Placement → Perk Selection → Turn Switch
+4. **Multiple perk timings**: Instant, Trigger (placement/removal), Duration, Deferred
+5. **Trigger chains**: Perks can trigger other perks in sequence (FIFO order)
+6. **Win conditions**: First to capture 3 of 5 lanes wins (5 pieces fills a lane side)
+7. **Server-driven architecture**: All game logic runs on Go server, client is display-only
