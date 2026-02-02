@@ -302,13 +302,14 @@ class LaneValidator {
           break;
         case 34: // Disrupt - swap enemy pieces between 2 lanes
           // For first selection, any non-won lane with enemy pieces
-          // For second selection, any non-won lane except the first
+          // For second selection, any non-won lane with enemy pieces except the first
+          // (per Python simulation: both lanes must have enemy pieces)
           if (firstSelectedLane == null) {
             if (lane.countPieces(opponent) > 0) {
               validLanes.add(i);
             }
           } else {
-            if (i != firstSelectedLane) {
+            if (i != firstSelectedLane && lane.countPieces(opponent) > 0) {
               validLanes.add(i);
             }
           }

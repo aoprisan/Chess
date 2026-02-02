@@ -316,12 +316,17 @@ class CombatService extends ChangeNotifier {
       lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
     }
 
-    // Add 2 pieces to other random lanes
+    // Add 2 pieces to random lanes (source exclusion only if >= 3 lanes available)
     final otherLanes = <int>[];
     for (int i = 0; i < 5; i++) {
-      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
         otherLanes.add(i);
       }
+    }
+    // Apply source exclusion only if threshold (3) lanes available (per Python simulation)
+    const sourceExclusionThreshold = 3;
+    if (otherLanes.length >= sourceExclusionThreshold && otherLanes.contains(laneIndex)) {
+      otherLanes.remove(laneIndex);
     }
 
     for (int p = 0; p < 2 && otherLanes.isNotEmpty; p++) {
@@ -350,7 +355,7 @@ class CombatService extends ChangeNotifier {
     return true;
   }
 
-  /// Kamikaze - sacrifice 1 piece, enemy loses 2 in the same lane
+  /// Kamikaze - sacrifice 1 piece, enemy loses 2 from random lanes
   bool kamikazePiece(int laneIndex) {
     if (_gameState == null) return false;
     if (laneIndex < 0 || laneIndex >= 5) return false;
@@ -386,26 +391,38 @@ class CombatService extends ChangeNotifier {
       lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
     }
 
-    // Remove up to 2 enemy pieces from the same lane
+    // Remove up to 2 enemy pieces from random lanes (per Python simulation)
     for (int r = 0; r < 2; r++) {
+      // Find lanes with enemy pieces
+      final lanesWithEnemy = <int>[];
+      for (int i = 0; i < 5; i++) {
+        if (lanes[i].winner == null && lanes[i].countPieces(enemy) > 0) {
+          lanesWithEnemy.add(i);
+        }
+      }
+      if (lanesWithEnemy.isEmpty) break;
+
+      // Pick a random lane with enemy pieces
+      final targetLane = lanesWithEnemy[_random.nextInt(lanesWithEnemy.length)];
+
       if (enemy == PlayerSide.player1) {
-        final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+        final newCols = List<bool>.from(lanes[targetLane].player1Columns);
         for (int i = 4; i >= 0; i--) {
           if (newCols[i]) {
             newCols[i] = false;
             break;
           }
         }
-        lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+        lanes[targetLane] = lanes[targetLane].copyWith(player1Columns: newCols);
       } else {
-        final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+        final newCols = List<bool>.from(lanes[targetLane].player2Columns);
         for (int i = 4; i >= 0; i--) {
           if (newCols[i]) {
             newCols[i] = false;
             break;
           }
         }
-        lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+        lanes[targetLane] = lanes[targetLane].copyWith(player2Columns: newCols);
       }
     }
 
@@ -424,6 +441,11 @@ class CombatService extends ChangeNotifier {
     final l1 = _gameState!.lanes[lane1];
     final l2 = _gameState!.lanes[lane2];
     if (l1.winner != null || l2.winner != null) return false;
+
+    // At least one lane must have player's pieces to swap (per Python simulation)
+    if (l1.countPieces(currentPlayer) == 0 && l2.countPieces(currentPlayer) == 0) {
+      return false;
+    }
 
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
 
