@@ -3,7 +3,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/combat_state.dart';
 import '../models/hero.dart';
+import '../widgets/perk_card.dart';
 import 'websocket_service.dart';
+
+/// Pool of random perks to choose from (excluding fixed perks 1 and 2)
+const List<int> _randomPerkPool = [4, 13, 31, 32, 33, 34, 35, 36, 38];
 
 /// Perk slot offered during perk selection phase
 class PerkSlot {
@@ -59,7 +63,37 @@ class CombatService extends ChangeNotifier {
       player1Hero: player1Hero,
       player2Hero: player2Hero,
     );
+    _currentPerkSlots = generatePerkSlots();
     notifyListeners();
+  }
+
+  /// Generate perk slots: 2 fixed + 2 random from pool
+  List<PerkSlot> generatePerkSlots() {
+    final slots = <PerkSlot>[
+      PerkSlot(
+        slotIndex: 0,
+        perkId: 1,
+        perkName: PerkDefinitions.getPerk(1)?.name ?? 'PlaceAnother',
+      ),
+      PerkSlot(
+        slotIndex: 1,
+        perkId: 2,
+        perkName: PerkDefinitions.getPerk(2)?.name ?? 'RemoveEnemy',
+      ),
+    ];
+
+    // Shuffle and pick 2 random perks
+    final shuffled = List<int>.from(_randomPerkPool)..shuffle(_random);
+    for (int i = 0; i < 2; i++) {
+      final perkId = shuffled[i];
+      slots.add(PerkSlot(
+        slotIndex: 2 + i,
+        perkId: perkId,
+        perkName: PerkDefinitions.getPerk(perkId)?.name ?? 'Perk $perkId',
+      ));
+    }
+
+    return slots;
   }
 
   /// Execute auto-placement for current player
@@ -99,6 +133,552 @@ class CombatService extends ChangeNotifier {
     return laneIndex;
   }
 
+  /// Place a piece on the specified lane for the current player.
+  /// Returns true if placement succeeded, false otherwise.
+  bool placeOnLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (_gameState!.status != CombatStatus.playing) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final remainingPieces = _gameState!.getRemainingPieces(currentPlayer);
+    if (remainingPieces <= 0) return false;
+
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+    if (lane.getNextEmptyColumn(currentPlayer) == -1) return false;
+
+    _placePiece(laneIndex, currentPlayer);
+    return true;
+  }
+
+  /// Remove an enemy piece from the specified lane.
+  /// Returns true if removal succeeded, false otherwise.
+  bool removeEnemyPiece(int laneIndex) {
+    if (_gameState == null) return false;
+    if (_gameState!.status != CombatStatus.playing) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+    if (lane.countPieces(enemy) == 0) return false;
+
+    // Find the last (frontmost) enemy piece and remove it
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final targetLane = lanes[laneIndex];
+
+    if (enemy == PlayerSide.player1) {
+      final newColumns = List<bool>.from(targetLane.player1Columns);
+      // Remove the frontmost piece (highest index that is true)
+      for (int i = 4; i >= 0; i--) {
+        if (newColumns[i]) {
+          newColumns[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = targetLane.copyWith(player1Columns: newColumns);
+    } else {
+      final newColumns = List<bool>.from(targetLane.player2Columns);
+      // Remove the frontmost piece (highest index that is true)
+      for (int i = 4; i >= 0; i--) {
+        if (newColumns[i]) {
+          newColumns[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = targetLane.copyWith(player2Columns: newColumns);
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  /// Freeze a lane - blocks enemy placement for 1 turn
+  bool freezeLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final newFrozenLanes = Map<int, PlayerSide>.from(_gameState!.frozenLanes);
+    newFrozenLanes[laneIndex] = currentPlayer;
+
+    _gameState = _gameState!.copyWith(frozenLanes: newFrozenLanes);
+    notifyListeners();
+    return true;
+  }
+
+  /// Scramble enemy pieces - redistribute all enemy pieces randomly
+  bool scrambleEnemyPieces() {
+    if (_gameState == null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    // Count total enemy pieces across all lanes
+    int totalEnemyPieces = 0;
+    for (final lane in _gameState!.lanes) {
+      if (lane.winner == null) {
+        totalEnemyPieces += lane.countPieces(enemy);
+      }
+    }
+
+    if (totalEnemyPieces == 0) return false;
+
+    // Clear all enemy pieces from non-won lanes
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner == null) {
+        if (enemy == PlayerSide.player1) {
+          lanes[i] = lanes[i].copyWith(
+            player1Columns: List<bool>.filled(5, false),
+          );
+        } else {
+          lanes[i] = lanes[i].copyWith(
+            player2Columns: List<bool>.filled(5, false),
+          );
+        }
+      }
+    }
+
+    // Redistribute pieces randomly
+    final availableLanes = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner == null) {
+        availableLanes.add(i);
+      }
+    }
+
+    for (int p = 0; p < totalEnemyPieces && availableLanes.isNotEmpty; p++) {
+      final laneIdx = availableLanes[_random.nextInt(availableLanes.length)];
+      final lane = lanes[laneIdx];
+      final col = lane.getNextEmptyColumn(enemy);
+      if (col != -1) {
+        if (enemy == PlayerSide.player1) {
+          final newCols = List<bool>.from(lane.player1Columns);
+          newCols[col] = true;
+          lanes[laneIdx] = lane.copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lane.player2Columns);
+          newCols[col] = true;
+          lanes[laneIdx] = lane.copyWith(player2Columns: newCols);
+        }
+        // Remove lane if full
+        if (lanes[laneIdx].isSideFilled(enemy)) {
+          availableLanes.remove(laneIdx);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  /// Split - sacrifice 1 piece in a lane, gain 2 pieces elsewhere
+  bool splitPiece(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+    if (lane.countPieces(currentPlayer) == 0) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Remove 1 piece from the specified lane
+    if (currentPlayer == PlayerSide.player1) {
+      final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+    } else {
+      final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+    }
+
+    // Add 2 pieces to other random lanes
+    final otherLanes = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
+        otherLanes.add(i);
+      }
+    }
+
+    for (int p = 0; p < 2 && otherLanes.isNotEmpty; p++) {
+      final idx = _random.nextInt(otherLanes.length);
+      final targetLane = otherLanes[idx];
+      final col = lanes[targetLane].getNextEmptyColumn(currentPlayer);
+      if (col != -1) {
+        if (currentPlayer == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[targetLane].player1Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[targetLane].player2Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player2Columns: newCols);
+        }
+        if (lanes[targetLane].isSideFilled(currentPlayer)) {
+          otherLanes.removeAt(idx);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Kamikaze - sacrifice 1 piece, enemy loses 2 in the same lane
+  bool kamikazePiece(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+    if (lane.countPieces(currentPlayer) == 0) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Remove 1 of your pieces
+    if (currentPlayer == PlayerSide.player1) {
+      final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+    } else {
+      final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+    }
+
+    // Remove up to 2 enemy pieces from the same lane
+    for (int r = 0; r < 2; r++) {
+      if (enemy == PlayerSide.player1) {
+        final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+        for (int i = 4; i >= 0; i--) {
+          if (newCols[i]) {
+            newCols[i] = false;
+            break;
+          }
+        }
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+      } else {
+        final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+        for (int i = 4; i >= 0; i--) {
+          if (newCols[i]) {
+            newCols[i] = false;
+            break;
+          }
+        }
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  /// Regroup - swap your pieces between 2 lanes
+  bool regroupPieces(int lane1, int lane2) {
+    if (_gameState == null) return false;
+    if (lane1 < 0 || lane1 >= 5 || lane2 < 0 || lane2 >= 5) return false;
+    if (lane1 == lane2) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final l1 = _gameState!.lanes[lane1];
+    final l2 = _gameState!.lanes[lane2];
+    if (l1.winner != null || l2.winner != null) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Swap pieces
+    if (currentPlayer == PlayerSide.player1) {
+      final temp = List<bool>.from(lanes[lane1].player1Columns);
+      lanes[lane1] = lanes[lane1].copyWith(player1Columns: List<bool>.from(lanes[lane2].player1Columns));
+      lanes[lane2] = lanes[lane2].copyWith(player1Columns: temp);
+    } else {
+      final temp = List<bool>.from(lanes[lane1].player2Columns);
+      lanes[lane1] = lanes[lane1].copyWith(player2Columns: List<bool>.from(lanes[lane2].player2Columns));
+      lanes[lane2] = lanes[lane2].copyWith(player2Columns: temp);
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Disrupt - swap enemy pieces between 2 lanes
+  bool disruptEnemyPieces(int lane1, int lane2) {
+    if (_gameState == null) return false;
+    if (lane1 < 0 || lane1 >= 5 || lane2 < 0 || lane2 >= 5) return false;
+    if (lane1 == lane2) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+    final l1 = _gameState!.lanes[lane1];
+    final l2 = _gameState!.lanes[lane2];
+    if (l1.winner != null || l2.winner != null) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Swap enemy pieces
+    if (enemy == PlayerSide.player1) {
+      final temp = List<bool>.from(lanes[lane1].player1Columns);
+      lanes[lane1] = lanes[lane1].copyWith(player1Columns: List<bool>.from(lanes[lane2].player1Columns));
+      lanes[lane2] = lanes[lane2].copyWith(player1Columns: temp);
+    } else {
+      final temp = List<bool>.from(lanes[lane1].player2Columns);
+      lanes[lane1] = lanes[lane1].copyWith(player2Columns: List<bool>.from(lanes[lane2].player2Columns));
+      lanes[lane2] = lanes[lane2].copyWith(player2Columns: temp);
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Scatter - move your pieces from a lane to random other lanes
+  bool scatterPieces(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+
+    final pieceCount = lane.countPieces(currentPlayer);
+    if (pieceCount == 0) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Clear pieces from source lane
+    if (currentPlayer == PlayerSide.player1) {
+      lanes[laneIndex] = lanes[laneIndex].copyWith(
+        player1Columns: List<bool>.filled(5, false),
+      );
+    } else {
+      lanes[laneIndex] = lanes[laneIndex].copyWith(
+        player2Columns: List<bool>.filled(5, false),
+      );
+    }
+
+    // Distribute to other random lanes
+    final otherLanes = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
+        otherLanes.add(i);
+      }
+    }
+
+    for (int p = 0; p < pieceCount && otherLanes.isNotEmpty; p++) {
+      final idx = _random.nextInt(otherLanes.length);
+      final targetLane = otherLanes[idx];
+      final col = lanes[targetLane].getNextEmptyColumn(currentPlayer);
+      if (col != -1) {
+        if (currentPlayer == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[targetLane].player1Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[targetLane].player2Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player2Columns: newCols);
+        }
+        if (lanes[targetLane].isSideFilled(currentPlayer)) {
+          otherLanes.removeAt(idx);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Disperse - move enemy pieces from a lane to random other lanes
+  bool disperseEnemyPieces(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+    final lane = _gameState!.lanes[laneIndex];
+    if (lane.winner != null) return false;
+
+    final pieceCount = lane.countPieces(enemy);
+    if (pieceCount == 0) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Clear enemy pieces from source lane
+    if (enemy == PlayerSide.player1) {
+      lanes[laneIndex] = lanes[laneIndex].copyWith(
+        player1Columns: List<bool>.filled(5, false),
+      );
+    } else {
+      lanes[laneIndex] = lanes[laneIndex].copyWith(
+        player2Columns: List<bool>.filled(5, false),
+      );
+    }
+
+    // Distribute to other random lanes
+    final otherLanes = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(enemy)) {
+        otherLanes.add(i);
+      }
+    }
+
+    for (int p = 0; p < pieceCount && otherLanes.isNotEmpty; p++) {
+      final idx = _random.nextInt(otherLanes.length);
+      final targetLane = otherLanes[idx];
+      final col = lanes[targetLane].getNextEmptyColumn(enemy);
+      if (col != -1) {
+        if (enemy == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[targetLane].player1Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[targetLane].player2Columns);
+          newCols[col] = true;
+          lanes[targetLane] = lanes[targetLane].copyWith(player2Columns: newCols);
+        }
+        if (lanes[targetLane].isSideFilled(enemy)) {
+          otherLanes.removeAt(idx);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Steal - remove 1 enemy piece, add 1 to yourself (random lanes)
+  bool stealPiece() {
+    if (_gameState == null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    // Find lanes with enemy pieces
+    final lanesWithEnemy = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (_gameState!.lanes[i].winner == null &&
+          _gameState!.lanes[i].countPieces(enemy) > 0) {
+        lanesWithEnemy.add(i);
+      }
+    }
+
+    if (lanesWithEnemy.isEmpty) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Remove 1 enemy piece from random lane
+    final removeLane = lanesWithEnemy[_random.nextInt(lanesWithEnemy.length)];
+    if (enemy == PlayerSide.player1) {
+      final newCols = List<bool>.from(lanes[removeLane].player1Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[removeLane] = lanes[removeLane].copyWith(player1Columns: newCols);
+    } else {
+      final newCols = List<bool>.from(lanes[removeLane].player2Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[removeLane] = lanes[removeLane].copyWith(player2Columns: newCols);
+    }
+
+    // Add 1 piece to yourself in a random lane
+    final lanesForAdd = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
+        lanesForAdd.add(i);
+      }
+    }
+
+    if (lanesForAdd.isNotEmpty) {
+      final addLane = lanesForAdd[_random.nextInt(lanesForAdd.length)];
+      final col = lanes[addLane].getNextEmptyColumn(currentPlayer);
+      if (col != -1) {
+        if (currentPlayer == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[addLane].player1Columns);
+          newCols[col] = true;
+          lanes[addLane] = lanes[addLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[addLane].player2Columns);
+          newCols[col] = true;
+          lanes[addLane] = lanes[addLane].copyWith(player2Columns: newCols);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Check all lanes for wins (used after perks that modify multiple lanes)
+  void _checkAllLaneWins() {
+    for (int i = 0; i < 5; i++) {
+      _checkLaneWin(i);
+    }
+  }
+
   /// Place a piece in the specified lane for the specified player
   void _placePiece(int laneIndex, PlayerSide player) {
     if (_gameState == null) return;
@@ -135,6 +715,9 @@ class CombatService extends ChangeNotifier {
       currentPhase: TurnPhase.perkSelection,
       lastAutoPlacedLane: laneIndex,
     );
+
+    // Generate new perk slots for this perk selection phase
+    _currentPerkSlots = generatePerkSlots();
 
     // Check for lane win
     _checkLaneWin(laneIndex);
@@ -202,14 +785,21 @@ class CombatService extends ChangeNotifier {
     if (_gameState == null) return;
     if (_gameState!.status != CombatStatus.playing) return;
 
-    final nextPlayer = _gameState!.currentPlayer == PlayerSide.player1
+    final currentPlayer = _gameState!.currentPlayer;
+    final nextPlayer = currentPlayer == PlayerSide.player1
         ? PlayerSide.player2
         : PlayerSide.player1;
+
+    // Clear frozen lanes that were blocking the current player
+    // (they were set by the opponent and have now served their purpose)
+    final newFrozenLanes = Map<int, PlayerSide>.from(_gameState!.frozenLanes);
+    newFrozenLanes.removeWhere((_, frozenBy) => frozenBy != currentPlayer);
 
     _gameState = _gameState!.copyWith(
       currentPlayer: nextPlayer,
       currentPhase: TurnPhase.autoPlacement,
       lastAutoPlacedLane: null,
+      frozenLanes: newFrozenLanes,
     );
 
     notifyListeners();

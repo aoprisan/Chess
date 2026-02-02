@@ -110,6 +110,10 @@ class CombatGameState {
   /// Last lane that received auto-placement (for PlaceAnother perk targeting)
   final int? lastAutoPlacedLane;
 
+  /// Lanes frozen by each player (opponent cannot place on frozen lanes for 1 turn)
+  /// Key: lane index, Value: player who froze it (their opponent is blocked)
+  final Map<int, PlayerSide> frozenLanes;
+
   const CombatGameState({
     required this.gameId,
     required this.lanes,
@@ -124,6 +128,7 @@ class CombatGameState {
     this.player1Hero,
     this.player2Hero,
     this.lastAutoPlacedLane,
+    this.frozenLanes = const {},
   });
 
   /// Create initial game state
@@ -174,7 +179,10 @@ class CombatGameState {
     Hero? player1Hero,
     Hero? player2Hero,
     int? lastAutoPlacedLane,
+    Map<int, PlayerSide>? frozenLanes,
   }) {
+    // Handle potential null from hot reload of old state
+    final currentFrozenLanes = this.frozenLanes;
     return CombatGameState(
       gameId: gameId,
       lanes: lanes ?? this.lanes.map((l) => l.copyWith()).toList(),
@@ -189,6 +197,15 @@ class CombatGameState {
       player1Hero: player1Hero ?? this.player1Hero,
       player2Hero: player2Hero ?? this.player2Hero,
       lastAutoPlacedLane: lastAutoPlacedLane ?? this.lastAutoPlacedLane,
+      frozenLanes: frozenLanes ?? (currentFrozenLanes.isEmpty ? const {} : Map.from(currentFrozenLanes)),
     );
+  }
+
+  /// Check if a lane is frozen for a specific player (they cannot place there)
+  bool isLaneFrozenFor(int laneIndex, PlayerSide player) {
+    final frozenBy = frozenLanes[laneIndex];
+    if (frozenBy == null) return false;
+    // Lane is frozen for the opponent of whoever froze it
+    return frozenBy != player;
   }
 }

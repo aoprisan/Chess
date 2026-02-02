@@ -228,6 +228,7 @@ class CompactPerkBar extends StatelessWidget {
           const SizedBox(width: 4),
           // Pass button
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: onPass,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

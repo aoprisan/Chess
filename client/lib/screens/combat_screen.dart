@@ -29,16 +29,24 @@ class _CombatScreenState extends State<CombatScreen> {
 
   // Perk selection state
   int? _selectedPerkId;
-  bool _showingLaneSelector = false;
+  bool _isSelectingLane = false;
+  int? _firstSelectedLane; // For dual-lane perks (Regroup, Disrupt)
 
   @override
   void initState() {
     super.initState();
     _combatService = CombatService();
+    _combatService.addListener(_onServiceChanged);
     // Initialize game after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initGame();
     });
+  }
+
+  void _onServiceChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _initGame() {
@@ -50,12 +58,11 @@ class _CombatScreenState extends State<CombatScreen> {
     setState(() {
       _initialized = true;
     });
-    // Auto-place for first turn
-    _combatService.executeTurn();
   }
 
   @override
   void dispose() {
+    _combatService.removeListener(_onServiceChanged);
     _combatService.dispose();
     super.dispose();
   }
@@ -80,47 +87,204 @@ class _CombatScreenState extends State<CombatScreen> {
                   ? _buildContent()
                   : const Center(child: CircularProgressIndicator()),
             ),
-            // Lane selector overlay
-            if (_showingLaneSelector && _selectedPerkId != null)
-              _buildLaneSelectorOverlay(),
+            // Perk targeting info bar (replaces full-screen overlay)
+            if (_isSelectingLane && _selectedPerkId != null)
+              _buildPerkTargetingBar(),
+            // Perk selection overlay
+            if (_initialized && _shouldShowPerkOverlay())
+              _buildPerkSelectionOverlay(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLaneSelectorOverlay() {
-    final gameState = _combatService.gameState;
-    if (gameState == null) return const SizedBox.shrink();
+  Widget _buildPerkTargetingBar() {
+    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = (screenWidth * 0.016).clamp(12.0, 18.0);
+    final iconSize = (screenWidth * 0.022).clamp(16.0, 24.0);
+    final horizontalPadding = (screenWidth * 0.02).clamp(12.0, 20.0);
+    final verticalPadding = (screenWidth * 0.01).clamp(8.0, 14.0);
 
-    final playerSide = PlayerSide.player1; // For local game, always player 1
-    final validLanes = LaneValidator.getValidLanesForPerk(
+    // Determine instruction text based on perk and state
+    String instruction;
+    final isDualLane = _selectedPerkId == 33 || _selectedPerkId == 34;
+    if (isDualLane) {
+      if (_firstSelectedLane == null) {
+        instruction = 'Select first lane';
+      } else {
+        instruction = 'Select second lane (Lane ${_firstSelectedLane! + 1} selected)';
+      }
+    } else {
+      instruction = 'Select a lane on the board';
+    }
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade900.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: perkInfo?.categoryColor ?? Colors.amber,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (perkInfo?.categoryColor ?? Colors.amber).withValues(alpha: 0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            if (perkInfo != null)
+              Icon(
+                perkInfo.categoryIcon,
+                color: perkInfo.categoryColor,
+                size: iconSize,
+              ),
+            SizedBox(width: horizontalPadding * 0.5),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    perkInfo?.name ?? 'Unknown',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    instruction,
+                    style: TextStyle(
+                      fontSize: fontSize * 0.85,
+                      color: Colors.amber.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _cancelLaneSelection,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding * 0.75,
+                  vertical: verticalPadding * 0.5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close, color: Colors.white, size: iconSize * 0.85),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: fontSize * 0.9,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _cancelLaneSelection() {
+    setState(() {
+      _isSelectingLane = false;
+      _selectedPerkId = null;
+      _firstSelectedLane = null;
+    });
+  }
+
+  List<int> _getValidLanes() {
+    if (_selectedPerkId == null) return [];
+    final gameState = _combatService.gameState;
+    if (gameState == null) return [];
+    return LaneValidator.getValidLanesForPerk(
       _selectedPerkId!,
       gameState,
-      playerSide,
+      gameState.currentPlayer,
+      firstSelectedLane: _firstSelectedLane,
     );
+  }
 
-    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
+  void _onLaneSelected(int laneIndex) {
+    if (_selectedPerkId == null) return;
 
-    return LaneSelectorOverlay(
-      perkId: _selectedPerkId!,
-      perkName: perkInfo?.name ?? 'Unknown',
-      gameState: gameState,
-      playerSide: playerSide,
-      validLanes: validLanes,
-      onLaneSelected: (laneIndex) {
-        _executePerk(_selectedPerkId!, laneIndex);
+    // Dual-lane perks: Regroup (33) and Disrupt (34)
+    if (_selectedPerkId == 33 || _selectedPerkId == 34) {
+      if (_firstSelectedLane == null) {
+        // First lane selected - wait for second
         setState(() {
-          _showingLaneSelector = false;
-          _selectedPerkId = null;
+          _firstSelectedLane = laneIndex;
         });
-      },
-      onCancel: () {
+        return;
+      } else {
+        // Second lane selected - execute perk
+        _executePerk(_selectedPerkId!, laneIndex, secondLane: _firstSelectedLane);
         setState(() {
-          _showingLaneSelector = false;
+          _isSelectingLane = false;
           _selectedPerkId = null;
+          _firstSelectedLane = null;
         });
-      },
+        return;
+      }
+    }
+
+    // Single-lane perks
+    _executePerk(_selectedPerkId!, laneIndex);
+    setState(() {
+      _isSelectingLane = false;
+      _selectedPerkId = null;
+      _firstSelectedLane = null;
+    });
+  }
+
+  bool _shouldShowPerkOverlay() {
+    final gameState = _combatService.gameState;
+    return gameState != null &&
+        gameState.status != CombatStatus.finished &&
+        gameState.currentPhase == TurnPhase.perkSelection &&
+        !_isSelectingLane;
+  }
+
+  Widget _buildPerkSelectionOverlay() {
+    return GestureDetector(
+      onTap: () {}, // Absorb taps to prevent interaction with board
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.5),
+        child: Center(
+          child: _PerkSelectionArea(
+            perkSlots: _combatService.currentPerkSlots,
+            isMyTurn: true,
+            onPerkSelected: _onPerkSelected,
+            onPass: _onPass,
+            screenWidth: MediaQuery.of(context).size.width,
+          ),
+        ),
+      ),
     );
   }
 
@@ -128,39 +292,80 @@ class _CombatScreenState extends State<CombatScreen> {
     if (LaneValidator.perkRequiresTarget(perkId)) {
       setState(() {
         _selectedPerkId = perkId;
-        _showingLaneSelector = true;
+        _isSelectingLane = true;
       });
     } else {
       _executePerk(perkId, -1);
     }
   }
 
-  void _executePerk(int perkId, int targetLane) {
+  void _executePerk(int perkId, int targetLane, {int? secondLane}) {
     // For local game, we execute locally
     // In server-driven mode, this would send to server
     final gameState = _combatService.gameState;
     if (gameState == null) return;
 
-    // For now, simulate perk execution locally
+    // Execute perk based on ID
     switch (perkId) {
       case 1: // PlaceAnother
         if (targetLane >= 0) {
-          _combatService.autoPlace(); // Simplified - just place on that lane
+          _combatService.placeOnLane(targetLane);
         }
         break;
       case 2: // RemoveEnemy
-        // Would need to implement remove logic
+        if (targetLane >= 0) {
+          _combatService.removeEnemyPiece(targetLane);
+        }
+        break;
+      case 4: // Freeze
+        if (targetLane >= 0) {
+          _combatService.freezeLane(targetLane);
+        }
+        break;
+      case 13: // Scramble
+        _combatService.scrambleEnemyPieces();
+        break;
+      case 31: // Split
+        if (targetLane >= 0) {
+          _combatService.splitPiece(targetLane);
+        }
+        break;
+      case 32: // Kamikaze
+        if (targetLane >= 0) {
+          _combatService.kamikazePiece(targetLane);
+        }
+        break;
+      case 33: // Regroup
+        if (targetLane >= 0 && secondLane != null) {
+          _combatService.regroupPieces(secondLane, targetLane);
+        }
+        break;
+      case 34: // Disrupt
+        if (targetLane >= 0 && secondLane != null) {
+          _combatService.disruptEnemyPieces(secondLane, targetLane);
+        }
+        break;
+      case 35: // Scatter
+        if (targetLane >= 0) {
+          _combatService.scatterPieces(targetLane);
+        }
+        break;
+      case 36: // Disperse
+        if (targetLane >= 0) {
+          _combatService.disperseEnemyPieces(targetLane);
+        }
+        break;
+      case 38: // Steal
+        _combatService.stealPiece();
         break;
     }
 
     // End turn
     _combatService.skipTurn();
-    _combatService.executeTurn();
   }
 
   void _onPass() {
     _combatService.skipTurn();
-    _combatService.executeTurn();
   }
 
   Widget _buildContent() {
@@ -205,10 +410,14 @@ class _CombatScreenState extends State<CombatScreen> {
                     player2Hero: widget.player2Hero,
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
+                    isSelectingLane: _isSelectingLane,
+                    selectedPerkId: _selectedPerkId,
+                    validLanes: _getValidLanes(),
+                    onLaneSelected: _onLaneSelected,
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.01),
-                // Perk selection or game over UI
+                // Game over UI or skip turn button (perk selection now shown as overlay)
                 if (gameState.status == CombatStatus.finished)
                   _SkipTurnButton(
                     onPressed: null,
@@ -218,18 +427,10 @@ class _CombatScreenState extends State<CombatScreen> {
                     player2Name: widget.player2Hero.name,
                     screenWidth: screenWidth,
                   )
-                else if (gameState.currentPhase == TurnPhase.perkSelection)
-                  _PerkSelectionArea(
-                    isMyTurn: gameState.currentPlayer == PlayerSide.player1,
-                    onPerkSelected: _onPerkSelected,
-                    onPass: _onPass,
-                    screenWidth: screenWidth,
-                  )
-                else
+                else if (gameState.currentPhase != TurnPhase.perkSelection)
                   _SkipTurnButton(
                     onPressed: () {
                       _combatService.skipTurn();
-                      _combatService.executeTurn();
                     },
                     isGameOver: false,
                     winner: null,
@@ -565,6 +766,10 @@ class _GameArea extends StatelessWidget {
   final Hero player2Hero;
   final double screenWidth;
   final double screenHeight;
+  final bool isSelectingLane;
+  final int? selectedPerkId;
+  final List<int> validLanes;
+  final Function(int)? onLaneSelected;
 
   const _GameArea({
     required this.gameState,
@@ -572,6 +777,10 @@ class _GameArea extends StatelessWidget {
     required this.player2Hero,
     required this.screenWidth,
     required this.screenHeight,
+    required this.isSelectingLane,
+    required this.validLanes,
+    this.selectedPerkId,
+    this.onLaneSelected,
   });
 
   @override
@@ -586,6 +795,7 @@ class _GameArea extends StatelessWidget {
           // Player 1 placement buttons (left)
           _PlacementSlots(
             isPlayer1: true,
+            gameState: gameState,
             screenWidth: screenWidth,
             screenHeight: screenHeight,
           ),
@@ -598,12 +808,17 @@ class _GameArea extends StatelessWidget {
               player2Hero: player2Hero,
               screenWidth: screenWidth,
               screenHeight: screenHeight,
+              isSelectingLane: isSelectingLane,
+              selectedPerkId: selectedPerkId,
+              validLanes: validLanes,
+              onLaneSelected: onLaneSelected,
             ),
           ),
           SizedBox(width: spacing),
           // Player 2 placement buttons (right)
           _PlacementSlots(
             isPlayer1: false,
+            gameState: gameState,
             screenWidth: screenWidth,
             screenHeight: screenHeight,
           ),
@@ -616,34 +831,53 @@ class _GameArea extends StatelessWidget {
 /// Side placement slot buttons
 class _PlacementSlots extends StatelessWidget {
   final bool isPlayer1;
+  final CombatGameState gameState;
   final double screenWidth;
   final double screenHeight;
 
   const _PlacementSlots({
     required this.isPlayer1,
+    required this.gameState,
     required this.screenWidth,
     required this.screenHeight,
   });
 
   @override
   Widget build(BuildContext context) {
+    final service = Provider.of<CombatService>(context, listen: false);
+
     final asset = isPlayer1
         ? 'assets/images/ui/combat/player-1-place-btn.png'
         : 'assets/images/ui/combat/player-2-place-btn.png';
     final slotSize = (screenWidth * 0.055).clamp(40.0, 65.0);
     final verticalSpacing = (screenHeight * 0.012).clamp(4.0, 10.0);
 
+    final currentPlayer = gameState.currentPlayer;
+    final isMyTurn = (isPlayer1 && currentPlayer == PlayerSide.player1) ||
+        (!isPlayer1 && currentPlayer == PlayerSide.player2);
+    final isPlacementPhase = gameState.currentPhase == TurnPhase.autoPlacement;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(6, (index) {
+      children: List.generate(5, (index) {
+        final lane = gameState.lanes[index];
+        final canPlace = isMyTurn &&
+            isPlacementPhase &&
+            lane.winner == null &&
+            lane.getNextEmptyColumn(currentPlayer) != -1;
+
         return Padding(
           padding: EdgeInsets.symmetric(vertical: verticalSpacing),
-          child: SizedBox(
-            width: slotSize,
-            height: slotSize,
-            child: Image.asset(
-              asset,
-              fit: BoxFit.contain,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: canPlace ? () => service.placeOnLane(index) : null,
+            child: Opacity(
+              opacity: canPlace ? 1.0 : 0.5,
+              child: SizedBox(
+                width: slotSize,
+                height: slotSize,
+                child: Image.asset(asset, fit: BoxFit.contain),
+              ),
             ),
           ),
         );
@@ -659,6 +893,10 @@ class _GameBoard extends StatelessWidget {
   final Hero player2Hero;
   final double screenWidth;
   final double screenHeight;
+  final bool isSelectingLane;
+  final int? selectedPerkId;
+  final List<int> validLanes;
+  final Function(int)? onLaneSelected;
 
   const _GameBoard({
     required this.gameState,
@@ -666,6 +904,10 @@ class _GameBoard extends StatelessWidget {
     required this.player2Hero,
     required this.screenWidth,
     required this.screenHeight,
+    required this.isSelectingLane,
+    required this.validLanes,
+    this.selectedPerkId,
+    this.onLaneSelected,
   });
 
   @override
@@ -718,6 +960,10 @@ class _GameBoard extends StatelessWidget {
           ),
           // Lane win indicators
           ..._buildLaneWinIndicators(),
+          // Frozen lane indicators
+          ..._buildFrozenLaneIndicators(),
+          // Lane selection highlights (when selecting a lane for perk)
+          if (isSelectingLane) ..._buildLaneSelectionHighlights(),
         ],
       ),
     );
@@ -866,6 +1112,239 @@ class _GameBoard extends StatelessWidget {
 
     return indicators;
   }
+
+  List<Widget> _buildFrozenLaneIndicators() {
+    final indicators = <Widget>[];
+
+    // Safely access frozenLanes (may be null during hot reload transition)
+    Map<int, PlayerSide> frozenLanes;
+    try {
+      frozenLanes = gameState.frozenLanes;
+    } catch (_) {
+      return indicators;
+    }
+
+    if (frozenLanes.isEmpty) return indicators;
+
+    for (final entry in frozenLanes.entries) {
+      final laneIndex = entry.key;
+      final frozenBy = entry.value;
+      final lane = gameState.lanes[laneIndex];
+
+      // Skip won lanes
+      if (lane.winner != null) continue;
+
+      indicators.add(Positioned(
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final laneHeight = constraints.maxHeight / 5;
+            final halfWidth = constraints.maxWidth / 2;
+
+            // Frozen by Player 1 means Player 2's side (right) is frozen
+            // Frozen by Player 2 means Player 1's side (left) is frozen
+            final isRightSideFrozen = frozenBy == PlayerSide.player1;
+
+            return Stack(
+              children: [
+                Positioned(
+                  top: laneIndex * laneHeight,
+                  left: isRightSideFrozen ? halfWidth : 0,
+                  width: halfWidth,
+                  height: laneHeight,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.25),
+                      border: Border.all(
+                        color: Colors.blue.shade400,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.ac_unit,
+                            color: Colors.blue.shade300,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'FROZEN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade300,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ));
+    }
+
+    return indicators;
+  }
+
+  List<Widget> _buildLaneSelectionHighlights() {
+    // Freeze perk (4) shows blue highlight on opponent's half only
+    final isFreezePerk = selectedPerkId == 4;
+    final currentPlayer = gameState.currentPlayer;
+
+    return [
+      Positioned.fill(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final laneHeight = constraints.maxHeight / 5;
+            final halfWidth = constraints.maxWidth / 2;
+
+            return Stack(
+              children: List.generate(5, (i) {
+                final lane = gameState.lanes[i];
+                final isValid = validLanes.contains(i);
+                final isWon = lane.winner != null;
+
+                // Skip won lanes - they keep their existing highlighting
+                if (isWon) return const SizedBox.shrink();
+
+                if (!isValid) {
+                  return Positioned(
+                    top: i * laneHeight,
+                    left: 0,
+                    right: 0,
+                    height: laneHeight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.15),
+                      ),
+                    ),
+                  );
+                }
+
+                // For Freeze perk, highlight only opponent's half in blue
+                if (isFreezePerk) {
+                  return Positioned(
+                    top: i * laneHeight,
+                    // Player 1's opponent is on the right half, Player 2's opponent is on the left
+                    left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
+                    width: halfWidth,
+                    height: laneHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onLaneSelected?.call(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.35),
+                          border: Border.all(
+                            color: Colors.blue.shade400,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.ac_unit, color: Colors.white, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Freeze ${i + 1}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                // Default amber highlight for other perks
+                return Positioned(
+                  top: i * laneHeight,
+                  left: 0,
+                  right: 0,
+                  height: laneHeight,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onLaneSelected?.call(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.3),
+                        border: Border.all(
+                          color: Colors.amber.shade400,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.amber.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade700.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Lane ${i + 1}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+      ),
+    ];
+  }
 }
 
 /// Custom painter for grid lines
@@ -897,12 +1376,14 @@ class _GridPainter extends CustomPainter {
 
 /// Perk selection area during perk selection phase
 class _PerkSelectionArea extends StatelessWidget {
+  final List<PerkSlot> perkSlots;
   final bool isMyTurn;
   final Function(int perkId) onPerkSelected;
   final VoidCallback onPass;
   final double screenWidth;
 
   const _PerkSelectionArea({
+    required this.perkSlots,
     required this.isMyTurn,
     required this.onPerkSelected,
     required this.onPass,
@@ -911,12 +1392,6 @@ class _PerkSelectionArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Create mock perk slots for local game
-    final perkSlots = [
-      PerkSlot(slotIndex: 0, perkId: 1, perkName: 'PlaceAnother'),
-      PerkSlot(slotIndex: 1, perkId: 2, perkName: 'RemoveEnemy'),
-    ];
-
     return CompactPerkBar(
       perkSlots: perkSlots,
       isMyTurn: isMyTurn,

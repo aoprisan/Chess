@@ -253,8 +253,9 @@ class LaneValidator {
   static List<int> getValidLanesForPerk(
     int perkId,
     CombatGameState gameState,
-    PlayerSide playerSide,
-  ) {
+    PlayerSide playerSide, {
+    int? firstSelectedLane,
+  }) {
     final opponent = playerSide == PlayerSide.player1
         ? PlayerSide.player2
         : PlayerSide.player1;
@@ -271,9 +272,13 @@ class LaneValidator {
           }
           break;
         case 2: // RemoveEnemy - enemy has pieces
+        case 36: // Disperse - enemy pieces exist
           if (lane.countPieces(opponent) > 0) {
             validLanes.add(i);
           }
+          break;
+        case 4: // Freeze - any non-won lane
+          validLanes.add(i);
           break;
         case 31: // Split - your piece exists
         case 32: // Kamikaze - your piece exists
@@ -282,9 +287,30 @@ class LaneValidator {
             validLanes.add(i);
           }
           break;
-        case 36: // Disperse - enemy pieces exist
-          if (lane.countPieces(opponent) > 0) {
-            validLanes.add(i);
+        case 33: // Regroup - swap your pieces between 2 lanes
+          // For first selection, any non-won lane with your pieces
+          // For second selection, any non-won lane except the first
+          if (firstSelectedLane == null) {
+            if (lane.countPieces(playerSide) > 0) {
+              validLanes.add(i);
+            }
+          } else {
+            if (i != firstSelectedLane) {
+              validLanes.add(i);
+            }
+          }
+          break;
+        case 34: // Disrupt - swap enemy pieces between 2 lanes
+          // For first selection, any non-won lane with enemy pieces
+          // For second selection, any non-won lane except the first
+          if (firstSelectedLane == null) {
+            if (lane.countPieces(opponent) > 0) {
+              validLanes.add(i);
+            }
+          } else {
+            if (i != firstSelectedLane) {
+              validLanes.add(i);
+            }
           }
           break;
         default:
