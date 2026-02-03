@@ -6,6 +6,7 @@ import '../services/combat_service.dart';
 import '../widgets/perk_card.dart';
 import '../widgets/perk_selection_panel.dart';
 import '../widgets/lane_selector.dart';
+import '../widgets/lane_effect_indicator.dart';
 
 class CombatScreen extends StatefulWidget {
   final Hero player1Hero;
@@ -962,6 +963,8 @@ class _GameBoard extends StatelessWidget {
           ..._buildLaneWinIndicators(),
           // Frozen lane indicators
           ..._buildFrozenLaneIndicators(),
+          // Lane effect indicators (triggers, deferred, duration, raids)
+          ..._buildLaneEffectIndicators(),
           // Lane selection highlights (when selecting a lane for perk)
           if (isSelectingLane) ..._buildLaneSelectionHighlights(),
         ],
@@ -1191,6 +1194,82 @@ class _GameBoard extends StatelessWidget {
           },
         ),
       ));
+    }
+
+    return indicators;
+  }
+
+  List<Widget> _buildLaneEffectIndicators() {
+    final allEffects = gameState.getActiveLaneEffects();
+    if (allEffects.isEmpty) return [];
+
+    final indicators = <Widget>[];
+
+    for (final entry in allEffects.entries) {
+      final laneIndex = entry.key;
+      final effects = entry.value;
+      if (effects.isEmpty) continue;
+
+      // Skip won lanes
+      if (gameState.lanes[laneIndex].winner != null) continue;
+
+      // Group effects by which side they appear on
+      // For each effect, determine if it appears on the left (player1) or right (player2) half
+      final leftEffects = <LaneEffect>[];
+      final rightEffects = <LaneEffect>[];
+
+      for (final effect in effects) {
+        // onOwnerSide=true means effect appears on the owner's half
+        // Owner 1 = left side, Owner 2 = right side
+        final isOnLeftSide = effect.onOwnerSide
+            ? effect.ownerPlayer == 1
+            : effect.ownerPlayer == 2; // opponent's side
+        if (isOnLeftSide) {
+          leftEffects.add(effect);
+        } else {
+          rightEffects.add(effect);
+        }
+      }
+
+      // Add overlays using LayoutBuilder for sizing
+      if (leftEffects.isNotEmpty || rightEffects.isNotEmpty) {
+        indicators.add(Positioned(
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final laneHeight = constraints.maxHeight / 5;
+              final halfWidth = constraints.maxWidth / 2;
+              final top = laneIndex * laneHeight;
+
+              final widgets = <Widget>[];
+              if (leftEffects.isNotEmpty) {
+                widgets.add(LaneEffectOverlay(
+                  effects: leftEffects,
+                  laneHeight: laneHeight,
+                  halfWidth: halfWidth,
+                  laneIndex: laneIndex,
+                  top: top,
+                  isLeftSide: true,
+                ));
+              }
+              if (rightEffects.isNotEmpty) {
+                widgets.add(LaneEffectOverlay(
+                  effects: rightEffects,
+                  laneHeight: laneHeight,
+                  halfWidth: halfWidth,
+                  laneIndex: laneIndex,
+                  top: top,
+                  isLeftSide: false,
+                ));
+              }
+              return Stack(children: widgets);
+            },
+          ),
+        ));
+      }
     }
 
     return indicators;

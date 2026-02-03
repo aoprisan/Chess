@@ -985,10 +985,24 @@ class CombatService extends ChangeNotifier {
       if (winnerVal == 1) winner = PlayerSide.player1;
       if (winnerVal == 2) winner = PlayerSide.player2;
 
+      // Parse triggers
+      final triggersData = laneData['triggers'] as List<dynamic>?;
+      final triggers = triggersData
+          ?.map((t) => TriggerData.fromJson(t as Map<String, dynamic>))
+          .toList() ?? [];
+
+      // Parse deferred effects
+      final deferredData = laneData['deferred'] as List<dynamic>?;
+      final deferred = deferredData
+          ?.map((d) => DeferredData.fromJson(d as Map<String, dynamic>))
+          .toList() ?? [];
+
       lanes.add(Lane(
         player1Columns: p1Slots,
         player2Columns: p2Slots,
         winner: winner,
+        triggers: triggers,
+        deferred: deferred,
       ));
     }
 
@@ -1044,6 +1058,32 @@ class CombatService extends ChangeNotifier {
           .toList();
     }
 
+    // Parse sanctuaries
+    final p1SanctuariesData = gameData['player1Sanctuaries'] as List<dynamic>?;
+    final p1Sanctuaries = p1SanctuariesData
+        ?.map((s) => SanctuaryData.fromJson(s as Map<String, dynamic>))
+        .toList() ?? [];
+    final p2SanctuariesData = gameData['player2Sanctuaries'] as List<dynamic>?;
+    final p2Sanctuaries = p2SanctuariesData
+        ?.map((s) => SanctuaryData.fromJson(s as Map<String, dynamic>))
+        .toList() ?? [];
+
+    // Parse captures
+    final p1CapturesData = gameData['player1Captures'] as List<dynamic>?;
+    final p1Captures = p1CapturesData
+        ?.map((c) => CaptureData.fromJson(c as Map<String, dynamic>))
+        .toList() ?? [];
+    final p2CapturesData = gameData['player2Captures'] as List<dynamic>?;
+    final p2Captures = p2CapturesData
+        ?.map((c) => CaptureData.fromJson(c as Map<String, dynamic>))
+        .toList() ?? [];
+
+    // Parse pending raids
+    final pendingRaidsData = gameData['pendingRaids'] as List<dynamic>?;
+    final pendingRaids = pendingRaidsData
+        ?.map((r) => PendingRaidData.fromJson(r as Map<String, dynamic>))
+        .toList() ?? [];
+
     _gameState = CombatGameState(
       gameId: _gameId!,
       lanes: lanes,
@@ -1056,6 +1096,11 @@ class CombatService extends ChangeNotifier {
       status: status,
       gameWinner: gameWinner,
       lastAutoPlacedLane: gameData['lastAutoPlacedLane'] as int?,
+      player1Sanctuaries: p1Sanctuaries,
+      player2Sanctuaries: p2Sanctuaries,
+      player1Captures: p1Captures,
+      player2Captures: p2Captures,
+      pendingRaids: pendingRaids,
     );
   }
 
