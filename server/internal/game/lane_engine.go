@@ -7,6 +7,14 @@ import (
 	"github.com/kiddiechess/server/internal/perks"
 )
 
+// TestModePerks enables deterministic perk pairing for testing.
+// Set to false for production random perk selection.
+const TestModePerks = true
+
+// TestPerkPairIndex is the fixed perk pair index used in test mode.
+// Change this value and restart to test a different pair.
+const TestPerkPairIndex = 1
+
 // TurnResult contains the results of executing a turn phase
 type TurnResult struct {
 	Success        bool                 `json:"success"`
@@ -198,9 +206,33 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 	e.game.AdvancePhase()
 
 	// Generate perk options
-	e.game.GeneratePerkSlots()
+	e.generatePerkSlotsWithSelection()
 
 	return result
+}
+
+// generatePerkSlotsWithSelection picks perks for slots 3-4 and generates perk slots.
+// In test mode, it cycles deterministically through perk pair indices.
+// In production mode, it picks random perks from each pool.
+func (e *LaneEngine) generatePerkSlotsWithSelection() {
+	poolSize := len(perks.Slot3Pool)
+	var slot3Idx, slot4Idx int
+
+	if TestModePerks {
+		idx := TestPerkPairIndex % poolSize
+		slot3Idx = idx
+		slot4Idx = idx
+	} else {
+		slot3Idx = rand.Intn(poolSize)
+		slot4Idx = rand.Intn(len(perks.Slot4Pool))
+	}
+
+	slot3ID := int(perks.Slot3Pool[slot3Idx])
+	slot3Name := perks.GetPerkName(perks.Slot3Pool[slot3Idx])
+	slot4ID := int(perks.Slot4Pool[slot4Idx])
+	slot4Name := perks.GetPerkName(perks.Slot4Pool[slot4Idx])
+
+	e.game.GeneratePerkSlots(slot3ID, slot3Name, slot4ID, slot4Name)
 }
 
 // ExecutePerkSelection handles perk selection (or pass)

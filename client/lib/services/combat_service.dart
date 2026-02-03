@@ -6,8 +6,18 @@ import '../models/hero.dart';
 import '../widgets/perk_card.dart';
 import 'websocket_service.dart';
 
-/// Pool of random perks to choose from (excluding fixed perks 1 and 2)
-const List<int> _randomPerkPool = [4, 13, 31, 32, 33, 34, 35, 36, 38];
+/// Enable deterministic perk pairing for testing.
+/// Set to false for production random perk selection.
+const bool _testModePerks = true;
+
+/// Fixed perk pair index for testing. Change this value and restart to test a different pair.
+const int _testPerkPairIndex = 1;
+
+/// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
+const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
+
+/// Slot 4 pool: Act & Disrupt (15 perks, matching server Slot4Pool order)
+const List<int> _slot4Pool = [13, 23, 31, 32, 34, 36, 37, 38, 39, 40, 41, 42, 50, 51, 48];
 
 /// Perk slot offered during perk selection phase
 class PerkSlot {
@@ -45,6 +55,8 @@ class CombatService extends ChangeNotifier {
   String? _lastError;
   bool _isServerDriven = false;
 
+  bool _isAutoPlacing = false;
+
   // Getters
   CombatGameState? get gameState => _gameState;
   bool get isGameOver => _gameState?.isGameOver ?? false;
@@ -67,7 +79,7 @@ class CombatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Generate perk slots: 2 fixed + 2 random from pool
+  /// Generate perk slots: 2 fixed + 2 from pools (deterministic or random)
   List<PerkSlot> generatePerkSlots() {
     final slots = <PerkSlot>[
       PerkSlot(
@@ -82,16 +94,29 @@ class CombatService extends ChangeNotifier {
       ),
     ];
 
-    // Shuffle and pick 2 random perks
-    final shuffled = List<int>.from(_randomPerkPool)..shuffle(_random);
-    for (int i = 0; i < 2; i++) {
-      final perkId = shuffled[i];
-      slots.add(PerkSlot(
-        slotIndex: 2 + i,
-        perkId: perkId,
-        perkName: PerkDefinitions.getPerk(perkId)?.name ?? 'Perk $perkId',
-      ));
+    int slot3Id;
+    int slot4Id;
+
+    if (_testModePerks) {
+      final idx = _testPerkPairIndex % _slot3Pool.length;
+      slot3Id = _slot3Pool[idx];
+      slot4Id = _slot4Pool[idx];
+      debugPrint('[PERK TEST] Fixed pair index=$_testPerkPairIndex -> slot3=$slot3Id (${PerkDefinitions.getPerk(slot3Id)?.name}), slot4=$slot4Id (${PerkDefinitions.getPerk(slot4Id)?.name})');
+    } else {
+      slot3Id = _slot3Pool[_random.nextInt(_slot3Pool.length)];
+      slot4Id = _slot4Pool[_random.nextInt(_slot4Pool.length)];
     }
+
+    slots.add(PerkSlot(
+      slotIndex: 2,
+      perkId: slot3Id,
+      perkName: PerkDefinitions.getPerk(slot3Id)?.name ?? 'Perk $slot3Id',
+    ));
+    slots.add(PerkSlot(
+      slotIndex: 3,
+      perkId: slot4Id,
+      perkName: PerkDefinitions.getPerk(slot4Id)?.name ?? 'Perk $slot4Id',
+    ));
 
     return slots;
   }
@@ -99,6 +124,16 @@ class CombatService extends ChangeNotifier {
   /// Execute auto-placement for current player
   /// Returns the lane index where piece was placed, or -1 if no placement possible
   int autoPlace() {
+    if (_isAutoPlacing) return -1;
+    _isAutoPlacing = true;
+    try {
+      return _autoPlaceInternal();
+    } finally {
+      _isAutoPlacing = false;
+    }
+  }
+
+  int _autoPlaceInternal() {
     if (_gameState == null) return -1;
     if (_gameState!.status != CombatStatus.playing) return -1;
 
@@ -694,6 +729,21 @@ class CombatService extends ChangeNotifier {
     return true;
   }
 
+  /// Cloak - hide your pieces from the opponent for 3 turns
+  bool cloakField() {
+    if (_gameState == null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    if (currentPlayer == PlayerSide.player1) {
+      _gameState = _gameState!.copyWith(player1Cloaked: 3);
+    } else {
+      _gameState = _gameState!.copyWith(player2Cloaked: 3);
+    }
+
+    notifyListeners();
+    return true;
+  }
+
   /// Check all lanes for wins (used after perks that modify multiple lanes)
   void _checkAllLaneWins() {
     for (int i = 0; i < 5; i++) {
@@ -817,11 +867,21 @@ class CombatService extends ChangeNotifier {
     final newFrozenLanes = Map<int, PlayerSide>.from(_gameState!.frozenLanes);
     newFrozenLanes.removeWhere((_, frozenBy) => frozenBy != currentPlayer);
 
+    // Decrement cloak counters
+    final newP1Cloaked = _gameState!.player1Cloaked > 0
+        ? _gameState!.player1Cloaked - 1
+        : 0;
+    final newP2Cloaked = _gameState!.player2Cloaked > 0
+        ? _gameState!.player2Cloaked - 1
+        : 0;
+
     _gameState = _gameState!.copyWith(
       currentPlayer: nextPlayer,
       currentPhase: TurnPhase.autoPlacement,
       lastAutoPlacedLane: null,
       frozenLanes: newFrozenLanes,
+      player1Cloaked: newP1Cloaked,
+      player2Cloaked: newP2Cloaked,
     );
 
     notifyListeners();

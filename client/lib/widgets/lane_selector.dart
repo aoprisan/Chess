@@ -324,8 +324,6 @@ class LaneValidator {
   }
 
   static bool perkRequiresTarget(int perkId) {
-    // Perks that don't require lane selection
-    const noTargetPerks = {0, 13, 38}; // Pass, Scramble, Steal
-    return !noTargetPerks.contains(perkId);
+    return PerkDefinitions.getPerk(perkId)?.requiresTarget ?? true;
   }
 }

@@ -944,14 +944,14 @@ func (g *LaneGame) AdvancePhase() {
 }
 
 // GeneratePerkSlots generates the 4 perk options for the current player
-// For Phase 1, we only offer PlaceAnother and RemoveEnemy (slots 1-2)
-func (g *LaneGame) GeneratePerkSlots() {
+// Slots 0-1 are always PlaceAnother and RemoveEnemy
+// Slots 2-3 are set from the provided perk IDs and names
+func (g *LaneGame) GeneratePerkSlots(slot3PerkID int, slot3Name string, slot4PerkID int, slot4Name string) {
 	g.CurrentPerkSlots = []PerkSlot{
 		{SlotIndex: 0, PerkID: 1, PerkName: "PlaceAnother"},
 		{SlotIndex: 1, PerkID: 2, PerkName: "RemoveEnemy"},
-		// Slots 2-3 will be random perks in later phases
-		{SlotIndex: 2, PerkID: 0, PerkName: "Pass"}, // Placeholder
-		{SlotIndex: 3, PerkID: 0, PerkName: "Pass"}, // Placeholder
+		{SlotIndex: 2, PerkID: slot3PerkID, PerkName: slot3Name},
+		{SlotIndex: 3, PerkID: slot4PerkID, PerkName: slot4Name},
 	}
 }
 

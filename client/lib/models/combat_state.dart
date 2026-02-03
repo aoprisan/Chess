@@ -260,6 +260,10 @@ class CombatGameState {
   /// Pending raids
   final List<PendingRaidData> pendingRaids;
 
+  /// Cloak duration remaining per player (0 = not cloaked)
+  final int player1Cloaked;
+  final int player2Cloaked;
+
   const CombatGameState({
     required this.gameId,
     required this.lanes,
@@ -280,6 +284,8 @@ class CombatGameState {
     this.player1Captures = const [],
     this.player2Captures = const [],
     this.pendingRaids = const [],
+    this.player1Cloaked = 0,
+    this.player2Cloaked = 0,
   });
 
   /// Create initial game state
@@ -317,6 +323,11 @@ class CombatGameState {
   /// Check if game is over (3 lanes won)
   bool get isGameOver => player1LanesWon >= 3 || player2LanesWon >= 3;
 
+  /// Check if a player's pieces are cloaked (hidden from opponent)
+  bool isCloaked(PlayerSide side) {
+    return side == PlayerSide.player1 ? player1Cloaked > 0 : player2Cloaked > 0;
+  }
+
   CombatGameState copyWith({
     List<Lane>? lanes,
     PlayerSide? currentPlayer,
@@ -336,6 +347,8 @@ class CombatGameState {
     List<CaptureData>? player1Captures,
     List<CaptureData>? player2Captures,
     List<PendingRaidData>? pendingRaids,
+    int? player1Cloaked,
+    int? player2Cloaked,
   }) {
     // Handle potential null from hot reload of old state
     final currentFrozenLanes = this.frozenLanes;
@@ -359,6 +372,8 @@ class CombatGameState {
       player1Captures: player1Captures ?? List.from(this.player1Captures),
       player2Captures: player2Captures ?? List.from(this.player2Captures),
       pendingRaids: pendingRaids ?? List.from(this.pendingRaids),
+      player1Cloaked: player1Cloaked ?? this.player1Cloaked,
+      player2Cloaked: player2Cloaked ?? this.player2Cloaked,
     );
   }
 

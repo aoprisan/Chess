@@ -28,6 +28,15 @@ class _CombatScreenState extends State<CombatScreen> {
   late CombatService _combatService;
   bool _initialized = false;
 
+  // Turn dialog state for pass-and-play
+  bool _showTurnDialog = true;
+  PlayerSide? _previousPlayer;
+
+  // Piece placement animation tracking
+  int? _lastPlacedLane;
+  PlayerSide? _lastPlacedPlayer;
+  int _placementCounter = 0;
+
   // Perk selection state
   int? _selectedPerkId;
   bool _isSelectingLane = false;
@@ -46,7 +55,23 @@ class _CombatScreenState extends State<CombatScreen> {
 
   void _onServiceChanged() {
     if (mounted) {
+      final gameState = _combatService.gameState;
+      if (gameState != null && gameState.status == CombatStatus.playing) {
+        // Detect turn change for pass-and-play dialog
+        if (_previousPlayer != gameState.currentPlayer) {
+          _showTurnDialog = true;
+          _previousPlayer = gameState.currentPlayer;
+        }
+        // Detect new piece placement for animation
+        if (gameState.lastAutoPlacedLane != null &&
+            gameState.lastAutoPlacedLane != _lastPlacedLane) {
+          _lastPlacedLane = gameState.lastAutoPlacedLane;
+          _lastPlacedPlayer = gameState.currentPlayer;
+          _placementCounter++;
+        }
+      }
       setState(() {});
+      _maybeAutoPlace();
     }
   }
 
@@ -56,9 +81,34 @@ class _CombatScreenState extends State<CombatScreen> {
       player1Hero: widget.player1Hero,
       player2Hero: widget.player2Hero,
     );
+    _previousPlayer = PlayerSide.player1;
     setState(() {
       _initialized = true;
     });
+  }
+
+  void _maybeAutoPlace() {
+    if (_showTurnDialog) return;
+    final gameState = _combatService.gameState;
+    if (gameState == null) return;
+    if (gameState.status != CombatStatus.playing) return;
+    if (gameState.currentPhase != TurnPhase.autoPlacement) return;
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      if (_showTurnDialog) return;
+      final currentState = _combatService.gameState;
+      if (currentState == null) return;
+      if (currentState.currentPhase != TurnPhase.autoPlacement) return;
+      _combatService.autoPlace();
+    });
+  }
+
+  void _dismissTurnDialog() {
+    setState(() {
+      _showTurnDialog = false;
+    });
+    _maybeAutoPlace();
   }
 
   @override
@@ -94,7 +144,132 @@ class _CombatScreenState extends State<CombatScreen> {
             // Perk selection overlay
             if (_initialized && _shouldShowPerkOverlay())
               _buildPerkSelectionOverlay(),
+            // Turn dialog for pass-and-play
+            if (_initialized && _showTurnDialog)
+              _buildTurnDialog(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTurnDialog() {
+    final gameState = _combatService.gameState;
+    if (gameState == null) return const SizedBox.shrink();
+
+    final isPlayer1 = gameState.currentPlayer == PlayerSide.player1;
+    final hero = isPlayer1 ? widget.player1Hero : widget.player2Hero;
+    final playerColor = isPlayer1
+        ? const Color(0xFF4CAF50)
+        : const Color(0xFF9C27B0);
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final cardWidth = (screenWidth * 0.35).clamp(220.0, 400.0);
+    final avatarSize = (screenWidth * 0.12).clamp(80.0, 150.0);
+    final nameFontSize = (screenWidth * 0.028).clamp(18.0, 32.0);
+    final subtitleFontSize = (screenWidth * 0.02).clamp(14.0, 24.0);
+    final buttonWidth = (screenWidth * 0.12).clamp(100.0, 160.0);
+    final buttonHeight = (screenWidth * 0.04).clamp(36.0, 52.0);
+    final buttonFontSize = (screenWidth * 0.018).clamp(14.0, 22.0);
+    final padding = (screenWidth * 0.025).clamp(16.0, 30.0);
+
+    return GestureDetector(
+      onTap: () {}, // Absorb taps
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.6),
+        child: Center(
+          child: Container(
+            width: cardWidth,
+            padding: EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: playerColor, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: playerColor.withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Hero avatar
+                SizedBox(
+                  width: avatarSize,
+                  height: avatarSize,
+                  child: Image.asset(
+                    hero.imagePath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      decoration: BoxDecoration(
+                        color: playerColor.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          hero.name[0],
+                          style: TextStyle(
+                            fontSize: avatarSize * 0.4,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: padding * 0.5),
+                // Player name
+                Text(
+                  hero.name,
+                  style: TextStyle(
+                    fontSize: nameFontSize,
+                    fontWeight: FontWeight.bold,
+                    color: playerColor,
+                  ),
+                ),
+                SizedBox(height: padding * 0.25),
+                // "Your Turn!" subtitle
+                Text(
+                  'Your Turn!',
+                  style: TextStyle(
+                    fontSize: subtitleFontSize,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: padding * 0.75),
+                // "Ready!" dismiss button
+                GestureDetector(
+                  onTap: _dismissTurnDialog,
+                  child: Container(
+                    width: buttonWidth,
+                    height: buttonHeight,
+                    decoration: BoxDecoration(
+                      image: const DecorationImage(
+                        image: AssetImage('assets/images/ui/combat/red-btn-bg.png'),
+                        fit: BoxFit.fill,
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Ready!',
+                        style: TextStyle(
+                          fontSize: buttonFontSize,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -356,6 +531,9 @@ class _CombatScreenState extends State<CombatScreen> {
           _combatService.disperseEnemyPieces(targetLane);
         }
         break;
+      case 22: // Cloak
+        _combatService.cloakField();
+        break;
       case 38: // Steal
         _combatService.stealPiece();
         break;
@@ -414,7 +592,11 @@ class _CombatScreenState extends State<CombatScreen> {
                     isSelectingLane: _isSelectingLane,
                     selectedPerkId: _selectedPerkId,
                     validLanes: _getValidLanes(),
+                    viewer: _showTurnDialog ? null : gameState.currentPlayer,
                     onLaneSelected: _onLaneSelected,
+                    lastPlacedLane: _lastPlacedLane,
+                    lastPlacedPlayer: _lastPlacedPlayer,
+                    placementCounter: _placementCounter,
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.01),
@@ -428,17 +610,8 @@ class _CombatScreenState extends State<CombatScreen> {
                     player2Name: widget.player2Hero.name,
                     screenWidth: screenWidth,
                   )
-                else if (gameState.currentPhase != TurnPhase.perkSelection)
-                  _SkipTurnButton(
-                    onPressed: () {
-                      _combatService.skipTurn();
-                    },
-                    isGameOver: false,
-                    winner: null,
-                    player1Name: widget.player1Hero.name,
-                    player2Name: widget.player2Hero.name,
-                    screenWidth: screenWidth,
-                  ),
+                else if (gameState.currentPhase == TurnPhase.autoPlacement)
+                  _AutoPlacingIndicator(screenWidth: screenWidth),
                 SizedBox(height: screenHeight * 0.02),
               ],
             );
@@ -771,6 +944,10 @@ class _GameArea extends StatelessWidget {
   final int? selectedPerkId;
   final List<int> validLanes;
   final Function(int)? onLaneSelected;
+  final int? lastPlacedLane;
+  final PlayerSide? lastPlacedPlayer;
+  final int placementCounter;
+  final PlayerSide? viewer;
 
   const _GameArea({
     required this.gameState,
@@ -780,8 +957,12 @@ class _GameArea extends StatelessWidget {
     required this.screenHeight,
     required this.isSelectingLane,
     required this.validLanes,
+    this.viewer,
     this.selectedPerkId,
     this.onLaneSelected,
+    this.lastPlacedLane,
+    this.lastPlacedPlayer,
+    this.placementCounter = 0,
   });
 
   @override
@@ -812,7 +993,11 @@ class _GameArea extends StatelessWidget {
               isSelectingLane: isSelectingLane,
               selectedPerkId: selectedPerkId,
               validLanes: validLanes,
+              viewer: viewer,
               onLaneSelected: onLaneSelected,
+              lastPlacedLane: lastPlacedLane,
+              lastPlacedPlayer: lastPlacedPlayer,
+              placementCounter: placementCounter,
             ),
           ),
           SizedBox(width: spacing),
@@ -829,7 +1014,7 @@ class _GameArea extends StatelessWidget {
   }
 }
 
-/// Side placement slot buttons
+/// Side placement slot buttons (visual only — placement is automatic)
 class _PlacementSlots extends StatelessWidget {
   final bool isPlayer1;
   final CombatGameState gameState;
@@ -845,40 +1030,43 @@ class _PlacementSlots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final service = Provider.of<CombatService>(context, listen: false);
-
     final asset = isPlayer1
         ? 'assets/images/ui/combat/player-1-place-btn.png'
         : 'assets/images/ui/combat/player-2-place-btn.png';
     final slotSize = (screenWidth * 0.055).clamp(40.0, 65.0);
     final verticalSpacing = (screenHeight * 0.012).clamp(4.0, 10.0);
 
+    final lastPlacedLane = gameState.lastAutoPlacedLane;
     final currentPlayer = gameState.currentPlayer;
     final isMyTurn = (isPlayer1 && currentPlayer == PlayerSide.player1) ||
         (!isPlayer1 && currentPlayer == PlayerSide.player2);
-    final isPlacementPhase = gameState.currentPhase == TurnPhase.autoPlacement;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(5, (index) {
-        final lane = gameState.lanes[index];
-        final canPlace = isMyTurn &&
-            isPlacementPhase &&
-            lane.winner == null &&
-            lane.getNextEmptyColumn(currentPlayer) != -1;
+        final isHighlighted = isMyTurn && lastPlacedLane == index;
 
         return Padding(
           padding: EdgeInsets.symmetric(vertical: verticalSpacing),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: canPlace ? () => service.placeOnLane(index) : null,
-            child: Opacity(
-              opacity: canPlace ? 1.0 : 0.5,
-              child: SizedBox(
-                width: slotSize,
-                height: slotSize,
-                child: Image.asset(asset, fit: BoxFit.contain),
-              ),
+          child: Opacity(
+            opacity: isHighlighted ? 1.0 : 0.5,
+            child: Container(
+              width: slotSize,
+              height: slotSize,
+              decoration: isHighlighted
+                  ? BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isPlayer1 ? Colors.green : Colors.purple)
+                              .withValues(alpha: 0.6),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    )
+                  : null,
+              child: Image.asset(asset, fit: BoxFit.contain),
             ),
           ),
         );
@@ -898,6 +1086,10 @@ class _GameBoard extends StatelessWidget {
   final int? selectedPerkId;
   final List<int> validLanes;
   final Function(int)? onLaneSelected;
+  final int? lastPlacedLane;
+  final PlayerSide? lastPlacedPlayer;
+  final int placementCounter;
+  final PlayerSide? viewer;
 
   const _GameBoard({
     required this.gameState,
@@ -907,8 +1099,12 @@ class _GameBoard extends StatelessWidget {
     required this.screenHeight,
     required this.isSelectingLane,
     required this.validLanes,
+    this.viewer,
     this.selectedPerkId,
     this.onLaneSelected,
+    this.lastPlacedLane,
+    this.lastPlacedPlayer,
+    this.placementCounter = 0,
   });
 
   @override
@@ -975,36 +1171,67 @@ class _GameBoard extends StatelessWidget {
   List<Widget> _buildPieces(double cellWidth, double cellHeight, double pieceSize) {
     final pieces = <Widget>[];
 
+    // Find the highest filled column for the last-placed lane/player (that's the new piece)
+    int? animateCol;
+    if (lastPlacedLane != null && lastPlacedPlayer != null) {
+      final lane = gameState.lanes[lastPlacedLane!];
+      final cols = lastPlacedPlayer == PlayerSide.player1
+          ? lane.player1Columns
+          : lane.player2Columns;
+      for (int c = cols.length - 1; c >= 0; c--) {
+        if (cols[c]) {
+          animateCol = c;
+          break;
+        }
+      }
+    }
+
     for (int laneIndex = 0; laneIndex < 5; laneIndex++) {
       final lane = gameState.lanes[laneIndex];
 
       // Player 1 pieces (columns 0-4 on left side)
-      for (int col = 0; col < 5; col++) {
-        if (lane.player1Columns[col]) {
-          pieces.add(_buildPiece(
-            laneIndex: laneIndex,
-            columnIndex: col,
-            isPlayer1: true,
-            cellWidth: cellWidth,
-            cellHeight: cellHeight,
-            hero: player1Hero,
-            pieceSize: pieceSize,
-          ));
+      // Hide if Player 1 is cloaked and the opponent is viewing
+      final hideP1 = gameState.isCloaked(PlayerSide.player1) && viewer != PlayerSide.player1;
+      if (!hideP1) {
+        for (int col = 0; col < 5; col++) {
+          if (lane.player1Columns[col]) {
+            final isNewPiece = laneIndex == lastPlacedLane &&
+                lastPlacedPlayer == PlayerSide.player1 &&
+                col == animateCol;
+            pieces.add(_buildPiece(
+              laneIndex: laneIndex,
+              columnIndex: col,
+              isPlayer1: true,
+              cellWidth: cellWidth,
+              cellHeight: cellHeight,
+              hero: player1Hero,
+              pieceSize: pieceSize,
+              animate: isNewPiece,
+            ));
+          }
         }
       }
 
       // Player 2 pieces (columns 5-9 on right side, but stored as 0-4 in player2Columns)
-      for (int col = 0; col < 5; col++) {
-        if (lane.player2Columns[col]) {
-          pieces.add(_buildPiece(
-            laneIndex: laneIndex,
-            columnIndex: col,
-            isPlayer1: false,
-            cellWidth: cellWidth,
-            cellHeight: cellHeight,
-            hero: player2Hero,
-            pieceSize: pieceSize,
-          ));
+      // Hide if Player 2 is cloaked and the opponent is viewing
+      final hideP2 = gameState.isCloaked(PlayerSide.player2) && viewer != PlayerSide.player2;
+      if (!hideP2) {
+        for (int col = 0; col < 5; col++) {
+          if (lane.player2Columns[col]) {
+            final isNewPiece = laneIndex == lastPlacedLane &&
+                lastPlacedPlayer == PlayerSide.player2 &&
+                col == animateCol;
+            pieces.add(_buildPiece(
+              laneIndex: laneIndex,
+              columnIndex: col,
+              isPlayer1: false,
+              cellWidth: cellWidth,
+              cellHeight: cellHeight,
+              hero: player2Hero,
+              pieceSize: pieceSize,
+              animate: isNewPiece,
+            ));
+          }
         }
       }
     }
@@ -1020,51 +1247,77 @@ class _GameBoard extends StatelessWidget {
     required double cellHeight,
     required Hero hero,
     required double pieceSize,
+    bool animate = false,
   }) {
     // Calculate position
     // Player 1: columns 0-4 map to grid positions 0-4 (left to right)
     // Player 2: columns 0-4 map to grid positions 9-5 (right to left)
     final gridColumn = isPlayer1 ? columnIndex : (9 - columnIndex);
-    final x = gridColumn * cellWidth + (cellWidth - pieceSize) / 2;
+    final targetX = gridColumn * cellWidth + (cellWidth - pieceSize) / 2;
     final y = laneIndex * cellHeight + (cellHeight - pieceSize) / 2;
 
     final bgAsset = isPlayer1
         ? 'assets/images/ui/combat/player-1-item-bg.png'
         : 'assets/images/ui/combat/player-2-item-bg.png';
 
-    return Positioned(
-      left: x,
-      top: y,
-      child: Container(
-        width: pieceSize,
-        height: pieceSize,
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(bgAsset),
-            fit: BoxFit.contain,
-          ),
+    final pieceWidget = Container(
+      width: pieceSize,
+      height: pieceSize,
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage(bgAsset),
+          fit: BoxFit.contain,
         ),
-        child: Padding(
-          padding: EdgeInsets.all(pieceSize * 0.1),
-          child: ClipOval(
-            child: Image.asset(
-              hero.imagePath,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: isPlayer1 ? Colors.green.shade200 : Colors.purple.shade200,
-                child: Center(
-                  child: Text(
-                    hero.name[0],
-                    style: TextStyle(
-                      fontSize: pieceSize * 0.35,
-                      fontWeight: FontWeight.bold,
-                    ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(pieceSize * 0.1),
+        child: ClipOval(
+          child: Image.asset(
+            hero.imagePath,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: isPlayer1 ? Colors.green.shade200 : Colors.purple.shade200,
+              child: Center(
+                child: Text(
+                  hero.name[0],
+                  style: TextStyle(
+                    fontSize: pieceSize * 0.35,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+
+    if (!animate) {
+      return Positioned(left: targetX, top: y, child: pieceWidget);
+    }
+
+    // Slide in from the player's edge
+    final startX = isPlayer1 ? -pieceSize : cellWidth * 10;
+
+    return Positioned(
+      top: y,
+      left: 0,
+      right: 0,
+      height: pieceSize,
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey('place_$placementCounter'),
+        tween: Tween(begin: startX, end: targetX),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        builder: (context, x, child) {
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(left: x, child: child!),
+            ],
+          );
+        },
+        child: pieceWidget,
       ),
     );
   }
@@ -1476,6 +1729,42 @@ class _PerkSelectionArea extends StatelessWidget {
       isMyTurn: isMyTurn,
       onPerkSelected: onPerkSelected,
       onPass: onPass,
+    );
+  }
+}
+
+/// Indicator shown during automatic piece placement
+class _AutoPlacingIndicator extends StatelessWidget {
+  final double screenWidth;
+
+  const _AutoPlacingIndicator({required this.screenWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = (screenWidth * 0.016).clamp(12.0, 20.0);
+    final indicatorSize = (screenWidth * 0.018).clamp(14.0, 22.0);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: indicatorSize,
+          height: indicatorSize,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.amber.shade400,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Placing piece...',
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }
