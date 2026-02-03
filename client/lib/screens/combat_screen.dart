@@ -534,6 +534,9 @@ class _CombatScreenState extends State<CombatScreen> {
       case 22: // Cloak
         _combatService.cloakField();
         break;
+      case 23: // Blind
+        _combatService.blindOpponent();
+        break;
       case 38: // Steal
         _combatService.stealPiece();
         break;
@@ -1190,8 +1193,10 @@ class _GameBoard extends StatelessWidget {
       final lane = gameState.lanes[laneIndex];
 
       // Player 1 pieces (columns 0-4 on left side)
-      // Hide if Player 1 is cloaked and the opponent is viewing
-      final hideP1 = gameState.isCloaked(PlayerSide.player1) && viewer != PlayerSide.player1;
+      // Hide if Player 1 is cloaked and the opponent is viewing,
+      // or if Player 1 is blinded and Player 1 is the viewer
+      final hideP1 = (gameState.isCloaked(PlayerSide.player1) && viewer != PlayerSide.player1)
+          || (gameState.isBlinded(PlayerSide.player1) && viewer == PlayerSide.player1);
       if (!hideP1) {
         for (int col = 0; col < 5; col++) {
           if (lane.player1Columns[col]) {
@@ -1213,8 +1218,10 @@ class _GameBoard extends StatelessWidget {
       }
 
       // Player 2 pieces (columns 5-9 on right side, but stored as 0-4 in player2Columns)
-      // Hide if Player 2 is cloaked and the opponent is viewing
-      final hideP2 = gameState.isCloaked(PlayerSide.player2) && viewer != PlayerSide.player2;
+      // Hide if Player 2 is cloaked and the opponent is viewing,
+      // or if Player 2 is blinded and Player 2 is the viewer
+      final hideP2 = (gameState.isCloaked(PlayerSide.player2) && viewer != PlayerSide.player2)
+          || (gameState.isBlinded(PlayerSide.player2) && viewer == PlayerSide.player2);
       if (!hideP2) {
         for (int col = 0; col < 5; col++) {
           if (lane.player2Columns[col]) {

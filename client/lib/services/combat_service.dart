@@ -744,6 +744,22 @@ class CombatService extends ChangeNotifier {
     return true;
   }
 
+  /// Blind - hide opponent's pieces from them for 2 turns
+  bool blindOpponent() {
+    if (_gameState == null) return false;
+    final currentPlayer = _gameState!.currentPlayer;
+    final opponent = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2 : PlayerSide.player1;
+    if (_gameState!.isBlinded(opponent)) return false; // already blinded
+    if (opponent == PlayerSide.player1) {
+      _gameState = _gameState!.copyWith(player1Blinded: 2);
+    } else {
+      _gameState = _gameState!.copyWith(player2Blinded: 2);
+    }
+    notifyListeners();
+    return true;
+  }
+
   /// Check all lanes for wins (used after perks that modify multiple lanes)
   void _checkAllLaneWins() {
     for (int i = 0; i < 5; i++) {
@@ -875,6 +891,14 @@ class CombatService extends ChangeNotifier {
         ? _gameState!.player2Cloaked - 1
         : 0;
 
+    // Decrement blind counters only for the player whose turn is ending
+    final newP1Blinded = (currentPlayer == PlayerSide.player1 && _gameState!.player1Blinded > 0)
+        ? _gameState!.player1Blinded - 1
+        : _gameState!.player1Blinded;
+    final newP2Blinded = (currentPlayer == PlayerSide.player2 && _gameState!.player2Blinded > 0)
+        ? _gameState!.player2Blinded - 1
+        : _gameState!.player2Blinded;
+
     _gameState = _gameState!.copyWith(
       currentPlayer: nextPlayer,
       currentPhase: TurnPhase.autoPlacement,
@@ -882,6 +906,8 @@ class CombatService extends ChangeNotifier {
       frozenLanes: newFrozenLanes,
       player1Cloaked: newP1Cloaked,
       player2Cloaked: newP2Cloaked,
+      player1Blinded: newP1Blinded,
+      player2Blinded: newP2Blinded,
     );
 
     notifyListeners();
@@ -1161,6 +1187,8 @@ class CombatService extends ChangeNotifier {
       player1Captures: p1Captures,
       player2Captures: p2Captures,
       pendingRaids: pendingRaids,
+      player1Blinded: gameData['player1Blinded'] as int? ?? 0,
+      player2Blinded: gameData['player2Blinded'] as int? ?? 0,
     );
   }
 

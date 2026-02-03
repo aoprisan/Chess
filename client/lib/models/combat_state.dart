@@ -264,6 +264,10 @@ class CombatGameState {
   final int player1Cloaked;
   final int player2Cloaked;
 
+  /// Blind duration remaining per player (0 = not blinded)
+  final int player1Blinded;
+  final int player2Blinded;
+
   const CombatGameState({
     required this.gameId,
     required this.lanes,
@@ -286,6 +290,8 @@ class CombatGameState {
     this.pendingRaids = const [],
     this.player1Cloaked = 0,
     this.player2Cloaked = 0,
+    this.player1Blinded = 0,
+    this.player2Blinded = 0,
   });
 
   /// Create initial game state
@@ -328,6 +334,11 @@ class CombatGameState {
     return side == PlayerSide.player1 ? player1Cloaked > 0 : player2Cloaked > 0;
   }
 
+  /// Check if a player is blinded (cannot see their own pieces)
+  bool isBlinded(PlayerSide side) {
+    return side == PlayerSide.player1 ? player1Blinded > 0 : player2Blinded > 0;
+  }
+
   CombatGameState copyWith({
     List<Lane>? lanes,
     PlayerSide? currentPlayer,
@@ -349,6 +360,8 @@ class CombatGameState {
     List<PendingRaidData>? pendingRaids,
     int? player1Cloaked,
     int? player2Cloaked,
+    int? player1Blinded,
+    int? player2Blinded,
   }) {
     // Handle potential null from hot reload of old state
     final currentFrozenLanes = this.frozenLanes;
@@ -374,6 +387,8 @@ class CombatGameState {
       pendingRaids: pendingRaids ?? List.from(this.pendingRaids),
       player1Cloaked: player1Cloaked ?? this.player1Cloaked,
       player2Cloaked: player2Cloaked ?? this.player2Cloaked,
+      player1Blinded: player1Blinded ?? this.player1Blinded,
+      player2Blinded: player2Blinded ?? this.player2Blinded,
     );
   }
 
