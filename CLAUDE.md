@@ -94,6 +94,7 @@ python run_simulation.py -n 1000  # Run AI matchup simulation
   - `targeting.go`: Perk targeting system
 
 ### Python Simulation (`templates/sim/`)
+**Note: The Python simulation code is reference-only and should not be modified.**
 A comprehensive simulation engine for perk balance testing:
 - **src/game/**: Game engine, state, rules, configuration
 - **src/perks/**: Perk implementations by category
