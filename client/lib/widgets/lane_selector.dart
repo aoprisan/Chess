@@ -96,11 +96,11 @@ class LaneSelectorOverlay extends StatelessWidget {
               final isValid = validLanes.contains(index);
               final lane = gameState.lanes[index];
               final myPieces = lane.countPieces(playerSide);
-              final enemyPieces = lane.countPieces(
-                playerSide == PlayerSide.player1
-                    ? PlayerSide.player2
-                    : PlayerSide.player1,
-              );
+              final opponent = playerSide == PlayerSide.player1
+                  ? PlayerSide.player2
+                  : PlayerSide.player1;
+              final enemyCloaked = gameState.isCloaked(opponent);
+              final enemyPieces = lane.countPieces(opponent);
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -110,6 +110,7 @@ class LaneSelectorOverlay extends StatelessWidget {
                   isWon: lane.winner != null,
                   myPieces: myPieces,
                   enemyPieces: enemyPieces,
+                  enemyCloaked: enemyCloaked,
                   winner: lane.winner,
                   playerSide: playerSide,
                   onTap: isValid ? () => onLaneSelected(index) : null,
@@ -142,6 +143,7 @@ class _LaneButton extends StatelessWidget {
   final bool isWon;
   final int myPieces;
   final int enemyPieces;
+  final bool enemyCloaked;
   final PlayerSide? winner;
   final PlayerSide playerSide;
   final VoidCallback? onTap;
@@ -152,6 +154,7 @@ class _LaneButton extends StatelessWidget {
     required this.isWon,
     required this.myPieces,
     required this.enemyPieces,
+    required this.enemyCloaked,
     required this.winner,
     required this.playerSide,
     this.onTap,
@@ -235,7 +238,7 @@ class _LaneButton extends StatelessWidget {
                   Icon(Icons.person, size: 12, color: Colors.red.shade400),
                   const SizedBox(width: 2),
                   Text(
-                    '$enemyPieces',
+                    enemyCloaked ? '?' : '$enemyPieces',
                     style: TextStyle(fontSize: 12, color: textColor),
                   ),
                 ],
@@ -273,6 +276,8 @@ class LaneValidator {
           break;
         case 2: // RemoveEnemy - enemy has pieces
         case 36: // Disperse - enemy pieces exist
+          // Cloak hides enemy positions - can't target what you can't see
+          if (gameState.isCloaked(opponent)) break;
           if (lane.countPieces(opponent) > 0) {
             validLanes.add(i);
           }
@@ -301,6 +306,8 @@ class LaneValidator {
           }
           break;
         case 34: // Disrupt - swap enemy pieces between 2 lanes
+          // Cloak hides enemy positions - can't target what you can't see
+          if (gameState.isCloaked(opponent)) break;
           // For first selection, any non-won lane with enemy pieces
           // For second selection, any non-won lane with enemy pieces except the first
           // (per Python simulation: both lanes must have enemy pieces)

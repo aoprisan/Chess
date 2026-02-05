@@ -60,8 +60,14 @@ func (t *TargetingHelper) getYourLaneTargets(player models.PlayerSide, perkID Pe
 
 // getEnemyLaneTargets returns lanes where the player can target the enemy side
 func (t *TargetingHelper) getEnemyLaneTargets(player models.PlayerSide, perkID PerkID) []int {
-	targets := make([]int, 0, models.DefaultLaneCount)
 	opponent := player.Opponent()
+
+	// Cloak hides enemy positions - perks that need to see enemy pieces can't target
+	if (perkID == PerkRemoveEnemy || perkID == PerkDisperse) && t.game.IsCloaked(opponent) {
+		return nil
+	}
+
+	targets := make([]int, 0, models.DefaultLaneCount)
 
 	for i := 0; i < models.DefaultLaneCount; i++ {
 		lane := t.game.Lanes[i]
@@ -125,8 +131,12 @@ func (t *TargetingHelper) CanUsePerk(perkID PerkID, player models.PlayerSide) bo
 		// Need at least 2 lanes with pieces
 		return len(t.getYourPieceTargets(player)) >= 2
 	case TargetTwoEnemyLanes:
-		// Need at least 2 lanes with enemy pieces
+		// Cloak hides enemy positions - can't target what you can't see
 		opponent := player.Opponent()
+		if t.game.IsCloaked(opponent) {
+			return false
+		}
+		// Need at least 2 lanes with enemy pieces
 		count := 0
 		for i := 0; i < models.DefaultLaneCount; i++ {
 			lane := t.game.Lanes[i]
