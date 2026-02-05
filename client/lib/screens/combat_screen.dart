@@ -1189,14 +1189,19 @@ class _GameBoard extends StatelessWidget {
       }
     }
 
+    // For blind checks, use the current player as fallback when viewer is null
+    // (during turn dialog). This ensures the blinded player's pieces stay hidden
+    // even during the pass-and-play handoff screen.
+    final blindViewer = viewer ?? gameState.currentPlayer;
+
     for (int laneIndex = 0; laneIndex < 5; laneIndex++) {
       final lane = gameState.lanes[laneIndex];
 
       // Player 1 pieces (columns 0-4 on left side)
       // Hide if Player 1 is cloaked and the opponent is viewing,
-      // or if Player 1 is blinded and Player 1 is the viewer
+      // or if Player 1 is blinded and Player 1 is the viewer (or about to view during turn dialog)
       final hideP1 = (gameState.isCloaked(PlayerSide.player1) && viewer != PlayerSide.player1)
-          || (gameState.isBlinded(PlayerSide.player1) && viewer == PlayerSide.player1);
+          || (gameState.isBlinded(PlayerSide.player1) && blindViewer == PlayerSide.player1);
       if (!hideP1) {
         for (int col = 0; col < 5; col++) {
           if (lane.player1Columns[col]) {
@@ -1219,9 +1224,9 @@ class _GameBoard extends StatelessWidget {
 
       // Player 2 pieces (columns 5-9 on right side, but stored as 0-4 in player2Columns)
       // Hide if Player 2 is cloaked and the opponent is viewing,
-      // or if Player 2 is blinded and Player 2 is the viewer
+      // or if Player 2 is blinded and Player 2 is the viewer (or about to view during turn dialog)
       final hideP2 = (gameState.isCloaked(PlayerSide.player2) && viewer != PlayerSide.player2)
-          || (gameState.isBlinded(PlayerSide.player2) && viewer == PlayerSide.player2);
+          || (gameState.isBlinded(PlayerSide.player2) && blindViewer == PlayerSide.player2);
       if (!hideP2) {
         for (int col = 0; col < 5; col++) {
           if (lane.player2Columns[col]) {
