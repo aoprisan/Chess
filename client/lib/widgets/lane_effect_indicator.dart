@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/combat_state.dart';
 
-/// Returns the icon for a lane effect based on its type and name
+/// Returns the icon for a lane effect based on its type and category
 IconData _effectIcon(LaneEffect effect) {
   switch (effect.effectType) {
     case 'trigger':
-      if (effect.polarity == EffectPolarity.detrimental) {
+      if (effect.category == EffectCategory.offensive) {
         return Icons.warning_amber_rounded;
       }
       return Icons.shield_outlined;
@@ -45,18 +45,20 @@ class LaneEffectOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     if (effects.isEmpty) return const SizedBox.shrink();
 
-    // Determine color based on polarity of first effect
-    // (all effects on same half should have same polarity)
-    final isBeneficial = effects.first.polarity == EffectPolarity.beneficial;
-    final overlayColor = isBeneficial
-        ? Colors.green.withValues(alpha: 0.15)
-        : Colors.red.withValues(alpha: 0.15);
-    final borderColor = isBeneficial
-        ? Colors.green.shade400
-        : Colors.red.shade400;
-    final textColor = isBeneficial
-        ? Colors.green.shade300
-        : Colors.red.shade300;
+    // Determine color based on perk category of first effect
+    final category = effects.first.category;
+    final Color baseColor;
+    switch (category) {
+      case EffectCategory.defensive:
+        baseColor = Colors.blue.shade400;
+      case EffectCategory.offensive:
+        baseColor = Colors.red.shade400;
+      case EffectCategory.utility:
+        baseColor = Colors.amber.shade400;
+    }
+    final overlayColor = baseColor.withValues(alpha: 0.15);
+    final borderColor = baseColor;
+    final textColor = baseColor;
 
     return Positioned(
       top: top,

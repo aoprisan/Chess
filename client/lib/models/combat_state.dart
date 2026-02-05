@@ -105,11 +105,15 @@ class PendingRaidData {
 /// Polarity of a lane effect
 enum EffectPolarity { beneficial, detrimental }
 
+/// Category of a perk effect (for lane overlay coloring)
+enum EffectCategory { offensive, defensive, utility }
+
 /// Aggregated lane effect for display
 class LaneEffect {
   final String effectName;
   final String effectType; // trigger, deferred, duration, raid
   final EffectPolarity polarity;
+  final EffectCategory category;
   final int ownerPlayer; // 1 or 2
   final int laneIndex;
   final bool onOwnerSide; // true = owner's half, false = opponent's half
@@ -119,6 +123,7 @@ class LaneEffect {
     required this.effectName,
     required this.effectType,
     required this.polarity,
+    required this.category,
     required this.ownerPlayer,
     required this.laneIndex,
     required this.onOwnerSide,
@@ -400,6 +405,29 @@ class CombatGameState {
     return frozenBy != player;
   }
 
+  /// Perk name → category mapping for lane overlay colors
+  static const _perkCategory = <String, EffectCategory>{
+    'freeze': EffectCategory.defensive,
+    'cloak': EffectCategory.defensive,
+    'portal': EffectCategory.defensive,
+    'trap': EffectCategory.defensive,
+    'mirror': EffectCategory.defensive,
+    'echo': EffectCategory.defensive,
+    'hydra': EffectCategory.defensive,
+    'absorb': EffectCategory.defensive,
+    'sanctuary': EffectCategory.defensive,
+    'shockwave': EffectCategory.offensive,
+    'backfire': EffectCategory.offensive,
+    'blind': EffectCategory.offensive,
+    'capture': EffectCategory.offensive,
+    'raid': EffectCategory.offensive,
+    'retaliate': EffectCategory.offensive,
+    'enlist': EffectCategory.offensive,
+    'ambush': EffectCategory.offensive,
+    'signal': EffectCategory.utility,
+    'reinforce': EffectCategory.utility,
+  };
+
   /// Aggregate all persistent lane effects into a map keyed by lane index
   Map<int, List<LaneEffect>> getActiveLaneEffects() {
     final effects = <int, List<LaneEffect>>{};
@@ -424,6 +452,7 @@ class CombatGameState {
           effectName: trigger.type.toUpperCase(),
           effectType: 'trigger',
           polarity: polarity,
+          category: _perkCategory[trigger.type] ?? EffectCategory.defensive,
           ownerPlayer: trigger.owner,
           laneIndex: i,
           onOwnerSide: onOwnerSide,
@@ -446,6 +475,7 @@ class CombatGameState {
           effectName: def.type.toUpperCase(),
           effectType: 'deferred',
           polarity: polarity,
+          category: _perkCategory[def.type] ?? EffectCategory.utility,
           ownerPlayer: def.owner,
           laneIndex: i,
           onOwnerSide: onOwnerSide,
@@ -461,6 +491,7 @@ class CombatGameState {
           effectName: 'SANCTUARY',
           effectType: 'duration',
           polarity: EffectPolarity.beneficial,
+          category: EffectCategory.defensive,
           ownerPlayer: 1,
           laneIndex: s.lane,
           onOwnerSide: true,
@@ -474,6 +505,7 @@ class CombatGameState {
           effectName: 'SANCTUARY',
           effectType: 'duration',
           polarity: EffectPolarity.beneficial,
+          category: EffectCategory.defensive,
           ownerPlayer: 2,
           laneIndex: s.lane,
           onOwnerSide: true,
@@ -489,6 +521,7 @@ class CombatGameState {
           effectName: 'CAPTURE',
           effectType: 'duration',
           polarity: EffectPolarity.beneficial,
+          category: EffectCategory.offensive,
           ownerPlayer: 1,
           laneIndex: c.lane,
           onOwnerSide: true,
@@ -502,6 +535,7 @@ class CombatGameState {
           effectName: 'CAPTURE',
           effectType: 'duration',
           polarity: EffectPolarity.beneficial,
+          category: EffectCategory.offensive,
           ownerPlayer: 2,
           laneIndex: c.lane,
           onOwnerSide: true,
@@ -517,6 +551,7 @@ class CombatGameState {
           effectName: raid.source == 'RETALIATE' ? 'RETALIATE' : 'RAID',
           effectType: 'raid',
           polarity: EffectPolarity.detrimental,
+          category: EffectCategory.offensive,
           ownerPlayer: raid.owner,
           laneIndex: raid.lane,
           onOwnerSide: false, // raids appear on opponent's side
