@@ -203,7 +203,7 @@ class GameEngine:
 
         # Handle pass
         if slot == 'pass' or slot == 0:
-            self.state.record_slot_usage('pass')
+            self.state.record_slot_usage('pass', player)
             if self.logger:
                 self.logger.log_perk_selection(
                     self.state.turn_number,
@@ -228,8 +228,8 @@ class GameEngine:
         success, result = execute_perk(self.state, player, perk_type, target)
 
         if success:
-            self.state.record_slot_usage(slot)
-            self.state.record_perk_usage(perk_type)
+            self.state.record_slot_usage(slot, player)
+            self.state.record_perk_usage(perk_type, player)
             self.state.selected_perk = perk_type
 
             # Log perk selection
@@ -274,7 +274,7 @@ class GameEngine:
         # Perk execution failed
         if silent_fail:
             # Silent failure: treat as pass (used when AI has stale belief state)
-            self.state.record_slot_usage('pass')
+            self.state.record_slot_usage('pass', player)
             if self.logger:
                 self.logger.log_perk_selection(
                     self.state.turn_number,
@@ -330,7 +330,16 @@ class GameEngine:
         vision_obscured = self.state.is_cloaked(opponent) or self.state.is_blinded(player)
 
         # Execute perk with silent failure if vision is obscured
-        return self.select_perk(slot, target, silent_fail=vision_obscured)
+        result = self.select_perk(slot, target, silent_fail=vision_obscured)
+
+        # If perk execution failed (invalid target, etc.), treat as pass to avoid
+        # getting stuck in a loop where the same invalid action repeats every turn
+        if not result:
+            self.state.record_slot_usage('pass', player)
+            self._end_turn()
+            return True
+
+        return result
 
     def _log_ai_decision(self, slot_selector, slot, target) -> None:
         """Log AI decision with evaluation data if available."""
@@ -380,6 +389,14 @@ class GameEngine:
             ai = player1_ai if self.state.current_player == Player.PLAYER1 else player2_ai
             self.play_turn(ai)
             turn += 1
+
+        # Log draw if game ended due to max_turns without a winner
+        if not self.state.game_over and self.logger:
+            self.logger.log_game_over(
+                self.state.turn_number,
+                winner=None,
+                reason="max_turns"
+            )
 
         return self.state
 

@@ -30,20 +30,27 @@ def print_summary(result: SimulationResult, title: str = "Simulation Results") -
     if result.game_lengths:
         print(f"  Min: {min(result.game_lengths)}, Max: {max(result.game_lengths)}")
 
-    print(f"\nSlot Usage:")
-    slot_pcts = result.slot_percentages
+    print(f"\nSlot Usage (P1 / P2):")
+    p1_pcts = result.slot_percentages_p1
+    p2_pcts = result.slot_percentages_p2
     for slot in [1, 2, 3, 4]:
-        bar_len = int(slot_pcts[slot] / 2)
-        bar = "█" * bar_len
-        print(f"  Slot {slot}: {slot_pcts[slot]:5.1f}% {bar}")
+        print(f"  Slot {slot}: {p1_pcts[slot]:5.1f}% / {p2_pcts[slot]:5.1f}%")
 
-    print(f"\nTop 10 Perks:")
-    top_perks = result.perk_usage.most_common(10)
-    max_count = top_perks[0][1] if top_perks else 1
-    for perk, count in top_perks:
-        bar_len = int(count / max_count * 20)
-        bar = "█" * bar_len
-        print(f"  {perk:15s}: {count:5d} {bar}")
+    print(f"\nTop Perks (P1):")
+    top_p1 = result.perk_usage_p1.most_common(5)
+    if top_p1:
+        max_c = top_p1[0][1]
+        for perk, count in top_p1:
+            bar = "█" * int(count / max_c * 15)
+            print(f"  {perk:15s}: {count:5d} {bar}")
+
+    print(f"\nTop Perks (P2):")
+    top_p2 = result.perk_usage_p2.most_common(5)
+    if top_p2:
+        max_c = top_p2[0][1]
+        for perk, count in top_p2:
+            bar = "█" * int(count / max_c * 15)
+            print(f"  {perk:15s}: {count:5d} {bar}")
 
 
 def print_comparison(results: dict[str, SimulationResult]) -> None:

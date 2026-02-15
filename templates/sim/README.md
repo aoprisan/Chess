@@ -2,6 +2,25 @@
 
 Python simulation engine for testing perk balance in the grid placement game. Pure Python with zero external dependencies.
 
+## Project Goal
+
+### Phase 1 — Prove slot 3/4 efficiency
+
+Build a minimax AI profile that:
+- Uses **slot 3 perks >25%** (ideally >30%) and **slot 4 perks >25%** (ideally >30%)
+- Beats a minimax AI profile that maximizes slots 1/2 by **>65-70% win rate**
+
+This proves that the "React & Protect" and "Act & Disrupt" perk pools are competitively viable — not just filler options that a rational player ignores in favor of PlaceAnother/RemoveEnemy.
+
+### Phase 2 — Ongoing balance
+
+Once Phase 1 is proven, use the simulator to keep adding new perks and maintain balance across all four slots.
+
+### Current status
+
+- **Slot 4** (Act & Disrupt): target met — usage consistently >25% with CMA-ES optimized minimax weights.
+- **Slot 3** (React & Protect): stuck at ~13% despite 100 generations of CMA-ES optimization on evaluation weights. Likely requires structural changes to the evaluation function or search (e.g., modeling trigger/duration perk value over future turns rather than static board scoring).
+
 ## Quick Start
 
 ```bash
@@ -39,6 +58,15 @@ python run_simulation.py -n 100 --p1 minimax1 --depth 4
 
 # Compare minimax depth 4 vs depth 5
 python run_simulation.py -n 100 --p1 minimax1 --p1-depth 4 --p2 minimax1 --p2-depth 5
+
+# Run with CMA-ES optimized profile
+python run_simulation.py -n 500 --p1 hard --p2 hard --profile v3
+
+# Compare profiles: v3 vs v1
+python run_simulation.py -n 500 --p1 hard --p2 hard --p1-profile v3 --p2-profile v1
+
+# Slot balance analysis with specific profile
+python run_simulation.py --balance -n 500 --profile v3
 
 # Run with extensive per-game logging and analyze results
 python run_simulation.py -n 50 --p1 hard --p2 hard --log-games --seed 0
@@ -85,8 +113,11 @@ python -m pytest tests/ --cov=src
 | `--depth N` | Custom depth for minimax AI (applies to both players) |
 | `--p1-depth N` | Custom depth for Player 1 minimax AI |
 | `--p2-depth N` | Custom depth for Player 2 minimax AI |
+| `--profile {v1,v2,v3}` | Set both p1 and p2 profile |
+| `--p1-profile {v1,v2,v3}` | Heuristic profile for player 1 (default: v1) |
+| `--p2-profile {v1,v2,v3}` | Heuristic profile for player 2 (default: v1) |
 | `--compare` | Compare all difficulty combinations |
-| `--balance` | Test slot allocation balance |
+| `--balance` | Slot balance analysis (hard vs hard with selected profile) |
 | `--perks` | Show detailed perk analysis |
 | `--export FILE` | Export results to JSON |
 | `--seed N` | Starting random seed |
@@ -102,6 +133,8 @@ python -m pytest tests/ --cov=src
 sim/
 ├── run_simulation.py    # Main CLI for batch simulations
 ├── run_test.py          # Quick test runner
+├── run_optimizer.py     # Genetic algorithm parameter optimizer
+├── run_cmaes.py         # CMA-ES parameter optimizer (requires cma package)
 ├── analyze_logs.py      # Analyze game logs for AI decision quality
 ├── requirements.txt     # No external dependencies
 ├── src/
@@ -121,6 +154,7 @@ sim/
 │   ├── ai/
 │   │   ├── heuristics.py # Lane scoring, difficulty weights
 │   │   ├── strategy.py   # AIPlayer class, perk evaluation
+│   │   ├── profiles.py   # Heuristic parameter profiles (v1, v2, v3)
 │   │   └── minimax.py    # Expectimax AI with alpha-beta pruning
 │   └── simulation/
 │       ├── runner.py    # SimulationRunner, batch execution
@@ -201,6 +235,20 @@ Queue effects for future turns:
 - **Silent Failures**: Invalid moves from stale belief state fail silently
 - **Perk Evaluation**: All 32 perks have custom AI scoring logic
 
+## AI Profiles
+
+Profiles control perk scoring weights for heuristic AI (easy/medium/hard). They are **not used by minimax AI**, which does its own lookahead evaluation.
+
+| Profile | Method | Slot Distribution | Win Rate (P2 vs v1 Hard) |
+|---------|--------|-------------------|--------------------------|
+| **v1** | Hand-tuned baseline | Slots 1-2 dominant (~40% each), 3-4 underused (~10%) | baseline |
+| **v2** | Manual rebalance | Better diversity (~22% for slots 3-4) | not optimized |
+| **v3** | CMA-ES optimization | [26%, 20%, 27%, 27%] | 38.5% (ceiling ~39%) |
+
+v3 was produced by CMA-ES numerical optimization (200 generations, 400 games/eval). The ~39% ceiling confirms that perk scoring weights alone cannot overcome P1's first-move advantage — strategic decisions (lane selection, when to pass) matter more.
+
+Use `--profile v3` to apply to both players, or `--p1-profile`/`--p2-profile` for asymmetric matchups.
+
 ## Minimax AI (Expectimax)
 
 The simulator includes an expectimax AI with alpha-beta pruning for lookahead-based decision making.
@@ -274,30 +322,20 @@ Slot Usage:
 ## Programmatic Usage
 
 ```python
-from src.ai.strategy import medium_ai, hard_ai
-from src.ai.minimax import create_expectimax_ai, expectimax_depth2
+from src.ai import create_ai_function, Difficulty
+from src.ai.minimax import create_expectimax_ai
 from src.simulation.runner import SimulationRunner
 
-# Using heuristic AI
-runner = SimulationRunner(
-    player1_ai=hard_ai,
-    player2_ai=medium_ai,
-    seed_start=0,
-    max_turns=100
-)
+# Using heuristic AI with profile
+p1 = create_ai_function(Difficulty.HARD, 'v3')
+p2 = create_ai_function(Difficulty.HARD, 'v1')
 
+runner = SimulationRunner(player1_ai=p1, player2_ai=p2, seed_start=0)
 result = runner.run(n_games=1000, verbose=True)
 print(f"P1 win rate: {result.player1_win_rate:.1%}")
 print(f"Avg turns: {result.avg_turns:.1f}")
 
-# Using expectimax AI
-runner = SimulationRunner(
-    player1_ai=expectimax_depth2,
-    player2_ai=hard_ai,
-    seed_start=0
-)
-
-# Or with custom depth
-custom_ai = create_expectimax_ai(depth=4)
-runner = SimulationRunner(player1_ai=custom_ai, player2_ai=hard_ai)
+# Using expectimax AI (profiles don't apply)
+minimax = create_expectimax_ai(depth=2)
+runner = SimulationRunner(player1_ai=minimax, player2_ai=p1, seed_start=0)
 ```

@@ -13,6 +13,9 @@ from .profiles import (
     HeuristicProfile,
     PROFILES,
     get_profile,
+    MinimaxProfile,
+    MINIMAX_PROFILES,
+    get_minimax_profile,
 )
 
 # Import expectimax directly (minimax uses lazy imports internally to avoid circular deps)
@@ -37,6 +40,9 @@ __all__ = [
     'HeuristicProfile',
     'PROFILES',
     'get_profile',
+    'MinimaxProfile',
+    'MINIMAX_PROFILES',
+    'get_minimax_profile',
     # Expectimax AI
     'ExpectimaxAI',
     'create_expectimax_ai',

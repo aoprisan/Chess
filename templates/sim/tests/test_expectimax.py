@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.game.state import GameState, Player, TurnPhase, TriggerType
+from src.game.state import GameState, Player, TurnPhase, TriggerType, DeferredType
 from src.game.config import GameConfig
 from src.game.rules import GameRules
 from src.ai.minimax import (
@@ -527,22 +527,29 @@ class TestEvaluateBoardState:
         assert score <= -200.0
 
     def test_own_trigger_adds_value(self):
-        """Own triggers on lanes should add value."""
+        """Own triggers on lanes should add value (probability-weighted)."""
         order_id = self.state.get_next_trigger_order()
         self.state.lanes[2].add_trigger(TriggerType.MIRROR, Player.PLAYER1, 2, order_id)
 
         score = evaluate_board_state(self.state, Player.PLAYER1)
 
-        assert score >= 25.0
+        assert score > 0.0  # Probability-weighted, so less than flat 25
 
     def test_enemy_trigger_subtracts_value(self):
-        """Enemy triggers should subtract value."""
+        """Enemy triggers should subtract value (probability-weighted)."""
+        # Add enemy pieces so TRAP has meaningful removal value
+        self.state.lanes[2].add_piece(Player.PLAYER1)
+        self.state.lanes[2].add_piece(Player.PLAYER1)
         order_id = self.state.get_next_trigger_order()
         self.state.lanes[2].add_trigger(TriggerType.TRAP, Player.PLAYER2, 2, order_id)
 
-        score = evaluate_board_state(self.state, Player.PLAYER1)
+        score_with_trigger = evaluate_board_state(self.state, Player.PLAYER1)
 
-        assert score <= -25.0
+        # Score should be lower than just having 2 pieces (trigger threatens them)
+        self.state.lanes[2].remove_trigger(TriggerType.TRAP)
+        score_without_trigger = evaluate_board_state(self.state, Player.PLAYER1)
+
+        assert score_with_trigger < score_without_trigger
 
     def test_frozen_enemy_lane_adds_value(self):
         """Freezing opponent should add value."""
@@ -579,12 +586,13 @@ class TestEvaluateBoardState:
         assert score >= 30.0
 
     def test_sanctuary_adds_value(self):
-        """Having a sanctuary should add value."""
+        """Having a sanctuary should add value (scaled by pieces at risk)."""
         self.state.add_sanctuary(Player.PLAYER1, 0, 2)
 
         score = evaluate_board_state(self.state, Player.PLAYER1)
 
-        assert score >= 20.0
+        # On empty board, risk_factor=0.5, so value is sanctuary_value * 0.5 = 10.0
+        assert score >= 10.0
 
     def test_capture_adds_value(self):
         """Having a capture zone should add value."""
@@ -1029,8 +1037,14 @@ class TestExpectimaxDeterminism:
         ai1 = ExpectimaxAI(depth=2)
         ai2 = ExpectimaxAI(depth=2)
 
-        move1 = ai1.choose_move(self.state)
-        move2 = ai2.choose_move(self.state)
+        # Use cloned states so RNG isn't consumed by the first call
+        state1 = self.state.clone()
+        state1.set_seed(42)
+        state2 = self.state.clone()
+        state2.set_seed(42)
+
+        move1 = ai1.choose_move(state1)
+        move2 = ai2.choose_move(state2)
 
         assert move1 == move2
 
@@ -1201,6 +1215,100 @@ class TestPresetDifficultyFunctions:
 
         assert isinstance(move, tuple)
         assert len(move) == 2
+
+
+# =============================================================================
+# Category 10: Targeting Bug Fix Tests
+# =============================================================================
+
+class TestTargetingBugFixes:
+    """Tests verifying targeting bug fixes for won lanes, piece requirements, and deferred effects."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_split_excludes_won_lanes(self):
+        """Won lane with player pieces should be excluded from SPLIT targets."""
+        self.state.lanes[0].add_piece(Player.PLAYER1)
+        self.state.lanes[0].winner = Player.PLAYER1  # Won lane with pieces
+        self.state.lanes[2].add_piece(Player.PLAYER1)  # Valid target
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'SPLIT')
+
+        assert 0 not in targets
+        assert 2 in targets
+
+    def test_kamikaze_excludes_won_lanes(self):
+        """Won lane with player pieces should be excluded from KAMIKAZE targets."""
+        self.state.lanes[1].add_piece(Player.PLAYER1)
+        self.state.lanes[1].winner = Player.PLAYER1  # Won lane with pieces
+        self.state.lanes[3].add_piece(Player.PLAYER1)  # Valid target
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'KAMIKAZE')
+
+        assert 1 not in targets
+        assert 3 in targets
+
+    def test_scatter_excludes_won_lanes(self):
+        """Won lane with player pieces should be excluded from SCATTER targets."""
+        self.state.lanes[4].add_piece(Player.PLAYER1)
+        self.state.lanes[4].winner = Player.PLAYER1  # Won lane with pieces
+        self.state.lanes[2].add_piece(Player.PLAYER1)  # Valid target
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'SCATTER')
+
+        assert 4 not in targets
+        assert 2 in targets
+
+    def test_disperse_excludes_won_lanes(self):
+        """Won lane with enemy pieces should be excluded from DISPERSE targets."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[0].winner = Player.PLAYER2  # Won lane with enemy pieces
+        self.state.lanes[3].add_piece(Player.PLAYER2)  # Valid target
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'DISPERSE')
+
+        assert 0 not in targets
+        assert 3 in targets
+
+    def test_capture_no_piece_requirement(self):
+        """CAPTURE should target lanes without existing player pieces (not full is sufficient)."""
+        # Lane 1 has no player pieces but is a valid target
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'CAPTURE')
+
+        # All 5 empty lanes should be valid (none are full)
+        assert len(targets) == 5
+        assert set(targets) == {0, 1, 2, 3, 4}
+
+    def test_enlist_no_piece_requirement(self):
+        """ENLIST should target lanes without existing player pieces (not full is sufficient)."""
+        # Lane 1 has no player pieces but is a valid target
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'ENLIST')
+
+        # All 5 empty lanes should be valid (none are full)
+        assert len(targets) == 5
+        assert set(targets) == {0, 1, 2, 3, 4}
+
+    def test_nullify_targets_deferred(self):
+        """NULLIFY should target lanes with deferred effects even without triggers."""
+        self.state.lanes[2].add_deferred(DeferredType.SIGNAL, Player.PLAYER2)
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'NULLIFY')
+
+        assert targets == [2]
+
+    def test_nullify_targets_pending_raids(self):
+        """NULLIFY should target lanes with pending raids even without triggers."""
+        self.state.pending_raids.append({
+            'owner': Player.PLAYER2,
+            'lane': 3,
+            'turns_until_resolve': 2,
+        })
+
+        targets = get_valid_targets_for_perk(self.state, Player.PLAYER1, 'NULLIFY')
+
+        assert targets == [3]
 
 
 if __name__ == '__main__':

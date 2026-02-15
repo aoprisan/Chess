@@ -38,7 +38,10 @@ class GeneticOptimizer:
                  mutation_rate: float = 0.3,
                  mutation_strength: float = 0.15,
                  games_per_eval: int = 200,
-                 seed: int = 42):
+                 seed: int = 42,
+                 slot3_target: float = 22.0,
+                 slot4_target: float = 22.0,
+                 win_target: float = 0.65):
         """
         Initialize the genetic optimizer.
 
@@ -49,6 +52,9 @@ class GeneticOptimizer:
             mutation_strength: Gaussian noise scale relative to parameter range
             games_per_eval: Games to run per fitness evaluation
             seed: Random seed for reproducibility
+            slot3_target: Target percentage for slot 3 usage
+            slot4_target: Target percentage for slot 4 usage
+            win_target: Target win rate vs v1 (0.65 = 65%)
         """
         self.pop_size = population_size
         # Ensure elite_count is reasonable for population size
@@ -57,11 +63,16 @@ class GeneticOptimizer:
         self.mutation_strength = mutation_strength
         self.games_per_eval = games_per_eval
         self.bounds = ParameterBounds()
+        self.seed = seed
         self.rng = random.Random(seed)
         self.generation = 0
         self.best_ever: Optional[Individual] = None
         self.history: list[dict] = []
         self.population: list[Individual] = []
+        # Fitness targets
+        self.slot3_target = slot3_target
+        self.slot4_target = slot4_target
+        self.win_target = win_target
 
     def initialize_population(self) -> list[Individual]:
         """Create initial population with seeded profiles."""
@@ -88,7 +99,10 @@ class GeneticOptimizer:
                 ind.fitness = evaluate_profile(
                     profile,
                     n_games=self.games_per_eval,
-                    seed=seed_offset + i * 1000
+                    seed=seed_offset + i * 1000,
+                    slot3_target=self.slot3_target,
+                    slot4_target=self.slot4_target,
+                    win_target=self.win_target
                 )
 
     def select_parents(self, population: list[Individual]) -> list[Individual]:
@@ -171,7 +185,8 @@ class GeneticOptimizer:
                 'slot3': current_best.fitness.slot3_pct,
                 'slot4': current_best.fitness.slot4_pct,
                 'win_rate': current_best.fitness.win_rate_vs_v1,
-                'meets_criteria': current_best.fitness.meets_criteria(),
+                'meets_criteria': current_best.fitness.meets_criteria(
+                    self.slot3_target, self.slot4_target, self.win_target),
             })
 
             # Print progress
@@ -180,7 +195,7 @@ class GeneticOptimizer:
                 print(f"Gen {gen:3d}: fitness={f.fitness_score:.1f}, "
                       f"slots=[{f.slot1_pct:.0f},{f.slot2_pct:.0f},{f.slot3_pct:.0f},{f.slot4_pct:.0f}], "
                       f"win={f.win_rate_vs_v1*100:.0f}%"
-                      + (" *" if f.meets_criteria() else ""))
+                      + (" *" if f.meets_criteria(self.slot3_target, self.slot4_target, self.win_target) else ""))
 
             # Callback
             if callback:

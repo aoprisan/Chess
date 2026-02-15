@@ -397,5 +397,202 @@ class TestValidPlacementRules:
         assert lane not in available
 
 
+class TestPlayTurnFallback:
+    """Tests for play_turn stuck-loop protection."""
+
+    def setup_method(self):
+        self.engine = GameEngine(seed=42)
+        self.engine.start_game()
+
+    def test_failed_select_perk_still_ends_turn(self):
+        """When select_perk fails, play_turn should still advance the turn."""
+        # Set up state where DISRUPT targets will be invalid
+        # Win lane 0 so P2 has pieces on a won lane
+        for _ in range(5):
+            self.engine.state.lanes[0].add_piece(Player.PLAYER1)
+        self.engine.state.lanes[0].winner = Player.PLAYER1
+
+        initial_player = self.engine.state.current_player
+        initial_turn = self.engine.state.turn_number
+
+        # Create an AI that always picks an invalid action
+        def bad_ai(state):
+            return 4, (0, 1)  # slot 4 with invalid targets
+
+        # Set up offered perks so slot 4 is DISRUPT
+        self.engine.state.turn_phase = from_import = __import__('src.game.state', fromlist=['TurnPhase'])
+        from src.game.state import TurnPhase
+        self.engine.do_auto_placement()
+
+        if not self.engine.state.game_over:
+            result = self.engine.play_turn(bad_ai)
+            # Turn should still complete (fallback to pass)
+            assert result is True
+            # Player should have switched
+            assert self.engine.state.current_player != initial_player
+
+    def test_game_does_not_loop_on_invalid_perk(self):
+        """Game should not get stuck repeating failed perk attempts."""
+        # AI that always tries invalid action
+        call_count = 0
+
+        def counting_bad_ai(state):
+            nonlocal call_count
+            call_count += 1
+            # Try to use slot 4 with bad target
+            return 4, None
+
+        # Run a short game - should complete without hanging
+        self.engine.start_game()
+        self.engine.run_game(counting_bad_ai, counting_bad_ai, max_turns=10)
+
+        # Should have called AI roughly 10 times (not 10*many loops)
+        assert call_count <= 20  # Some slack for edge cases
+
+
+class TestRunGameDrawLogging:
+    """Tests for run_game max_turns draw handling."""
+
+    def test_draw_game_has_no_winner(self):
+        """Game that hits max_turns should have winner=None."""
+        def pass_ai(state):
+            return 'pass', None
+
+        engine = GameEngine(seed=42)
+        final_state = engine.run_game(pass_ai, pass_ai, max_turns=10)
+
+        # Game should end as draw (all passes, no one wins)
+        assert final_state.winner is None
+
+    def test_draw_game_logs_game_over_event(self):
+        """Draw games should log game_over event with max_turns reason."""
+        from src.game.logger import GameLogger
+
+        def pass_ai(state):
+            return 'pass', None
+
+        logger = GameLogger(enabled=True)
+        engine = GameEngine(seed=42, logger=logger)
+        engine.run_game(pass_ai, pass_ai, max_turns=10)
+
+        # Should have a game_over event
+        game_over_events = [
+            e for e in logger.events
+            if e.event_type.value == 'game_over'
+        ]
+        assert len(game_over_events) == 1
+        assert game_over_events[0].data['reason'] == 'max_turns'
+        assert game_over_events[0].data['winner'] is None
+
+
+class TestIsPerkAvailable:
+    """Tests for GameRules.is_perk_available."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_place_another_available_with_open_lanes(self):
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'PLACE_ANOTHER')
+
+    def test_place_another_unavailable_when_all_lanes_full(self):
+        for i in range(5):
+            for _ in range(5):
+                self.state.lanes[i].add_piece(Player.PLAYER1)
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'PLACE_ANOTHER')
+
+    def test_place_another_unavailable_when_all_lanes_won(self):
+        for i in range(5):
+            self.state.lanes[i].winner = Player.PLAYER2
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'PLACE_ANOTHER')
+
+    def test_remove_enemy_available_with_enemy_pieces(self):
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'REMOVE_ENEMY')
+
+    def test_remove_enemy_unavailable_with_no_enemy_pieces(self):
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'REMOVE_ENEMY')
+
+    def test_freeze_available_with_unfrozen_lanes(self):
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'FREEZE')
+
+    def test_freeze_unavailable_when_all_lanes_frozen_or_won(self):
+        for i in range(5):
+            self.state.lanes[i].freeze_player = Player.PLAYER2
+            self.state.lanes[i].freeze_turns = 2
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'FREEZE')
+
+    def test_gambit_always_available(self):
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'GAMBIT')
+        # Even with all lanes won
+        for i in range(5):
+            self.state.lanes[i].winner = Player.PLAYER2
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'GAMBIT')
+
+    def test_split_requires_own_pieces(self):
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'SPLIT')
+        self.state.lanes[0].add_piece(Player.PLAYER1)
+        assert GameRules.is_perk_available(self.state, Player.PLAYER1, 'SPLIT')
+
+    def test_invalid_perk_name_not_available(self):
+        assert not GameRules.is_perk_available(self.state, Player.PLAYER1, 'NONEXISTENT')
+
+
+class TestGetAvailablePerks:
+    """Tests for GameRules.get_available_perks."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_slot_1_returns_place_another_when_available(self):
+        perks = GameRules.get_available_perks(self.state, Player.PLAYER1, 1)
+        assert 'PLACE_ANOTHER' in perks
+
+    def test_slot_1_empty_when_no_valid_lanes(self):
+        for i in range(5):
+            self.state.lanes[i].winner = Player.PLAYER2
+        perks = GameRules.get_available_perks(self.state, Player.PLAYER1, 1)
+        assert len(perks) == 0
+
+    def test_slot_2_returns_remove_enemy_when_available(self):
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        perks = GameRules.get_available_perks(self.state, Player.PLAYER1, 2)
+        assert 'REMOVE_ENEMY' in perks
+
+    def test_slot_3_returns_subset_of_pool(self):
+        perks = GameRules.get_available_perks(self.state, Player.PLAYER1, 3)
+        assert len(perks) > 0
+        from src.perks.base import SLOT_3_PERKS
+        for p in perks:
+            assert p in SLOT_3_PERKS
+
+
+class TestGetNonEmptyEnemyLanes:
+    """Tests for GameState.get_non_empty_enemy_lanes."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_returns_lanes_with_enemy_pieces(self):
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+        self.state.lanes[3].add_piece(Player.PLAYER2)
+        result = self.state.get_non_empty_enemy_lanes(Player.PLAYER1)
+        assert set(result) == {1, 3}
+
+    def test_excludes_won_lanes(self):
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+        self.state.lanes[3].add_piece(Player.PLAYER2)
+        self.state.lanes[1].winner = Player.PLAYER1  # Won lane still has P2 pieces
+        result = self.state.get_non_empty_enemy_lanes(Player.PLAYER1)
+        assert 1 not in result
+        assert 3 in result
+
+    def test_empty_when_no_enemy_pieces(self):
+        result = self.state.get_non_empty_enemy_lanes(Player.PLAYER1)
+        assert result == []
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

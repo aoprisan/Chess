@@ -59,6 +59,9 @@ class LaneState:
     player1_pieces: int = 0
     player2_pieces: int = 0
 
+    # Board size (set from GameState config during __post_init__)
+    slots_per_side: int = 5
+
     # Lane ownership (None if not yet won)
     winner: Optional[Player] = None
 
@@ -91,7 +94,7 @@ class LaneState:
     def add_piece(self, player: Player) -> bool:
         """Add a piece for player. Returns True if successful."""
         current = self.pieces_for(player)
-        if current >= DEFAULT_CONFIG.SLOTS_PER_SIDE:
+        if current >= self.slots_per_side:
             return False
         self.set_pieces_for(player, current + 1)
         return True
@@ -106,7 +109,7 @@ class LaneState:
 
     def is_full_for(self, player: Player) -> bool:
         """Check if lane is full for a player."""
-        return self.pieces_for(player) >= DEFAULT_CONFIG.SLOTS_PER_SIDE
+        return self.pieces_for(player) >= self.slots_per_side
 
     def is_frozen_for(self, player: Player) -> bool:
         """Check if lane is frozen for a player."""
@@ -125,8 +128,8 @@ class LaneState:
         if self.winner is not None:
             return self.winner
 
-        p1_full = self.player1_pieces >= DEFAULT_CONFIG.SLOTS_PER_SIDE
-        p2_full = self.player2_pieces >= DEFAULT_CONFIG.SLOTS_PER_SIDE
+        p1_full = self.player1_pieces >= self.slots_per_side
+        p2_full = self.player2_pieces >= self.slots_per_side
 
         if p1_full and p2_full:
             # Both full - prioritize current player
@@ -260,6 +263,10 @@ class LaneState:
         """Check if this lane has any active triggers."""
         return len(self.triggers) > 0
 
+    def has_deferred(self) -> bool:
+        """Check if this lane has any pending deferred effects."""
+        return len(self.deferred) > 0
+
     def clear_triggers(self) -> None:
         """Alias for clear_all_triggers for simpler syntax."""
         self.triggers = []
@@ -299,9 +306,11 @@ class GameState:
     offered_perks: dict = field(default_factory=dict)  # slot -> perk_type
     selected_perk: Optional[str] = None
 
-    # Statistics tracking
-    slot_usage: dict = field(default_factory=lambda: {1: 0, 2: 0, 3: 0, 4: 0, 'pass': 0})
-    perk_usage: dict = field(default_factory=dict)
+    # Per-player statistics tracking
+    player1_slot_usage: dict = field(default_factory=lambda: {1: 0, 2: 0, 3: 0, 4: 0, 'pass': 0})
+    player2_slot_usage: dict = field(default_factory=lambda: {1: 0, 2: 0, 3: 0, 4: 0, 'pass': 0})
+    player1_perk_usage: dict = field(default_factory=dict)
+    player2_perk_usage: dict = field(default_factory=dict)
 
     # Random state for deterministic games
     rng: random.Random = field(default_factory=random.Random)
@@ -333,6 +342,8 @@ class GameState:
         """Initialize lanes if empty."""
         if not self.lanes:
             self.lanes = [LaneState() for _ in range(self.config.LANES)]
+        for lane in self.lanes:
+            lane.slots_per_side = self.config.SLOTS_PER_SIDE
 
     def set_seed(self, seed: int) -> None:
         """Set random seed for deterministic games."""
@@ -583,14 +594,34 @@ class GameState:
             if 'turns_until_resolve' in raid:
                 raid['turns_until_resolve'] -= 1
 
-    def record_slot_usage(self, slot: int | str) -> None:
-        """Record which slot was used."""
-        if slot in self.slot_usage:
-            self.slot_usage[slot] += 1
+    @property
+    def slot_usage(self) -> dict:
+        """Combined slot usage from both players (backward compat)."""
+        combined = {1: 0, 2: 0, 3: 0, 4: 0, 'pass': 0}
+        for key in combined:
+            combined[key] = self.player1_slot_usage.get(key, 0) + self.player2_slot_usage.get(key, 0)
+        return combined
 
-    def record_perk_usage(self, perk_type: str) -> None:
-        """Record which perk was used."""
-        self.perk_usage[perk_type] = self.perk_usage.get(perk_type, 0) + 1
+    @property
+    def perk_usage(self) -> dict:
+        """Combined perk usage from both players (backward compat)."""
+        combined = {}
+        for perk, count in self.player1_perk_usage.items():
+            combined[perk] = combined.get(perk, 0) + count
+        for perk, count in self.player2_perk_usage.items():
+            combined[perk] = combined.get(perk, 0) + count
+        return combined
+
+    def record_slot_usage(self, slot: int | str, player: 'Player' = None) -> None:
+        """Record which slot was used by which player."""
+        usage = self.player1_slot_usage if player == Player.PLAYER1 else self.player2_slot_usage
+        if slot in usage:
+            usage[slot] += 1
+
+    def record_perk_usage(self, perk_type: str, player: 'Player' = None) -> None:
+        """Record which perk was used by which player."""
+        usage = self.player1_perk_usage if player == Player.PLAYER1 else self.player2_perk_usage
+        usage[perk_type] = usage.get(perk_type, 0) + 1
 
     def clone(self) -> 'GameState':
         """Create a deep copy of the game state."""
@@ -600,6 +631,7 @@ class GameState:
             lanes=[LaneState(
                 player1_pieces=lane.player1_pieces,
                 player2_pieces=lane.player2_pieces,
+                slots_per_side=lane.slots_per_side,
                 winner=lane.winner,
                 freeze_player=lane.freeze_player,
                 freeze_turns=lane.freeze_turns,
@@ -614,8 +646,10 @@ class GameState:
             auto_placed_lane=self.auto_placed_lane,
             offered_perks=self.offered_perks.copy(),
             selected_perk=self.selected_perk,
-            slot_usage=self.slot_usage.copy(),
-            perk_usage=self.perk_usage.copy(),
+            player1_slot_usage=self.player1_slot_usage.copy(),
+            player2_slot_usage=self.player2_slot_usage.copy(),
+            player1_perk_usage=self.player1_perk_usage.copy(),
+            player2_perk_usage=self.player2_perk_usage.copy(),
             # Global duration effects
             player1_cloaked=self.player1_cloaked,
             player2_cloaked=self.player2_cloaked,

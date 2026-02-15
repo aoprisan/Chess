@@ -95,13 +95,14 @@ class TestEnlist:
         assert result['immediate_placed'] is True
         assert self.state.lanes[target].pieces_for(Player.PLAYER1) == initial + 1
 
-    def test_enlist_requires_player_pieces(self):
-        """Enlist should require player to have pieces on target lane."""
-        target = 0  # No pieces
+    def test_enlist_works_on_empty_lane(self):
+        """Enlist should work on a lane even without existing pieces."""
+        target = 0  # No pieces yet
 
         success, result = execute_enlist(self.state, Player.PLAYER1, target)
 
-        assert success is False
+        assert success is True
+        assert self.state.lanes[target].pieces_for(Player.PLAYER1) == 1
 
     def test_enlist_deferred_captures_and_moves(self):
         """Enlist deferred effect should capture enemy and move both to least populated."""

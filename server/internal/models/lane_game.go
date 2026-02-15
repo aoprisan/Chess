@@ -66,7 +66,7 @@ const (
 	MirrorDuration            = 1
 	EchoDuration              = 1
 	ShockwaveDuration         = 1
-	RetaliateDuration         = 2
+	RetaliateDuration         = 1
 	HydraDuration             = 1
 	BackfireDuration          = 1
 	AbsorbDuration            = 1
@@ -790,6 +790,12 @@ func (g *LaneGame) RemovePiece(laneIndex int, side PlayerSide) bool {
 // CheckLaneWin checks if a lane has been won and updates state
 // Returns the winner side if won, 0 otherwise
 func (g *LaneGame) CheckLaneWin(laneIndex int) PlayerSide {
+	return g.CheckLaneWinWithPlayer(laneIndex, g.CurrentPlayer)
+}
+
+// CheckLaneWinWithPlayer checks if a lane has been won with tie-breaking.
+// When both sides are full simultaneously, currentPlayer wins.
+func (g *LaneGame) CheckLaneWinWithPlayer(laneIndex int, currentPlayer PlayerSide) PlayerSide {
 	if laneIndex < 0 || laneIndex >= DefaultLaneCount {
 		return 0
 	}
@@ -799,15 +805,29 @@ func (g *LaneGame) CheckLaneWin(laneIndex int) PlayerSide {
 		return lane.Winner // Already won
 	}
 
-	// Check if either side has filled their slots
-	if lane.IsSideFull(Player1) {
+	p1Full := lane.IsSideFull(Player1)
+	p2Full := lane.IsSideFull(Player2)
+
+	// If both sides are full, current player wins (tie-breaking)
+	if p1Full && p2Full {
+		lane.Winner = currentPlayer
+		if currentPlayer == Player1 {
+			g.Player1LanesWon++
+		} else {
+			g.Player2LanesWon++
+		}
+		g.UpdatedAt = time.Now()
+		return currentPlayer
+	}
+
+	if p1Full {
 		lane.Winner = Player1
 		g.Player1LanesWon++
 		g.UpdatedAt = time.Now()
 		return Player1
 	}
 
-	if lane.IsSideFull(Player2) {
+	if p2Full {
 		lane.Winner = Player2
 		g.Player2LanesWon++
 		g.UpdatedAt = time.Now()
@@ -846,7 +866,7 @@ func (g *LaneGame) AutoPlace(side PlayerSide) int {
 	}
 
 	// Pick a random available lane
-	laneIndex := available[rand.Intn(len(available))]
+	laneIndex := available[g.Rand().Intn(len(available))]
 
 	if g.PlacePiece(laneIndex, side) {
 		g.LastAutoPlacedLane = laneIndex

@@ -145,5 +145,5 @@ class GameRules:
         """Get list of available perks for a slot."""
         from src.perks.base import get_perks_for_slot
 
-        all_perks = get_perks_for_slot(slot)
+        all_perks = get_perks_for_slot(slot, config=state.config)
         return [p for p in all_perks if GameRules.is_perk_available(state, player, p)]

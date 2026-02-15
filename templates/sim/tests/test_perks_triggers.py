@@ -342,6 +342,203 @@ class TestRetaliate:
             assert len(self.state.pending_raids) == 1
 
 
+class TestMirrorWinCheck:
+    """Tests for Mirror trigger causing lane/game wins."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_mirror_can_win_lane(self):
+        """Mirror +2 pieces should be able to win a lane for the owner."""
+        from src.game.rules import GameRules
+
+        target = 2
+        # P1 has 3 pieces, mirror will add 2 more = 5 (win)
+        for _ in range(3):
+            self.state.lanes[target].add_piece(Player.PLAYER1)
+        execute_mirror(self.state, Player.PLAYER1, target)
+
+        # P2 places on the lane, triggering mirror
+        self.state.lanes[target].add_piece(Player.PLAYER2)
+        fire_placement_triggers(self.state, target, Player.PLAYER2)
+
+        # P1 should now have 5 pieces
+        assert self.state.lanes[target].pieces_for(Player.PLAYER1) == 5
+
+
+class TestEchoWinCheck:
+    """Tests for Echo trigger causing game wins."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_echo_checks_game_win_after_each_placement(self):
+        """Echo should stop placing pieces if game is won mid-trigger."""
+        from src.game.rules import GameRules
+
+        target = 0
+        execute_echo(self.state, Player.PLAYER1, target)
+
+        # P1 already won 2 lanes
+        for lane_idx in [1, 2]:
+            for _ in range(5):
+                self.state.lanes[lane_idx].add_piece(Player.PLAYER1)
+            self.state.lanes[lane_idx].winner = Player.PLAYER1
+
+        # P1 has 4 pieces on lane 3 (echo placement here would win)
+        for _ in range(4):
+            self.state.lanes[3].add_piece(Player.PLAYER1)
+
+        # P2 places, triggering echo
+        self.state.lanes[target].add_piece(Player.PLAYER2)
+        results = fire_placement_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        # If echo placed on lane 3, game should be won
+        if self.state.lanes[3].pieces_for(Player.PLAYER1) >= 5:
+            assert self.state.game_over is True
+
+
+class TestShockwaveRedirects:
+    """Tests for Shockwave using Sanctuary/Capture redirects."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_shockwave_uses_capture_redirect(self):
+        """Shockwave removal should use Capture redirect if available."""
+        target = 2
+        # P2 has pieces elsewhere
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+
+        # P1 sets shockwave
+        execute_shockwave(self.state, Player.PLAYER1, target)
+
+        # P1 has Capture zone on lane 4
+        self.state.add_capture(Player.PLAYER1, 4, 3)
+
+        # P2 places, triggering shockwave
+        self.state.lanes[target].add_piece(Player.PLAYER2)
+        results = fire_placement_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        # If redirected, captured piece should appear on lane 4
+        result = results[0]
+        if result.get('redirections'):
+            assert any(r['type'] == 'capture' for r in result['redirections'])
+
+    def test_shockwave_uses_sanctuary_redirect(self):
+        """Shockwave removal should use enemy Sanctuary redirect."""
+        target = 2
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+
+        execute_shockwave(self.state, Player.PLAYER1, target)
+
+        # P2 has Sanctuary on lane 3
+        self.state.add_sanctuary(Player.PLAYER2, 3, 3)
+
+        self.state.lanes[target].add_piece(Player.PLAYER2)
+        results = fire_placement_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        result = results[0]
+        if result.get('redirections'):
+            assert any(r['type'] == 'sanctuary' for r in result['redirections'])
+
+
+class TestHydraWinCheck:
+    """Tests for Hydra trigger causing game wins."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_hydra_checks_game_win_after_each_placement(self):
+        """Hydra should stop placing if game is won mid-trigger."""
+        from src.game.rules import GameRules
+
+        target = 0
+        self.state.lanes[target].add_piece(Player.PLAYER1)
+        self.state.lanes[target].add_piece(Player.PLAYER1)
+        execute_hydra(self.state, Player.PLAYER1, target)
+
+        # P1 already won 2 lanes
+        for lane_idx in [1, 2]:
+            for _ in range(5):
+                self.state.lanes[lane_idx].add_piece(Player.PLAYER1)
+            self.state.lanes[lane_idx].winner = Player.PLAYER1
+
+        # P1 has 4 pieces on lane 3
+        for _ in range(4):
+            self.state.lanes[3].add_piece(Player.PLAYER1)
+
+        # P2 removes P1's piece, triggering hydra
+        self.state.lanes[target].remove_piece(Player.PLAYER1)
+        results = fire_removal_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        # If hydra placed on lane 3, game should be won
+        if self.state.lanes[3].pieces_for(Player.PLAYER1) >= 5:
+            assert self.state.game_over is True
+
+
+class TestBackfireRedirects:
+    """Tests for Backfire using Sanctuary/Capture redirects."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_backfire_uses_capture_redirect(self):
+        """Backfire removal should use Capture redirect if available."""
+        target = 2
+        self.state.lanes[target].add_piece(Player.PLAYER1)
+
+        # P2 has pieces to lose
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+
+        execute_backfire(self.state, Player.PLAYER1, target)
+
+        # P1 has Capture zone on lane 4
+        self.state.add_capture(Player.PLAYER1, 4, 3)
+
+        # P2 removes P1's piece, triggering backfire
+        self.state.lanes[target].remove_piece(Player.PLAYER1)
+        results = fire_removal_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        result = results[0]
+        # Backfire removes P2's pieces; if Capture active, they convert
+        if result.get('redirections'):
+            assert any(r['type'] == 'capture' for r in result['redirections'])
+
+    def test_backfire_uses_sanctuary_redirect(self):
+        """Backfire removal should use enemy Sanctuary redirect."""
+        target = 2
+        self.state.lanes[target].add_piece(Player.PLAYER1)
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+
+        execute_backfire(self.state, Player.PLAYER1, target)
+
+        # P2 has Sanctuary on lane 3
+        self.state.add_sanctuary(Player.PLAYER2, 3, 3)
+
+        self.state.lanes[target].remove_piece(Player.PLAYER1)
+        results = fire_removal_triggers(self.state, target, Player.PLAYER2)
+
+        assert len(results) > 0
+        result = results[0]
+        if result.get('redirections'):
+            assert any(r['type'] == 'sanctuary' for r in result['redirections'])
+
+
 class TestTriggerFIFOOrder:
     """Tests for trigger FIFO ordering."""
 

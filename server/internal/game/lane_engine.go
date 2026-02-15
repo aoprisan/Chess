@@ -13,7 +13,7 @@ const TestModePerks = true
 
 // TestPerkPairIndex is the fixed perk pair index used in test mode.
 // Change this value and restart to test a different pair.
-const TestPerkPairIndex = 1
+const TestPerkPairIndex = 2
 
 // TurnResult contains the results of executing a turn phase
 type TurnResult struct {
@@ -176,20 +176,7 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 	result.LaneIndex = laneIndex
 	result.Placements = []int{laneIndex}
 
-	// Check if lane was won
-	laneWinner := e.game.CheckLaneWin(laneIndex)
-	if laneWinner != 0 {
-		result.LaneWinner = laneWinner
-
-		// Check if game was won
-		gameWinner := e.game.CheckGameWin()
-		if gameWinner != 0 {
-			result.GameWinner = gameWinner
-			return result
-		}
-	}
-
-	// Fire placement triggers (opponent's triggers react to our placement)
+	// Fire placement triggers BEFORE checking lane win
 	executor := perks.NewPerkExecutor(e.game)
 	triggerResults := executor.FirePlacementTriggers(laneIndex, currentPlayer, 0)
 	result.TriggerResults = triggerResults
@@ -198,6 +185,20 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 	for _, tr := range triggerResults {
 		if tr.GameWinner != 0 {
 			result.GameWinner = tr.GameWinner
+			return result
+		}
+	}
+
+	// Check if lane was won (after triggers)
+	laneWinner := e.game.CheckLaneWin(laneIndex)
+	if laneWinner != 0 {
+		result.LaneWinner = laneWinner
+		e.game.CleanupWonLane(laneIndex) // Fix 1.3: cleanup after auto-placement lane win
+
+		// Check if game was won
+		gameWinner := e.game.CheckGameWin()
+		if gameWinner != 0 {
+			result.GameWinner = gameWinner
 			return result
 		}
 	}

@@ -83,9 +83,9 @@ def execute_gambit(state: 'GameState', player: 'Player',
     if not player_lanes:
         return False, {'error': 'No lanes available for your pieces'}
 
-    # Give opponent pieces (random lanes, can repeat)
+    # Give opponent 3 pieces (random lanes, can repeat)
     enemy_placements = []
-    for _ in range(state.config.GAMBIT_ENEMY_GAIN):
+    for _ in range(3):
         if game_won_mid_perk:
             break
         # Refresh available lanes (in case one filled up or won)
@@ -102,7 +102,7 @@ def execute_gambit(state: 'GameState', player: 'Player',
             if GameRules.check_game_win_mid_perk(state):
                 game_won_mid_perk = True
 
-    # You get pieces on the same randomly chosen lane (if game not over)
+    # You get 2 pieces on the same randomly chosen lane (if game not over)
     player_placements = []
     if not game_won_mid_perk:
         # Refresh player lanes (might have changed)
@@ -112,7 +112,7 @@ def execute_gambit(state: 'GameState', player: 'Player',
         ]
         if player_lanes:
             player_lane = state.rng.choice(player_lanes)
-            for _ in range(state.config.GAMBIT_PLAYER_GAIN):
+            for _ in range(2):
                 if game_won_mid_perk:
                     break
                 if not state.lanes[player_lane].is_full_for(player) and state.lanes[player_lane].winner is None:
@@ -165,19 +165,19 @@ def execute_split(state: 'GameState', player: 'Player',
 
     game_won_mid_perk = False
 
-    # Place pieces on random lanes (one at a time)
+    # Place 2 pieces on random lanes (one at a time)
     placements = []
-    for _ in range(state.config.SPLIT_GAIN):
+    for _ in range(2):
         if game_won_mid_perk:
             break
 
-        # Find destination lanes (source exclusion if threshold lanes available)
+        # Find destination lanes (source exclusion if 3+ lanes available)
         current_lanes = [
             i for i, lane in enumerate(state.lanes)
             if lane.winner is None and not lane.is_full_for(player)
         ]
         # Apply source exclusion if needed
-        if len(current_lanes) >= state.config.SOURCE_EXCLUSION_THRESHOLD and source_lane in current_lanes:
+        if len(current_lanes) >= 3 and source_lane in current_lanes:
             current_lanes = [l for l in current_lanes if l != source_lane]
 
         if current_lanes:
@@ -291,11 +291,11 @@ def execute_kamikaze(state: 'GameState', player: 'Player',
     # Sacrifice the piece (no redirection for voluntary sacrifice)
     state.lanes[source_lane].remove_piece(player)
 
-    # Remove enemy pieces from random lanes (may remove 0 if enemy has none)
+    # Remove up to 2 enemy pieces from random lanes (may remove 0 if enemy has none)
     # Uses Sanctuary/Capture redirection
     removals = []
     redirections = []
-    for _ in range(state.config.KAMIKAZE_REMOVES):
+    for _ in range(2):
         current_enemy_lanes = state.get_lanes_with_pieces(opponent)
         if current_enemy_lanes:
             lane = state.rng.choice(current_enemy_lanes)
@@ -323,8 +323,7 @@ def execute_regroup(state: 'GameState', player: 'Player',
                     target1: int, target2: int) -> tuple[bool, dict]:
     """
     Regroup (Slot 3)
-    Effect: Swap ALL your pieces between two lanes (atomic operation).
-    At least one lane must have pieces to swap. Empty lane is valid as destination.
+    Effect: Swap ALL your pieces between two lanes.
 
     Args:
         state: Game state
@@ -335,20 +334,20 @@ def execute_regroup(state: 'GameState', player: 'Player',
     Returns:
         (success, result_dict)
     """
-    # Valid lanes are non-won lanes
+    # Find lanes with player's pieces that aren't won
     valid_lanes = [
         i for i, lane in enumerate(state.lanes)
-        if lane.winner is None
+        if lane.winner is None and lane.pieces_for(player) > 0
     ]
 
     if len(valid_lanes) < 2:
-        return False, {'error': 'Need at least 2 non-won lanes'}
+        return False, {'error': 'Need at least 2 lanes with pieces to swap'}
 
-    # Validate both targets are valid (non-won)
+    # Validate both targets
     if target1 not in valid_lanes:
-        return False, {'error': f'Lane {target1} is not valid (won or invalid)'}
+        return False, {'error': f'Lane {target1} has no pieces to swap'}
     if target2 not in valid_lanes:
-        return False, {'error': f'Lane {target2} is not valid (won or invalid)'}
+        return False, {'error': f'Lane {target2} has no pieces to swap'}
     if target1 == target2:
         return False, {'error': 'Cannot swap lane with itself'}
 
@@ -357,10 +356,6 @@ def execute_regroup(state: 'GameState', player: 'Player',
     # Get piece counts
     pieces1 = state.lanes[lane1].pieces_for(player)
     pieces2 = state.lanes[lane2].pieces_for(player)
-
-    # At least one lane must have pieces to swap
-    if pieces1 == 0 and pieces2 == 0:
-        return False, {'error': 'At least one lane must have pieces to swap'}
 
     # Remove all from both lanes
     for _ in range(pieces1):
@@ -504,8 +499,8 @@ def execute_scatter(state: 'GameState', player: 'Player',
             if lane.winner is None and not lane.is_full_for(player)
         ]
 
-        # Source exclusion if threshold lanes available
-        if len(dest_lanes) >= state.config.SOURCE_EXCLUSION_THRESHOLD and source in dest_lanes:
+        # Source exclusion if 3+ lanes available
+        if len(dest_lanes) >= 3 and source in dest_lanes:
             dest_lanes = [l for l in dest_lanes if l != source]
 
         if not dest_lanes:
@@ -587,8 +582,8 @@ def execute_disperse(state: 'GameState', player: 'Player',
             if lane.winner is None and not lane.is_full_for(opponent)
         ]
 
-        # Source exclusion if threshold lanes available
-        if len(dest_lanes) >= state.config.SOURCE_EXCLUSION_THRESHOLD and source in dest_lanes:
+        # Source exclusion if 3+ lanes available
+        if len(dest_lanes) >= 3 and source in dest_lanes:
             dest_lanes = [l for l in dest_lanes if l != source]
 
         if not dest_lanes:
@@ -718,9 +713,9 @@ def execute_rush(state: 'GameState', player: 'Player',
     lane = state.lanes[lane_idx]
     lane_won_during_placement = False
 
-    # Add pieces to player (up to limit), check lane win after each
+    # Add 2 to player (up to limit), check lane win after each
     player_added = 0
-    for _ in range(state.config.RUSH_PIECES_EACH):
+    for _ in range(2):
         if lane.winner is not None:
             lane_won_during_placement = True
             break
@@ -732,9 +727,9 @@ def execute_rush(state: 'GameState', player: 'Player',
             if winner:
                 lane_won_during_placement = True
 
-    # Add pieces to opponent (up to limit), check lane win after each
+    # Add 2 to opponent (up to limit), check lane win after each
     opponent_added = 0
-    for _ in range(state.config.RUSH_PIECES_EACH):
+    for _ in range(2):
         if lane.winner is not None:
             lane_won_during_placement = True
             break
@@ -754,27 +749,21 @@ def execute_rush(state: 'GameState', player: 'Player',
     if lane_won_during_placement:
         loss_cancelled = True
     else:
-        # Remove pieces from PLAYER (prefer other lane, fallback to same)
+        # Remove 1 from PLAYER (prefer other lane, fallback to same)
         other_lanes_with_pieces = [
             i for i in state.get_lanes_with_pieces(player)
             if i != lane_idx
         ]
-        for _ in range(state.config.RUSH_PLAYER_LOSS):
-            if other_lanes_with_pieces:
-                remove_lane = state.rng.choice(other_lanes_with_pieces)
-                state.lanes[remove_lane].remove_piece(player)
-                player_removed += 1
-                player_removed_from = remove_lane
-                # Refresh the list in case pieces depleted
-                other_lanes_with_pieces = [
-                    i for i in state.get_lanes_with_pieces(player)
-                    if i != lane_idx
-                ]
-            elif lane.pieces_for(player) > 0:
-                # Fallback to same lane
-                lane.remove_piece(player)
-                player_removed += 1
-                player_removed_from = lane_idx
+        if other_lanes_with_pieces:
+            remove_lane = state.rng.choice(other_lanes_with_pieces)
+            state.lanes[remove_lane].remove_piece(player)
+            player_removed = 1
+            player_removed_from = remove_lane
+        elif lane.pieces_for(player) > 0:
+            # Fallback to same lane
+            lane.remove_piece(player)
+            player_removed = 1
+            player_removed_from = lane_idx
 
     return True, {
         'perk': 'RUSH',

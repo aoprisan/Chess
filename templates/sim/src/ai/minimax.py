@@ -1,9 +1,68 @@
 """Expectimax AI with alpha-beta pruning for decision-theoretic planning."""
 
 from enum import Enum, auto
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, asdict
 from typing import Optional, Union
 from itertools import combinations
+
+from src.game.state import TriggerType, DeferredType, Player
+
+
+@dataclass
+class MinimaxProfile:
+    """Tunable parameters for minimax board evaluation."""
+    name: str
+
+    # Board structure weights
+    lane_win_weight: float = 1000.0
+    near_game_win_bonus: float = 300.0
+    piece_advantage_mult: float = 20.0
+    near_win_bonus: float = 200.0
+    near_threat_bonus: float = 50.0
+
+    # Trigger effect values (used in _evaluate_trigger)
+    trigger_trap_portal_mult: float = 40.0
+    trigger_mirror_value: float = 80.0
+    trigger_echo_hydra_value: float = 80.0
+    trigger_shockwave_backfire_value: float = 40.0
+    trigger_absorb_value: float = 20.0
+    trigger_retaliate_value: float = 30.0
+    trigger_default_value: float = 25.0
+
+    # Deferred effect values
+    deferred_signal_value: float = 20.0
+    deferred_enlist_value: float = 30.0
+    deferred_ambush_value: float = 25.0
+    deferred_reinforce_value: float = 20.0
+    deferred_raid_value: float = 15.0
+    deferred_default_value: float = 10.0
+    deferred_discount: float = 0.7
+
+    # Freeze weights (by threat level)
+    freeze_near_win: float = 120.0
+    freeze_near_threat: float = 80.0
+    freeze_base: float = 40.0
+
+    # Global effects
+    cloak_value: float = 30.0
+    blind_value: float = 30.0
+
+    # Pending raid
+    raid_pending_value: float = 25.0
+    raid_discount_base: float = 0.5
+
+    # Duration effects (per active instance)
+    sanctuary_value: float = 20.0
+    capture_value: float = 25.0
+
+    # Trigger targeting bias (opponent targets high-value lanes, not uniform)
+    trigger_targeting_bias: float = 1.5
+
+    # Freeze protection (value of freezing a lane where YOU are near-win)
+    freeze_protect_near_win: float = 150.0
+
+    # Trigger contest boost (boost factor for triggers on contested lanes)
+    trigger_contest_boost: float = 1.5
 
 # Target type can be: None, single int, or tuple of two ints
 TargetType = Union[None, int, tuple[int, int]]
@@ -46,14 +105,15 @@ def get_valid_targets_for_perk(state, player, perk_name: str) -> list[TargetType
     # Two-target perks
     if perk_name in TWO_TARGET_PERKS:
         if perk_name == 'REGROUP':
-            # Swap between two of your lanes with pieces
-            my_lanes = state.get_lanes_with_pieces(player)
+            # Swap between two of your lanes with pieces (exclude won lanes)
+            my_lanes = [i for i in state.get_lanes_with_pieces(player)
+                        if state.lanes[i].winner is None]
             if len(my_lanes) >= 2:
                 return list(combinations(my_lanes, 2))
             return []
         elif perk_name == 'DISRUPT':
-            # Swap between two enemy lanes with pieces
-            enemy_lanes = state.get_lanes_with_pieces(opponent)
+            # Swap between two enemy lanes with pieces (exclude won lanes)
+            enemy_lanes = state.get_non_empty_enemy_lanes(player)
             if len(enemy_lanes) >= 2:
                 return list(combinations(enemy_lanes, 2))
             return []
@@ -73,13 +133,15 @@ def get_valid_targets_for_perk(state, player, perk_name: str) -> list[TargetType
         return [i for i, l in enumerate(state.lanes)
                 if l.winner is None and l.freeze_turns == 0]
 
-    # Sacrifice perks (your lane with pieces)
+    # Sacrifice perks (your lane with pieces, not won)
     if perk_name in ['SPLIT', 'KAMIKAZE', 'SCATTER']:
-        return state.get_lanes_with_pieces(player)
+        return [i for i in state.get_lanes_with_pieces(player)
+                if state.lanes[i].winner is None]
 
-    # Enemy pieces target
+    # Enemy pieces target (not won)
     if perk_name == 'DISPERSE':
-        return state.get_lanes_with_pieces(opponent)
+        return [i for i in state.get_lanes_with_pieces(opponent)
+                if state.lanes[i].winner is None]
 
     # Rush - any non-won lane
     if perk_name == 'RUSH':
@@ -90,17 +152,12 @@ def get_valid_targets_for_perk(state, player, perk_name: str) -> list[TargetType
         return [i for i, l in enumerate(state.lanes) if l.winner != player]
 
     # Your-side triggers (need your pieces)
-    if perk_name in ['HYDRA', 'BACKFIRE', 'ABSORB', 'RETALIATE', 'ENLIST', 'CAPTURE']:
+    if perk_name in ['HYDRA', 'BACKFIRE', 'ABSORB', 'RETALIATE']:
         return [i for i, l in enumerate(state.lanes)
                 if l.winner is None and l.pieces_for(player) > 0]
 
-    # Sanctuary - your available lane
-    if perk_name == 'SANCTUARY':
-        return [i for i, l in enumerate(state.lanes)
-                if l.winner is None and not l.is_full_for(player)]
-
-    # Ambush - any non-won lane not full for you
-    if perk_name == 'AMBUSH':
+    # Enlist/Capture/Sanctuary/Ambush - non-won lane, not full for you
+    if perk_name in ['ENLIST', 'CAPTURE', 'SANCTUARY', 'AMBUSH']:
         return [i for i, l in enumerate(state.lanes)
                 if l.winner is None and not l.is_full_for(player)]
 
@@ -109,10 +166,11 @@ def get_valid_targets_for_perk(state, player, perk_name: str) -> list[TargetType
         return [i for i, l in enumerate(state.lanes)
                 if l.winner is None and not l.is_full_for(opponent)]
 
-    # Nullify - lanes with triggers
+    # Nullify - lanes with triggers, deferred effects, or pending raids
     if perk_name == 'NULLIFY':
+        raid_lanes = {r['lane'] for r in state.pending_raids}
         return [i for i, l in enumerate(state.lanes)
-                if l.winner is None and l.has_triggers()]
+                if l.winner is None and (l.has_triggers() or l.has_deferred() or i in raid_lanes)]
 
     # Default: any non-won lane
     return [i for i, l in enumerate(state.lanes) if l.winner is None]
@@ -162,8 +220,8 @@ def simulate_perk_selection(state, move: Move):
         if perk_name:
             success, _ = execute_perk(new_state, player, perk_name, target)
             if success:
-                new_state.record_slot_usage(slot)
-                new_state.record_perk_usage(perk_name)
+                new_state.record_slot_usage(slot, player)
+                new_state.record_perk_usage(perk_name, player)
 
     # Check lane wins after perk
     for i in range(len(new_state.lanes)):
@@ -254,7 +312,79 @@ def terminal_score(state, player) -> float:
     return 0.0  # Draw
 
 
-def evaluate_board_state(state, player) -> float:
+def _evaluate_trigger(trigger_type, my_pieces, their_pieces, slots_per_side,
+                      expected_firings, profile: MinimaxProfile) -> float:
+    """Compute effect value for a trigger scaled by expected firings and board context.
+
+    When a trigger would cause or approach a lane win, value it at lane-win scale
+    (near_win_bonus) rather than piece scale (piece_advantage_mult). This makes
+    triggers on contested lanes competitive with direct piece placement.
+
+    Args:
+        trigger_type: Type of trigger
+        my_pieces: Trigger owner's pieces on this lane
+        their_pieces: Opponent's pieces on this lane
+        slots_per_side: Max pieces per side
+        expected_firings: Expected number of times this trigger fires (remaining / n_open_lanes)
+        profile: MinimaxProfile with tunable weights
+    """
+    near_win = slots_per_side - 1
+
+    near_threat = slots_per_side - 2
+
+    if trigger_type in (TriggerType.TRAP, TriggerType.PORTAL):
+        # Removes/redirects opponent's placed piece.
+        # Value scales with how critical the denial is.
+        if their_pieces >= near_win:
+            effect_value = profile.near_win_bonus
+        elif their_pieces >= near_threat:
+            effect_value = profile.near_threat_bonus
+        else:
+            effect_value = their_pieces * profile.trigger_trap_portal_mult
+    elif trigger_type == TriggerType.MIRROR:
+        # Places +2 on same lane. Value based on resulting board position.
+        after_fire = my_pieces + 2
+        if after_fire >= slots_per_side:
+            effect_value = profile.near_win_bonus
+        elif after_fire >= near_win:
+            effect_value = profile.near_win_bonus * 0.5
+        elif after_fire >= near_threat:
+            effect_value = profile.near_threat_bonus
+        else:
+            effect_value = profile.trigger_mirror_value * after_fire / slots_per_side
+    elif trigger_type in (TriggerType.ECHO, TriggerType.HYDRA):
+        # Places +2 pieces on random lanes
+        effect_value = profile.trigger_echo_hydra_value
+    elif trigger_type in (TriggerType.SHOCKWAVE, TriggerType.BACKFIRE):
+        # Removes 2 enemy pieces elsewhere
+        effect_value = profile.trigger_shockwave_backfire_value
+    elif trigger_type == TriggerType.ABSORB:
+        # Recovers 1 removed piece on random lane
+        effect_value = profile.trigger_absorb_value
+    elif trigger_type == TriggerType.RETALIATE:
+        # Places 1 piece on enemy side
+        effect_value = profile.trigger_retaliate_value
+    else:
+        effect_value = profile.trigger_default_value
+    return effect_value * expected_firings
+
+
+def _evaluate_deferred(d_type, profile: MinimaxProfile) -> float:
+    """Compute base value for a deferred effect (before delay discount)."""
+    if d_type == DeferredType.SIGNAL:
+        return profile.deferred_signal_value
+    elif d_type == DeferredType.ENLIST:
+        return profile.deferred_enlist_value
+    elif d_type == DeferredType.AMBUSH:
+        return profile.deferred_ambush_value
+    elif d_type == DeferredType.REINFORCE:
+        return profile.deferred_reinforce_value
+    elif d_type == DeferredType.RAID:
+        return profile.deferred_raid_value
+    return profile.deferred_default_value
+
+
+def evaluate_board_state(state, player, profile: MinimaxProfile = None) -> float:
     """
     Evaluate board position for expectimax.
     Higher = better for player.
@@ -262,24 +392,36 @@ def evaluate_board_state(state, player) -> float:
     Args:
         state: Current game state
         player: Player to evaluate for
+        profile: MinimaxProfile with tunable weights (uses defaults if None)
 
     Returns:
         Position evaluation score
     """
+    if profile is None:
+        profile = _DEFAULT_PROFILE
+
     opponent = player.opponent()
     score = 0.0
 
     # Lane wins (heavily weighted)
     my_lanes = state.lanes_won_by(player)
     their_lanes = state.lanes_won_by(opponent)
-    score += my_lanes * 1000.0
-    score -= their_lanes * 1000.0
+    score += my_lanes * profile.lane_win_weight
+    score -= their_lanes * profile.lane_win_weight
 
     # If close to winning/losing, adjust urgency
-    if my_lanes == 2:
-        score += 300.0  # One lane from winning
-    if their_lanes == 2:
-        score -= 300.0  # One lane from losing
+    lanes_to_win = state.config.LANES_TO_WIN
+    if my_lanes == lanes_to_win - 1:
+        score += profile.near_game_win_bonus
+    if their_lanes == lanes_to_win - 1:
+        score -= profile.near_game_win_bonus
+
+    slots_per_side = state.config.SLOTS_PER_SIDE
+    near_win = slots_per_side - 1
+    near_threat = slots_per_side - 2
+
+    # Count non-won lanes for trigger expected firings
+    n_open_lanes = max(1, sum(1 for l in state.lanes if l.winner is None))
 
     for i, lane in enumerate(state.lanes):
         if lane.winner is not None:
@@ -289,53 +431,135 @@ def evaluate_board_state(state, player) -> float:
         their_pieces = lane.pieces_for(opponent)
 
         # Piece advantage per lane
-        score += (my_pieces - their_pieces) * 20.0
+        score += (my_pieces - their_pieces) * profile.piece_advantage_mult
 
-        # Near-win positions (4 pieces = one away from winning lane)
-        if my_pieces >= 4:
-            score += 200.0
-        elif my_pieces >= 3:
-            score += 50.0
+        # Near-win positions (one away from winning lane)
+        if my_pieces >= near_win:
+            score += profile.near_win_bonus
+        elif my_pieces >= near_threat:
+            score += profile.near_threat_bonus
 
-        if their_pieces >= 4:
-            score -= 200.0
-        elif their_pieces >= 3:
-            score -= 50.0
+        if their_pieces >= near_win:
+            score -= profile.near_win_bonus
+        elif their_pieces >= near_threat:
+            score -= profile.near_threat_bonus
 
-        # Trigger value (our triggers on lanes opponent uses)
+        # Trigger value — expected firings scaled by board context + targeting bias
         for trigger in lane.triggers:
-            if trigger['owner'] == player:
-                score += 25.0  # Our triggers have potential value
-            else:
-                score -= 25.0  # Enemy triggers are threats
+            remaining = trigger.get('turns', 1)
+            # Geometric probability: chance of at least one placement here over remaining turns
+            base_prob = 1.0 - (1.0 - 1.0 / n_open_lanes) ** remaining
 
-        # Freeze value
+            # Targeting bias: opponent targets high-value lanes, not uniform
+            # Removal triggers (HYDRA, BACKFIRE, ABSORB): opponent removes where YOU have pieces
+            # Placement triggers: opponent places where THEY have pieces
+            t_type = trigger['type']
+            if t_type in (TriggerType.HYDRA, TriggerType.BACKFIRE, TriggerType.ABSORB):
+                relevance = my_pieces / max(1, slots_per_side)
+            else:
+                relevance = their_pieces / max(1, slots_per_side)
+
+            # How contested is this lane (0.0 = empty, 1.0 = nearly full on both sides)
+            contestedness = (my_pieces + their_pieces) / (2.0 * slots_per_side)
+
+            # Boost expected firings on contested lanes
+            tactical_prob = base_prob * (1.0 + relevance * (profile.trigger_targeting_bias - 1.0))
+            expected_firings = tactical_prob + contestedness * (1.0 - tactical_prob) * profile.trigger_contest_boost
+            # Clamp to [0, 1] since it's a probability-like weight
+            expected_firings = min(1.0, expected_firings)
+
+            if trigger['owner'] == player:
+                score += _evaluate_trigger(t_type, my_pieces, their_pieces,
+                                           slots_per_side, expected_firings, profile)
+            else:
+                score -= _evaluate_trigger(t_type, their_pieces, my_pieces,
+                                           slots_per_side, expected_firings, profile)
+
+        # Deferred effects value
+        for deferred in lane.deferred:
+            d_type = deferred['type']
+            # SIGNAL resolves in 1 turn — use gentler discount
+            if d_type == DeferredType.SIGNAL:
+                discount = (1.0 + profile.deferred_discount) / 2
+            else:
+                discount = profile.deferred_discount
+            value = _evaluate_deferred(d_type, profile) * discount
+            if deferred['owner'] == player:
+                score += value
+            else:
+                score -= value
+
+        # Freeze value — scaled by how threatening the frozen lane is
         if lane.is_frozen_for(opponent):
-            score += 40.0
+            # Blocking value: freeze stops opponent's progress
+            if their_pieces >= near_win:
+                score += profile.freeze_near_win
+            elif their_pieces >= near_threat:
+                score += profile.freeze_near_threat
+            else:
+                score += profile.freeze_base
+            # Protection value: freeze protects YOUR near-win lane from disruption
+            if my_pieces >= near_win:
+                score += profile.freeze_protect_near_win
+            elif my_pieces >= near_threat:
+                score += profile.freeze_protect_near_win * 0.4
         if lane.is_frozen_for(player):
-            score -= 40.0
+            if my_pieces >= near_win:
+                score -= profile.freeze_near_win
+            elif my_pieces >= near_threat:
+                score -= profile.freeze_near_threat
+            else:
+                score -= profile.freeze_base
+            # Opponent's protection value from freezing your lane
+            if their_pieces >= near_win:
+                score -= profile.freeze_protect_near_win
+            elif their_pieces >= near_threat:
+                score -= profile.freeze_protect_near_win * 0.4
 
     # Global effects value
     if state.is_cloaked(player):
-        score += 30.0
+        score += profile.cloak_value
     if state.is_blinded(opponent):
-        score += 30.0
+        score += profile.blind_value
     if state.is_cloaked(opponent):
-        score -= 30.0
+        score -= profile.cloak_value
     if state.is_blinded(player):
-        score -= 30.0
+        score -= profile.blind_value
 
-    # Sanctuary/Capture value
-    if state.has_sanctuary(player):
-        score += 20.0
-    if state.has_capture(player):
-        score += 25.0
+    # Pending raids value
+    for raid in state.pending_raids:
+        turns_left = raid.get('turns_until_resolve', 0)
+        discount = profile.raid_discount_base ** max(0, turns_left)
+        raid_value = profile.raid_pending_value * discount
+        if raid['owner'] == player:
+            score += raid_value
+        else:
+            score -= raid_value
+
+    # Sanctuary value — scaled by how many pieces are at risk
+    my_total_pieces = sum(lane.pieces_for(player) for lane in state.lanes if lane.winner is None)
+    opp_total_pieces = sum(lane.pieces_for(opponent) for lane in state.lanes if lane.winner is None)
+    my_risk_factor = min(2.0, max(0.5, my_total_pieces / max(1, slots_per_side)))
+    opp_risk_factor = min(2.0, max(0.5, opp_total_pieces / max(1, slots_per_side)))
+    p_sanctuaries = state.player1_sanctuaries if player == Player.PLAYER1 else state.player2_sanctuaries
+    o_sanctuaries = state.player2_sanctuaries if player == Player.PLAYER1 else state.player1_sanctuaries
+    score += sum(profile.sanctuary_value * my_risk_factor for _, turns in p_sanctuaries if turns > 0)
+    score -= sum(profile.sanctuary_value * opp_risk_factor for _, turns in o_sanctuaries if turns > 0)
+
+    # Capture value — count active instances
+    p_captures = state.player1_captures if player == Player.PLAYER1 else state.player2_captures
+    o_captures = state.player2_captures if player == Player.PLAYER1 else state.player1_captures
+    score += sum(profile.capture_value for _, turns in p_captures if turns > 0)
+    score -= sum(profile.capture_value for _, turns in o_captures if turns > 0)
 
     return score
 
 
+_DEFAULT_PROFILE = MinimaxProfile(name='minimax-v1')
+
+
 def expectimax(state, depth: int, alpha: float, beta: float,
-               node_type: NodeType, root_player) -> SearchResult:
+               node_type: NodeType, root_player, profile: MinimaxProfile = None) -> SearchResult:
     """
     Expectimax search with alpha-beta pruning on MAX/MIN nodes.
 
@@ -349,24 +573,27 @@ def expectimax(state, depth: int, alpha: float, beta: float,
     Returns:
         SearchResult with score and best move (if applicable)
     """
+    if profile is None:
+        profile = _DEFAULT_PROFILE
+
     # Terminal: game over
     if state.game_over:
         return SearchResult(terminal_score(state, root_player))
 
     # Terminal: depth exhausted
     if depth <= 0:
-        return SearchResult(evaluate_board_state(state, root_player))
+        return SearchResult(evaluate_board_state(state, root_player, profile))
 
     if node_type == NodeType.CHANCE:
-        return _expectimax_chance(state, depth, alpha, beta, root_player)
+        return _expectimax_chance(state, depth, alpha, beta, root_player, profile)
     elif node_type == NodeType.MAX:
-        return _expectimax_max(state, depth, alpha, beta, root_player)
+        return _expectimax_max(state, depth, alpha, beta, root_player, profile)
     else:  # MIN
-        return _expectimax_min(state, depth, alpha, beta, root_player)
+        return _expectimax_min(state, depth, alpha, beta, root_player, profile)
 
 
 def _expectimax_chance(state, depth: int, alpha: float, beta: float,
-                       root_player) -> SearchResult:
+                       root_player, profile: MinimaxProfile) -> SearchResult:
     """Handle random auto-placement by averaging over possible lanes."""
     from src.game.rules import GameRules
     from src.game.state import TurnPhase
@@ -390,7 +617,7 @@ def _expectimax_chance(state, depth: int, alpha: float, beta: float,
                 new_state.offered_perks[slot] = perk
 
         next_type = NodeType.MAX if player == root_player else NodeType.MIN
-        return expectimax(new_state, depth, alpha, beta, next_type, root_player)
+        return expectimax(new_state, depth, alpha, beta, next_type, root_player, profile)
 
     # Average over all possible auto-placement lanes
     total_score = 0.0
@@ -402,7 +629,7 @@ def _expectimax_chance(state, depth: int, alpha: float, beta: float,
         else:
             # After auto-placement, it's perk selection time
             next_type = NodeType.MAX if child.current_player == root_player else NodeType.MIN
-            result = expectimax(child, depth, alpha, beta, next_type, root_player)
+            result = expectimax(child, depth, alpha, beta, next_type, root_player, profile)
             total_score += result.score
 
     avg_score = total_score / len(available_lanes)
@@ -410,7 +637,7 @@ def _expectimax_chance(state, depth: int, alpha: float, beta: float,
 
 
 def _expectimax_max(state, depth: int, alpha: float, beta: float,
-                    root_player) -> SearchResult:
+                    root_player, profile: MinimaxProfile) -> SearchResult:
     """Maximize: current player chooses best perk."""
     max_score = float('-inf')
     best_move: Move = ('pass', None)
@@ -438,7 +665,7 @@ def _expectimax_max(state, depth: int, alpha: float, beta: float,
             score = terminal_score(child, root_player)
         else:
             # After perk selection, opponent's turn starts with CHANCE
-            result = expectimax(child, depth - 1, alpha, beta, NodeType.CHANCE, root_player)
+            result = expectimax(child, depth - 1, alpha, beta, NodeType.CHANCE, root_player, profile)
             score = result.score
 
         if score > max_score:
@@ -453,7 +680,7 @@ def _expectimax_max(state, depth: int, alpha: float, beta: float,
 
 
 def _expectimax_min(state, depth: int, alpha: float, beta: float,
-                    root_player) -> SearchResult:
+                    root_player, profile: MinimaxProfile) -> SearchResult:
     """Minimize: opponent chooses move that's worst for us."""
     min_score = float('inf')
     best_move: Move = ('pass', None)
@@ -480,7 +707,7 @@ def _expectimax_min(state, depth: int, alpha: float, beta: float,
             score = terminal_score(child, root_player)
         else:
             # After perk selection, our turn starts with CHANCE
-            result = expectimax(child, depth - 1, alpha, beta, NodeType.CHANCE, root_player)
+            result = expectimax(child, depth - 1, alpha, beta, NodeType.CHANCE, root_player, profile)
             score = result.score
 
         if score < min_score:
@@ -497,14 +724,16 @@ def _expectimax_min(state, depth: int, alpha: float, beta: float,
 class ExpectimaxAI:
     """Expectimax AI player with configurable depth."""
 
-    def __init__(self, depth: int = 2):
+    def __init__(self, depth: int = 2, profile: MinimaxProfile = None):
         """
         Initialize expectimax AI.
 
         Args:
             depth: Search depth (number of full turns to look ahead)
+            profile: MinimaxProfile for evaluation weights (uses default if None)
         """
         self.depth = depth
+        self.profile = profile or _DEFAULT_PROFILE
         self._last_evaluation: Optional[dict] = None
 
     def choose_move(self, state) -> Move:
@@ -543,7 +772,8 @@ class ExpectimaxAI:
                     alpha=float('-inf'),
                     beta=float('inf'),
                     node_type=NodeType.CHANCE,
-                    root_player=player
+                    root_player=player,
+                    profile=self.profile
                 )
                 score = result.score
 
@@ -573,17 +803,18 @@ class ExpectimaxAI:
         return self._last_evaluation
 
 
-def create_expectimax_ai(depth: int):
+def create_expectimax_ai(depth: int, profile: MinimaxProfile = None):
     """
     Factory function for expectimax AI.
 
     Args:
         depth: Search depth
+        profile: MinimaxProfile for evaluation weights (uses default if None)
 
     Returns:
         AI function compatible with GameEngine with .get_last_evaluation() method
     """
-    ai = ExpectimaxAI(depth)
+    ai = ExpectimaxAI(depth, profile=profile)
 
     def ai_function(state) -> Move:
         return ai.choose_move(state)

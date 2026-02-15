@@ -28,10 +28,11 @@ from simulation import (
 )
 from ai import easy_ai, medium_ai, hard_ai, random_ai
 from ai import create_expectimax_ai, expectimax_depth1, expectimax_depth2, expectimax_depth3
-from ai import create_ai_function, Difficulty, PROFILES
+from ai import create_ai_function, Difficulty, PROFILES, MINIMAX_PROFILES, get_minimax_profile
+from game.config import GameConfig
 
 
-def format_ai_name(ai_type, p1_depth, p2_depth, global_depth, is_p1=True, profile='v1'):
+def format_ai_name(ai_type, p1_depth, p2_depth, global_depth, is_p1=True, profile='v1', minimax_profile='minimax-v1'):
     """Format AI name, including depth for minimax and profile for heuristic AI."""
     name = ai_type.title()
     if ai_type in ['minimax1', 'minimax2', 'minimax3']:
@@ -43,7 +44,7 @@ def format_ai_name(ai_type, p1_depth, p2_depth, global_depth, is_p1=True, profil
             depth = global_depth
         else:
             depth = int(ai_type[-1])  # minimax1 -> 1, etc.
-        name = f"Minimax (d={depth})"
+        name = f"Minimax (d={depth}, {minimax_profile})"
     elif ai_type in ['easy', 'medium', 'hard']:
         name = f"{ai_type.title()} ({profile})"
     return name
@@ -95,11 +96,50 @@ Examples:
     parser.add_argument('--p2-profile', default='v1',
                         choices=list(PROFILES.keys()),
                         help='Heuristic profile for player 2 (default: v1)')
+    parser.add_argument('--profile', default=None,
+                        choices=list(PROFILES.keys()),
+                        help='Set both p1 and p2 profile (shortcut for --p1-profile + --p2-profile)')
+    parser.add_argument('--p1-minimax-profile', default='minimax-v1',
+                        choices=list(MINIMAX_PROFILES.keys()),
+                        help='Minimax eval profile for player 1 (default: minimax-v1)')
+    parser.add_argument('--p2-minimax-profile', default='minimax-v1',
+                        choices=list(MINIMAX_PROFILES.keys()),
+                        help='Minimax eval profile for player 2 (default: minimax-v1)')
+    parser.add_argument('--minimax-profile', default=None,
+                        choices=list(MINIMAX_PROFILES.keys()),
+                        help='Set both p1 and p2 minimax profile (shortcut)')
+    parser.add_argument('--lanes', type=int, default=5,
+                        help='Number of lanes (default: 5)')
+    parser.add_argument('--slots', type=int, default=5,
+                        help='Slots per side per lane (default: 5)')
+    parser.add_argument('--max-turns', type=int, default=None,
+                        help='Max turns per game (default: auto-scaled from board size)')
 
     args = parser.parse_args()
 
+    if args.profile:
+        args.p1_profile = args.profile
+        args.p2_profile = args.profile
+
+    if args.minimax_profile:
+        args.p1_minimax_profile = args.minimax_profile
+        args.p2_minimax_profile = args.minimax_profile
+
+    # Build custom config if board size differs from default
+    custom_config = None
+    if args.lanes != 5 or args.slots != 5:
+        lanes_to_win = args.lanes // 2 + 1
+        custom_config = GameConfig(
+            LANES=args.lanes,
+            SLOTS_PER_SIDE=args.slots,
+            LANES_TO_WIN=lanes_to_win
+        )
+
+    # Auto-scale max_turns based on board size if not explicitly set
+    max_turns = args.max_turns if args.max_turns is not None else args.lanes * args.slots * 4
+
     # AI selection helper
-    def get_ai(ai_type: str, profile: str, depth: int = None):
+    def get_ai(ai_type: str, profile: str, depth: int = None, minimax_profile: str = 'minimax-v1'):
         """Get AI function based on type and profile."""
         if ai_type == 'random':
             return random_ai
@@ -110,10 +150,11 @@ Examples:
         elif ai_type == 'hard':
             return create_ai_function(Difficulty.HARD, profile)
         elif ai_type in ['minimax1', 'minimax2', 'minimax3']:
+            mp = get_minimax_profile(minimax_profile)
             if depth is not None:
-                return create_expectimax_ai(depth)
+                return create_expectimax_ai(depth, profile=mp)
             else:
-                return create_expectimax_ai(int(ai_type[-1]))
+                return create_expectimax_ai(int(ai_type[-1]), profile=mp)
         else:
             raise ValueError(f"Unknown AI type: {ai_type}")
 
@@ -129,28 +170,42 @@ Examples:
         print_comparison(results)
 
     elif args.balance:
-        # Run balance analysis
-        print("Running Slot Balance Analysis")
+        profile_name = args.p1_profile
+        print(f"Running Slot Balance Analysis (profile: {profile_name})")
         print("=" * 50)
-        run_slot_allocation_test(n_games=args.games, verbose=True)
+        p1_ai = get_ai('hard', profile_name)
+        p2_ai = get_ai('hard', profile_name)
+        runner = SimulationRunner(p1_ai, p2_ai, seed_start=args.seed, max_turns=max_turns, config=custom_config)
+        result = runner.run(args.games, verbose=not args.quiet)
+        print_summary(result, f"Hard ({profile_name}) vs Hard ({profile_name})")
+        # Show slot distribution
+        slot_pcts = result.slot_percentages
+        print(f"\nSlot Distribution:")
+        for slot in [1, 2, 3, 4]:
+            pct = slot_pcts.get(slot, 0)
+            print(f"  Slot {slot}: {pct:.1f}%")
 
     else:
         # Run single configuration
-        p1_ai = get_ai(args.p1, args.p1_profile, p1_mm_depth)
-        p2_ai = get_ai(args.p2, args.p2_profile, p2_mm_depth)
+        p1_ai = get_ai(args.p1, args.p1_profile, p1_mm_depth, args.p1_minimax_profile)
+        p2_ai = get_ai(args.p2, args.p2_profile, p2_mm_depth, args.p2_minimax_profile)
 
-        p1_name = format_ai_name(args.p1, args.p1_depth, args.p2_depth, args.depth, is_p1=True, profile=args.p1_profile)
-        p2_name = format_ai_name(args.p2, args.p1_depth, args.p2_depth, args.depth, is_p1=False, profile=args.p2_profile)
+        p1_name = format_ai_name(args.p1, args.p1_depth, args.p2_depth, args.depth, is_p1=True, profile=args.p1_profile, minimax_profile=args.p1_minimax_profile)
+        p2_name = format_ai_name(args.p2, args.p1_depth, args.p2_depth, args.depth, is_p1=False, profile=args.p2_profile, minimax_profile=args.p2_minimax_profile)
 
         if not args.quiet:
             print(f"Running {args.games} games: {p1_name} vs {p2_name}")
+            if custom_config:
+                print(f"Board: {custom_config.LANES} lanes x {custom_config.SLOTS_PER_SIDE} slots/side (win {custom_config.LANES_TO_WIN}, max {max_turns} turns)")
             print("=" * 50)
 
         runner = SimulationRunner(
             player1_ai=p1_ai,
             player2_ai=p2_ai,
             seed_start=args.seed,
-            log_games=args.log_games
+            max_turns=max_turns,
+            log_games=args.log_games,
+            config=custom_config
         )
         result = runner.run(args.games, verbose=not args.quiet)
 

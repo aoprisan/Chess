@@ -73,16 +73,21 @@ SLOT_4_PERKS = [
 ]
 
 
-def get_perks_for_slot(slot: int) -> list[str]:
-    """Get list of perk names available for a slot."""
+def get_perks_for_slot(slot: int, config=None) -> list[str]:
+    """Get list of perk names available for a slot.
+
+    Args:
+        slot: Slot number (1-4)
+        config: Optional GameConfig with custom slot3_pool/slot4_pool
+    """
     if slot == 1:
         return ['PLACE_ANOTHER']
     elif slot == 2:
         return ['REMOVE_ENEMY']
     elif slot == 3:
-        return SLOT_3_PERKS
+        return list(config.slot3_pool) if config else SLOT_3_PERKS
     elif slot == 4:
-        return SLOT_4_PERKS
+        return list(config.slot4_pool) if config else SLOT_4_PERKS
     return []
 
 

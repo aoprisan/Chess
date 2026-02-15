@@ -540,6 +540,99 @@ class _CombatScreenState extends State<CombatScreen> {
       case 38: // Steal
         _combatService.stealPiece();
         break;
+      case 37: // Gambit
+        _combatService.gambitPieces();
+        break;
+      case 39: // Rush
+        if (targetLane >= 0) {
+          _combatService.rushLane(targetLane);
+        }
+        break;
+      case 48: // Nullify
+        if (targetLane >= 0) {
+          _combatService.nullifyLane(targetLane);
+        }
+        break;
+      case 24: // Portal
+        if (targetLane >= 0) {
+          _combatService.setPortalTrigger(targetLane);
+        }
+        break;
+      case 25: // Trap
+        if (targetLane >= 0) {
+          _combatService.setTrapTrigger(targetLane);
+        }
+        break;
+      case 26: // Mirror
+        if (targetLane >= 0) {
+          _combatService.setMirrorTrigger(targetLane);
+        }
+        break;
+      case 27: // Echo
+        if (targetLane >= 0) {
+          _combatService.setEchoTrigger(targetLane);
+        }
+        break;
+      case 28: // Shockwave
+        if (targetLane >= 0) {
+          _combatService.setShockwaveTrigger(targetLane);
+        }
+        break;
+      case 29: // Hydra
+        if (targetLane >= 0) {
+          _combatService.setHydraTrigger(targetLane);
+        }
+        break;
+      case 30: // Backfire
+        if (targetLane >= 0) {
+          _combatService.setBackfireTrigger(targetLane);
+        }
+        break;
+      case 46: // Absorb
+        if (targetLane >= 0) {
+          _combatService.setAbsorbTrigger(targetLane);
+        }
+        break;
+      case 52: // Retaliate
+        if (targetLane >= 0) {
+          _combatService.setRetaliateTrigger(targetLane);
+        }
+        break;
+      case 43: // Signal
+        if (targetLane >= 0) {
+          _combatService.signalLane(targetLane);
+        }
+        break;
+      case 40: // Enlist
+        if (targetLane >= 0) {
+          _combatService.enlistOnLane(targetLane);
+        }
+        break;
+      case 41: // Ambush
+        if (targetLane >= 0) {
+          _combatService.ambushOnLane(targetLane);
+        }
+        break;
+      case 42: // Reinforce
+        if (targetLane >= 0) {
+          _combatService.reinforceLane(targetLane);
+        }
+        break;
+      case 49: // Sanctuary
+        if (targetLane >= 0) {
+          _combatService.setSanctuary(targetLane);
+        }
+        break;
+      case 50: // Capture
+        if (targetLane >= 0) {
+          _combatService.setCaptureZone(targetLane);
+        }
+        break;
+      case 51: // Raid
+        if (targetLane >= 0) {
+          _combatService.raidLane(targetLane);
+        }
+        break;
     }
 
     // End turn

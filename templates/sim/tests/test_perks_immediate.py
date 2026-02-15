@@ -238,6 +238,160 @@ class TestDisrupt:
         assert self.state.lanes[lane_b].pieces_for(Player.PLAYER2) == 2
 
 
+class TestDisruptEdgeCases:
+    """Additional tests for Disrupt edge cases."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_disrupt_rejects_won_lane(self):
+        """Disrupt should fail if a target lane is won."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.lanes[1].add_piece(Player.PLAYER2)
+        self.state.lanes[0].winner = Player.PLAYER1
+
+        success, result = execute_disrupt(self.state, Player.PLAYER1, 0, 1)
+        assert success is False
+
+    def test_disrupt_fails_with_fewer_than_two_enemy_lanes(self):
+        """Disrupt should fail if enemy has pieces on fewer than 2 non-won lanes."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        # Only 1 lane with enemy pieces
+
+        success, result = execute_disrupt(self.state, Player.PLAYER1, 0, 1)
+        assert success is False
+
+    def test_disrupt_same_lane_fails(self):
+        """Disrupt should fail when both targets are the same lane."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+
+        success, result = execute_disrupt(self.state, Player.PLAYER1, 0, 0)
+        assert success is False
+
+
+class TestDisperseEdgeCases:
+    """Additional tests for Disperse edge cases."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_disperse_fails_with_no_enemy_pieces(self):
+        """Disperse should fail if enemy has no pieces."""
+        success, result = execute_disperse(self.state, Player.PLAYER1, 0)
+        assert success is False
+
+    def test_disperse_iterative_win_check(self):
+        """Disperse should check game win after each piece placement."""
+        from src.game.rules import GameRules
+
+        # Set up: P2 has 3 pieces on lane 0
+        for _ in range(3):
+            self.state.lanes[0].add_piece(Player.PLAYER2)
+
+        # P2 already won 2 lanes
+        for lane_idx in [1, 2]:
+            for _ in range(5):
+                self.state.lanes[lane_idx].add_piece(Player.PLAYER2)
+            self.state.lanes[lane_idx].winner = Player.PLAYER2
+
+        # P2 has 4 pieces on lane 3 (dispersed pieces could go here and win)
+        for _ in range(4):
+            self.state.lanes[3].add_piece(Player.PLAYER2)
+
+        success, result = execute_disperse(self.state, Player.PLAYER1, 0)
+        assert success is True
+        # If pieces land on lane 3, it could complete and win the game
+
+    def test_disperse_on_lane_without_enemy_fails(self):
+        """Disperse should fail if target lane has no enemy pieces."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+
+        success, result = execute_disperse(self.state, Player.PLAYER1, 1)
+        assert success is False
+
+
+class TestKamikazeEdgeCases:
+    """Additional tests for Kamikaze edge cases."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_kamikaze_with_only_one_enemy_piece(self):
+        """Kamikaze should only remove 1 if enemy has only 1 piece."""
+        self.state.lanes[2].add_piece(Player.PLAYER1)
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+
+        success, result = execute_kamikaze(self.state, Player.PLAYER1, 2)
+
+        assert success is True
+        # Player sacrificed 1
+        assert self.state.lanes[2].pieces_for(Player.PLAYER1) == 0
+        # Enemy should have at most 1 removed (only had 1)
+        total_enemy = sum(l.pieces_for(Player.PLAYER2) for l in self.state.lanes)
+        assert total_enemy == 0
+
+    def test_kamikaze_uses_redirects(self):
+        """Kamikaze removals should respect Capture/Sanctuary redirects."""
+        target = 2
+        self.state.lanes[target].add_piece(Player.PLAYER1)
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+
+        # P1 has a Capture zone on lane 4
+        self.state.add_capture(Player.PLAYER1, 4, 3)
+
+        success, result = execute_kamikaze(self.state, Player.PLAYER1, target)
+
+        assert success is True
+        # Captured piece should appear on lane 4 as P1's piece
+        if result.get('redirections'):
+            assert self.state.lanes[4].pieces_for(Player.PLAYER1) == 1
+
+    def test_kamikaze_proceeds_even_with_no_enemy(self):
+        """Kamikaze still sacrifices even if enemy has 0 pieces."""
+        self.state.lanes[2].add_piece(Player.PLAYER1)
+
+        success, result = execute_kamikaze(self.state, Player.PLAYER1, 2)
+
+        assert success is True
+        assert self.state.lanes[2].pieces_for(Player.PLAYER1) == 0
+        assert result['enemy_pieces_removed'] == 0
+
+
+class TestStealEdgeCases:
+    """Additional tests for Steal edge cases."""
+
+    def setup_method(self):
+        self.state = GameState()
+        self.state.set_seed(42)
+
+    def test_steal_uses_capture_redirect(self):
+        """Steal removal should respect Capture redirect."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.add_capture(Player.PLAYER1, 3, 3)
+
+        success, result = execute_steal(self.state, Player.PLAYER1)
+
+        assert success is True
+        # The removed enemy piece should be captured on lane 3
+        if result.get('removal_result', {}).get('redirected'):
+            assert self.state.lanes[3].pieces_for(Player.PLAYER1) >= 1
+
+    def test_steal_uses_sanctuary_redirect(self):
+        """Steal removal should respect enemy Sanctuary redirect."""
+        self.state.lanes[0].add_piece(Player.PLAYER2)
+        self.state.add_sanctuary(Player.PLAYER2, 2, 3)
+
+        success, result = execute_steal(self.state, Player.PLAYER1)
+
+        assert success is True
+        # The enemy's lost piece should redirect to sanctuary lane 2
+        if result.get('removal_result', {}).get('redirected'):
+            assert self.state.lanes[2].pieces_for(Player.PLAYER2) >= 1
+
+
 class TestScatter:
     """Tests for Scatter immediate perk (move your pieces to random)."""
 

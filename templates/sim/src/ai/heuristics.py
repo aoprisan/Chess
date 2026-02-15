@@ -73,12 +73,14 @@ def score_lane_for_placement(state: 'GameState', player: 'Player',
     my_pieces = lane.pieces_for(player)
     their_pieces = lane.pieces_for(opponent)
 
-    # Win lane opportunity (we have 4, placing gives us 5 = win)
-    if my_pieces == 4:
+    near_win = state.config.SLOTS_PER_SIDE - 1
+
+    # Win lane opportunity (one piece away from filling lane)
+    if my_pieces == near_win:
         score += weights['win_lane']
 
-    # Block opponent (they have 4, we need to compete)
-    if their_pieces == 4:
+    # Block opponent (they're one piece away from filling)
+    if their_pieces == near_win:
         score += weights['block_opponent']
 
     # General position advancement
@@ -96,9 +98,10 @@ def score_lane_for_placement(state: 'GameState', player: 'Player',
 
     # Hard mode: multiple threat detection
     if difficulty == Difficulty.HARD and 'multiple_threat_bonus' in weights:
-        # Count lanes where we have 3+ pieces
+        # Count lanes where we have significant presence
+        near_threat = state.config.SLOTS_PER_SIDE - 2
         threat_lanes = sum(1 for l in state.lanes
-                          if l.winner is None and l.pieces_for(player) >= 3)
+                          if l.winner is None and l.pieces_for(player) >= near_threat)
         if threat_lanes >= 2:
             score += weights['multiple_threat_bonus']
 
@@ -133,8 +136,10 @@ def score_lane_for_removal(state: 'GameState', player: 'Player',
 
     score = 0.0
 
+    near_win = state.config.SLOTS_PER_SIDE - 1
+
     # High priority: opponent about to win
-    if their_pieces >= 4:
+    if their_pieces >= near_win:
         score += weights['block_opponent'] * 1.5
 
     # Good target: opponent has significant presence
@@ -182,10 +187,12 @@ def evaluate_board_state(state: 'GameState', player: 'Player') -> float:
             # Piece difference on this lane
             score += (my_pieces - their_pieces) * 5
 
+            near_win = state.config.SLOTS_PER_SIDE - 1
+
             # Near-win bonus
-            if my_pieces >= 4:
+            if my_pieces >= near_win:
                 score += 30
-            if their_pieces >= 4:
+            if their_pieces >= near_win:
                 score -= 30
 
     return score
@@ -223,6 +230,26 @@ def get_best_placement_lane(state: 'GameState', player: 'Player',
     # Pick best scoring lane
     best_lane, _ = max(lane_scores, key=lambda x: x[1])
     return best_lane
+
+
+def avg_placement_score(state: 'GameState', player: 'Player',
+                        difficulty: Difficulty) -> float:
+    """Average placement score across valid lanes (for random-target perks)."""
+    from src.game.rules import GameRules
+    valid = GameRules.get_valid_placement_lanes(state, player)
+    if not valid:
+        return 0.0
+    return sum(score_lane_for_placement(state, player, l, difficulty) for l in valid) / len(valid)
+
+
+def avg_removal_score(state: 'GameState', player: 'Player',
+                      difficulty: Difficulty) -> float:
+    """Average removal score across valid lanes (for random-target perks)."""
+    from src.game.rules import GameRules
+    valid = GameRules.get_valid_removal_lanes(state, player)
+    if not valid:
+        return 0.0
+    return sum(score_lane_for_removal(state, player, l, difficulty) for l in valid) / len(valid)
 
 
 def get_best_removal_lane(state: 'GameState', player: 'Player',

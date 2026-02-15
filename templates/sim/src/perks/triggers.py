@@ -464,8 +464,8 @@ def _handle_portal(state: 'GameState', lane_idx: int, placing_player: 'Player',
         if lane.winner is None and not lane.is_full_for(placing_player)
     ]
 
-    # Source exclusion: if threshold lanes available, exclude source
-    if len(available) >= state.config.SOURCE_EXCLUSION_THRESHOLD and lane_idx in available:
+    # Source exclusion: if 3+ lanes available, exclude source
+    if len(available) >= 3 and lane_idx in available:
         available = [l for l in available if l != lane_idx]
 
     destination = None
@@ -517,7 +517,7 @@ def _handle_trap(state: 'GameState', lane_idx: int, placing_player: 'Player') ->
 def _handle_mirror(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
     """Mirror: Owner gets +2 pieces on the same lane."""
     pieces_added = 0
-    for _ in range(state.config.MIRROR_PIECES):
+    for _ in range(2):
         if not state.lanes[lane_idx].is_full_for(owner):
             state.lanes[lane_idx].add_piece(owner)
             pieces_added += 1
@@ -537,7 +537,7 @@ def _handle_echo(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
     placements = []
     game_won_mid_trigger = False
 
-    for _ in range(state.config.ECHO_PIECES):
+    for _ in range(2):
         if game_won_mid_trigger:
             break
 
@@ -547,8 +547,8 @@ def _handle_echo(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
             if lane.winner is None and not lane.is_full_for(owner)
         ]
 
-        # Source exclusion if threshold lanes available
-        if len(available) >= state.config.SOURCE_EXCLUSION_THRESHOLD and lane_idx in available:
+        # Source exclusion if 3+ lanes available
+        if len(available) >= 3 and lane_idx in available:
             available = [l for l in available if l != lane_idx]
 
         if available:
@@ -575,7 +575,7 @@ def _handle_shockwave(state: 'GameState', lane_idx: int, placing_player: 'Player
     removed_from = []
     redirections = []
 
-    for _ in range(state.config.SHOCKWAVE_REMOVES):
+    for _ in range(2):
         # Find lanes with placing_player's pieces (excluding trigger lane)
         other_lanes = [
             i for i, lane in enumerate(state.lanes)
@@ -612,7 +612,7 @@ def _handle_hydra(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
     placements = []
     game_won_mid_trigger = False
 
-    for _ in range(state.config.HYDRA_PIECES):
+    for _ in range(2):
         if game_won_mid_trigger:
             break
 
@@ -622,7 +622,7 @@ def _handle_hydra(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
         ]
 
         # Source exclusion
-        if len(available) >= state.config.SOURCE_EXCLUSION_THRESHOLD and lane_idx in available:
+        if len(available) >= 3 and lane_idx in available:
             available = [l for l in available if l != lane_idx]
 
         if available:
@@ -649,7 +649,7 @@ def _handle_backfire(state: 'GameState', lane_idx: int, removing_player: 'Player
     removed_from = []
     redirections = []
 
-    for _ in range(state.config.BACKFIRE_REMOVES):
+    for _ in range(2):
         lanes_with_pieces = [
             i for i, lane in enumerate(state.lanes)
             if lane.winner is None and lane.pieces_for(removing_player) > 0
@@ -687,8 +687,8 @@ def _handle_absorb(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
         if lane.winner is None and not lane.is_full_for(owner)
     ]
 
-    # Source exclusion: if threshold lanes available, exclude source
-    if len(available) >= state.config.SOURCE_EXCLUSION_THRESHOLD and lane_idx in available:
+    # Source exclusion: if 3+ lanes available, exclude source
+    if len(available) >= 3 and lane_idx in available:
         available = [l for l in available if l != lane_idx]
 
     destination = None
@@ -706,7 +706,7 @@ def _handle_absorb(state: 'GameState', lane_idx: int, owner: 'Player') -> dict:
         'source_lane': lane_idx,
         'owner': owner.name,
         'destination': destination,
-        'source_exclusion_applied': len(available) >= state.config.SOURCE_EXCLUSION_THRESHOLD
+        'source_exclusion_applied': len(available) >= 3
     }
 
 

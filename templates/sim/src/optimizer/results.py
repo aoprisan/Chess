@@ -41,7 +41,7 @@ def save_results(optimizer, output_dir: str = 'optimizer_results'):
                 'slot2_pct': best.fitness.slot2_pct,
                 'slot3_pct': best.fitness.slot3_pct,
                 'slot4_pct': best.fitness.slot4_pct,
-                'win_rate_vs_v1': best.fitness.win_rate_vs_v1,
+                'win_rate': getattr(best.fitness, 'win_rate', None) or getattr(best.fitness, 'win_rate_vs_v1', 0),
                 'fitness_score': best.fitness.fitness_score,
                 'meets_criteria': best.fitness.meets_criteria(),
             },
@@ -62,6 +62,7 @@ def save_results(optimizer, output_dir: str = 'optimizer_results'):
         'mutation_rate': optimizer.mutation_rate,
         'mutation_strength': optimizer.mutation_strength,
         'games_per_eval': optimizer.games_per_eval,
+        'seed': getattr(optimizer, 'seed', None),
     }
 
     stats_file = path / f'stats_{timestamp}.json'

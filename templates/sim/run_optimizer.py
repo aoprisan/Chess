@@ -2,10 +2,8 @@
 """
 Profile parameter optimizer CLI.
 
-Searches for HeuristicProfile parameters that achieve:
-1. Slot 3 usage >= 22%
-2. Slot 4 usage >= 22%
-3. Win rate >= 45% vs v1 profile
+Searches for HeuristicProfile parameters that achieve the targets defined
+in the OPTIMIZATION TARGETS section below.
 
 Usage:
     python run_optimizer.py                           # Default settings
@@ -22,6 +20,15 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from optimizer import GeneticOptimizer, save_results, ParameterBounds
 from optimizer.results import format_profile_as_code
+
+
+# =============================================================================
+# OPTIMIZATION TARGETS - Edit these to change fitness criteria
+# =============================================================================
+SLOT3_TARGET = 28.0      # Minimum slot 3 usage percentage
+SLOT4_TARGET = 28.0      # Minimum slot 4 usage percentage
+WIN_RATE_TARGET = 0.8   # Minimum win rate vs v1 (0.65 = 65%)
+# =============================================================================
 
 
 def main():
@@ -69,6 +76,10 @@ Examples:
     print("=" * 60)
     print("PROFILE PARAMETER OPTIMIZER")
     print("=" * 60)
+    print(f"Fitness Targets:")
+    print(f"  Slot 3:        >= {SLOT3_TARGET:.0f}%")
+    print(f"  Slot 4:        >= {SLOT4_TARGET:.0f}%")
+    print(f"  Win rate:      >= {WIN_RATE_TARGET*100:.0f}%")
     print(f"Settings:")
     print(f"  Population:    {args.population}")
     print(f"  Generations:   {args.generations}")
@@ -97,7 +108,10 @@ Examples:
         mutation_rate=args.mutation_rate,
         mutation_strength=args.mutation_strength,
         games_per_eval=args.games,
-        seed=args.seed
+        seed=args.seed,
+        slot3_target=SLOT3_TARGET,
+        slot4_target=SLOT4_TARGET,
+        win_target=WIN_RATE_TARGET
     )
 
     # Run optimization
@@ -120,13 +134,13 @@ Examples:
         print(f"  Slot Usage:    [{f.slot1_pct:.1f}%, {f.slot2_pct:.1f}%, "
               f"{f.slot3_pct:.1f}%, {f.slot4_pct:.1f}%]")
         print(f"  Win Rate vs v1: {f.win_rate_vs_v1*100:.1f}%")
-        print(f"  Meets Criteria: {'YES' if f.meets_criteria() else 'NO'}")
+        print(f"  Meets Criteria: {'YES' if f.meets_criteria(SLOT3_TARGET, SLOT4_TARGET, WIN_RATE_TARGET) else 'NO'}")
 
         # Target check
         print(f"\nTarget Check:")
-        print(f"  Slot 3 >= 22%: {'PASS' if f.slot3_pct >= 22 else f'FAIL ({f.slot3_pct:.1f}%)'}")
-        print(f"  Slot 4 >= 22%: {'PASS' if f.slot4_pct >= 22 else f'FAIL ({f.slot4_pct:.1f}%)'}")
-        print(f"  Win >= 45%:    {'PASS' if f.win_rate_vs_v1 >= 0.45 else f'FAIL ({f.win_rate_vs_v1*100:.1f}%)'}")
+        print(f"  Slot 3 >= {SLOT3_TARGET:.0f}%: {'PASS' if f.slot3_pct >= SLOT3_TARGET else f'FAIL ({f.slot3_pct:.1f}%)'}")
+        print(f"  Slot 4 >= {SLOT4_TARGET:.0f}%: {'PASS' if f.slot4_pct >= SLOT4_TARGET else f'FAIL ({f.slot4_pct:.1f}%)'}")
+        print(f"  Win >= {WIN_RATE_TARGET*100:.0f}%:    {'PASS' if f.win_rate_vs_v1 >= WIN_RATE_TARGET else f'FAIL ({f.win_rate_vs_v1*100:.1f}%)'}")
 
     # Save results
     saved_files = save_results(optimizer, args.output)
@@ -149,7 +163,7 @@ Examples:
     print(f"  Best generation: {stats.get('best_generation', 0)}")
     print(f"  Qualifying gens: {stats.get('qualifying_generations', 0)}")
 
-    return 0 if (best and best.fitness and best.fitness.meets_criteria()) else 1
+    return 0 if (best and best.fitness and best.fitness.meets_criteria(SLOT3_TARGET, SLOT4_TARGET, WIN_RATE_TARGET)) else 1
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ import 'websocket_service.dart';
 const bool _testModePerks = true;
 
 /// Fixed perk pair index for testing. Change this value and restart to test a different pair.
-const int _testPerkPairIndex = 1;
+const int _testPerkPairIndex = 2;
 
 /// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
 const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
@@ -44,6 +44,7 @@ class PerkSlot {
 class CombatService extends ChangeNotifier {
   CombatGameState? _gameState;
   final Random _random = Random();
+  int _nextTriggerOrder = 0;
 
   // V2: Server-driven state
   WebSocketService? _wsService;
@@ -138,24 +139,25 @@ class CombatService extends ChangeNotifier {
     if (_gameState!.status != CombatStatus.playing) return -1;
 
     final currentPlayer = _gameState!.currentPlayer;
-    final remainingPieces = _gameState!.getRemainingPieces(currentPlayer);
 
-    if (remainingPieces <= 0) {
-      // No pieces left to place
-      return -1;
-    }
+    // Process pending raids, then deferred effects at turn start
+    _processPendingRaids(currentPlayer);
+    _processDeferredEffects(currentPlayer);
+    _checkAllLaneWins();
+    if (_gameState!.status != CombatStatus.playing) return -1;
 
-    // Find lanes that are not yet won and have space
+    // Find lanes that are not yet won, have space, and are not frozen for current player
     final availableLanes = <int>[];
     for (int i = 0; i < 5; i++) {
       final lane = _gameState!.lanes[i];
-      if (lane.winner == null && lane.getNextEmptyColumn(currentPlayer) != -1) {
+      if (lane.winner == null &&
+          lane.getNextEmptyColumn(currentPlayer) != -1 &&
+          !_gameState!.isLaneFrozenFor(i, currentPlayer)) {
         availableLanes.add(i);
       }
     }
 
     if (availableLanes.isEmpty) {
-      // No available lanes
       return -1;
     }
 
@@ -164,6 +166,10 @@ class CombatService extends ChangeNotifier {
 
     // Place the piece
     _placePiece(laneIndex, currentPlayer);
+
+    // Fire placement triggers after placing
+    _firePlacementTriggers(laneIndex, currentPlayer, 0);
+    _checkAllLaneWins();
 
     return laneIndex;
   }
@@ -203,33 +209,21 @@ class CombatService extends ChangeNotifier {
     if (lane.winner != null) return false;
     if (lane.countPieces(enemy) == 0) return false;
 
-    // Find the last (frontmost) enemy piece and remove it
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
-    final targetLane = lanes[laneIndex];
 
-    if (enemy == PlayerSide.player1) {
-      final newColumns = List<bool>.from(targetLane.player1Columns);
-      // Remove the frontmost piece (highest index that is true)
-      for (int i = 4; i >= 0; i--) {
-        if (newColumns[i]) {
-          newColumns[i] = false;
-          break;
-        }
-      }
-      lanes[laneIndex] = targetLane.copyWith(player1Columns: newColumns);
-    } else {
-      final newColumns = List<bool>.from(targetLane.player2Columns);
-      // Remove the frontmost piece (highest index that is true)
-      for (int i = 4; i >= 0; i--) {
-        if (newColumns[i]) {
-          newColumns[i] = false;
-          break;
-        }
-      }
-      lanes[laneIndex] = targetLane.copyWith(player2Columns: newColumns);
-    }
+    // Use redirect-aware removal
+    _removePieceWithRedirects(lanes, laneIndex, enemy, remover: currentPlayer);
 
     _gameState = _gameState!.copyWith(lanes: lanes);
+
+    // Fire removal triggers (owned by piece owner, triggered by remover)
+    _fireRemovalTriggers(
+      _gameState!.lanes.map((l) => l.copyWith()).toList(),
+      laneIndex,
+      currentPlayer,
+    );
+
+    _checkAllLaneWins();
     notifyListeners();
     return true;
   }
@@ -559,12 +553,17 @@ class CombatService extends ChangeNotifier {
       );
     }
 
-    // Distribute to other random lanes
+    // Distribute to random lanes (source exclusion only if 3+ destinations available)
     final otherLanes = <int>[];
     for (int i = 0; i < 5; i++) {
-      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(currentPlayer)) {
         otherLanes.add(i);
       }
+    }
+    // Apply source exclusion only if threshold (3) lanes available
+    const scatterSourceExclusionThreshold = 3;
+    if (otherLanes.length >= scatterSourceExclusionThreshold && otherLanes.contains(laneIndex)) {
+      otherLanes.remove(laneIndex);
     }
 
     for (int p = 0; p < pieceCount && otherLanes.isNotEmpty; p++) {
@@ -621,12 +620,17 @@ class CombatService extends ChangeNotifier {
       );
     }
 
-    // Distribute to other random lanes
+    // Distribute to random lanes (source exclusion only if 3+ destinations available)
     final otherLanes = <int>[];
     for (int i = 0; i < 5; i++) {
-      if (i != laneIndex && lanes[i].winner == null && !lanes[i].isSideFilled(enemy)) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(enemy)) {
         otherLanes.add(i);
       }
+    }
+    // Apply source exclusion only if threshold (3) lanes available
+    const disperseSourceExclusionThreshold = 3;
+    if (otherLanes.length >= disperseSourceExclusionThreshold && otherLanes.contains(laneIndex)) {
+      otherLanes.remove(laneIndex);
     }
 
     for (int p = 0; p < pieceCount && otherLanes.isNotEmpty; p++) {
@@ -981,18 +985,8 @@ class CombatService extends ChangeNotifier {
       lanes[laneIndex] = lane.copyWith(player2Columns: newColumns);
     }
 
-    // Update piece count
-    final newP1Pieces = player == PlayerSide.player1
-        ? _gameState!.player1Pieces - 1
-        : _gameState!.player1Pieces;
-    final newP2Pieces = player == PlayerSide.player2
-        ? _gameState!.player2Pieces - 1
-        : _gameState!.player2Pieces;
-
     _gameState = _gameState!.copyWith(
       lanes: lanes,
-      player1Pieces: newP1Pieces,
-      player2Pieces: newP2Pieces,
       currentPhase: TurnPhase.perkSelection,
       lastAutoPlacedLane: laneIndex,
     );
@@ -1092,7 +1086,66 @@ class CombatService extends ChangeNotifier {
         ? _gameState!.player2Blinded - 1
         : 0;
 
+    // Decrement trigger timers on each lane and remove expired
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner != null) continue;
+      final newTriggers = <TriggerData>[];
+      for (final t in lanes[i].triggers) {
+        final remaining = t.turnsLeft - 1;
+        if (remaining > 0) {
+          newTriggers.add(TriggerData(
+            type: t.type,
+            owner: t.owner,
+            turnsLeft: remaining,
+            orderId: t.orderId,
+          ));
+        }
+      }
+      lanes[i] = lanes[i].copyWith(triggers: newTriggers);
+    }
+
+    // Decrement sanctuary timers and remove expired
+    final newP1Sanctuaries = <SanctuaryData>[];
+    for (final s in _gameState!.player1Sanctuaries) {
+      if (s.turnsLeft > 1) {
+        newP1Sanctuaries.add(SanctuaryData(lane: s.lane, turnsLeft: s.turnsLeft - 1));
+      }
+    }
+    final newP2Sanctuaries = <SanctuaryData>[];
+    for (final s in _gameState!.player2Sanctuaries) {
+      if (s.turnsLeft > 1) {
+        newP2Sanctuaries.add(SanctuaryData(lane: s.lane, turnsLeft: s.turnsLeft - 1));
+      }
+    }
+
+    // Decrement capture timers and remove expired
+    final newP1Captures = <CaptureData>[];
+    for (final c in _gameState!.player1Captures) {
+      if (c.turnsLeft > 1) {
+        newP1Captures.add(CaptureData(lane: c.lane, turnsLeft: c.turnsLeft - 1));
+      }
+    }
+    final newP2Captures = <CaptureData>[];
+    for (final c in _gameState!.player2Captures) {
+      if (c.turnsLeft > 1) {
+        newP2Captures.add(CaptureData(lane: c.lane, turnsLeft: c.turnsLeft - 1));
+      }
+    }
+
+    // Decrement raid timers
+    final newPendingRaids = <PendingRaidData>[];
+    for (final r in _gameState!.pendingRaids) {
+      newPendingRaids.add(PendingRaidData(
+        owner: r.owner,
+        lane: r.lane,
+        turnsUntilResolve: r.turnsUntilResolve - 1,
+        source: r.source,
+      ));
+    }
+
     _gameState = _gameState!.copyWith(
+      lanes: lanes,
       currentPlayer: nextPlayer,
       currentPhase: TurnPhase.autoPlacement,
       lastAutoPlacedLane: null,
@@ -1101,6 +1154,11 @@ class CombatService extends ChangeNotifier {
       player2Cloaked: newP2Cloaked,
       player1Blinded: newP1Blinded,
       player2Blinded: newP2Blinded,
+      player1Sanctuaries: newP1Sanctuaries,
+      player2Sanctuaries: newP2Sanctuaries,
+      player1Captures: newP1Captures,
+      player2Captures: newP2Captures,
+      pendingRaids: newPendingRaids,
     );
 
     notifyListeners();
@@ -1135,6 +1193,873 @@ class CombatService extends ChangeNotifier {
   String get currentPlayerName {
     if (_gameState == null) return '';
     return getPlayerName(_gameState!.currentPlayer);
+  }
+
+  // ============================================================================
+  // Trigger Setup Perks (add TriggerData to lane)
+  // ============================================================================
+
+  bool setPortalTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    newTriggers.add(TriggerData(type: 'PORTAL', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setTrapTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'TRAP', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setMirrorTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'MIRROR', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setEchoTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'ECHO', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setShockwaveTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'SHOCKWAVE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setHydraTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'HYDRA', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setBackfireTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'BACKFIRE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setAbsorbTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'ABSORB', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  bool setRetaliateTrigger(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
+    newTriggers.add(TriggerData(type: 'RETALIATE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    notifyListeners();
+    return true;
+  }
+
+  // ============================================================================
+  // Deferred Perks (+1 piece now, effect next turn)
+  // ============================================================================
+
+  bool signalLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Check space for immediate placement
+    if (lanes[laneIndex].isSideFilled(currentPlayer)) return false;
+
+    // Immediate: +1 piece
+    _addPieceToLane(lanes, laneIndex, currentPlayer);
+
+    // Add deferred effect
+    final ownerInt = currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newDeferred = List<DeferredData>.from(lanes[laneIndex].deferred);
+    newDeferred.add(DeferredData(type: 'SIGNAL', owner: ownerInt, targetLane: laneIndex));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(deferred: newDeferred);
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  bool enlistOnLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    if (lanes[laneIndex].isSideFilled(currentPlayer)) return false;
+
+    // Immediate: +1 piece
+    _addPieceToLane(lanes, laneIndex, currentPlayer);
+
+    // Add deferred effect
+    final ownerInt = currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newDeferred = List<DeferredData>.from(lanes[laneIndex].deferred);
+    newDeferred.add(DeferredData(type: 'ENLIST', owner: ownerInt, targetLane: laneIndex));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(deferred: newDeferred);
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  bool ambushOnLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    if (lanes[laneIndex].isSideFilled(currentPlayer)) return false;
+
+    // Immediate: +1 piece
+    _addPieceToLane(lanes, laneIndex, currentPlayer);
+
+    // Add deferred effect
+    final ownerInt = currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newDeferred = List<DeferredData>.from(lanes[laneIndex].deferred);
+    newDeferred.add(DeferredData(type: 'AMBUSH', owner: ownerInt, targetLane: laneIndex));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(deferred: newDeferred);
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  bool reinforceLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    if (lanes[laneIndex].isSideFilled(currentPlayer)) return false;
+
+    // Immediate: +1 piece
+    _addPieceToLane(lanes, laneIndex, currentPlayer);
+
+    // Add deferred effect
+    final ownerInt = currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newDeferred = List<DeferredData>.from(lanes[laneIndex].deferred);
+    newDeferred.add(DeferredData(type: 'REINFORCE', owner: ownerInt, targetLane: laneIndex));
+    lanes[laneIndex] = lanes[laneIndex].copyWith(deferred: newDeferred);
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  // ============================================================================
+  // Duration Perks (Sanctuary, Capture)
+  // ============================================================================
+
+  bool setSanctuary(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    if (currentPlayer == PlayerSide.player1) {
+      final newSanctuaries = List<SanctuaryData>.from(_gameState!.player1Sanctuaries);
+      newSanctuaries.add(SanctuaryData(lane: laneIndex, turnsLeft: 2));
+      _gameState = _gameState!.copyWith(player1Sanctuaries: newSanctuaries);
+    } else {
+      final newSanctuaries = List<SanctuaryData>.from(_gameState!.player2Sanctuaries);
+      newSanctuaries.add(SanctuaryData(lane: laneIndex, turnsLeft: 2));
+      _gameState = _gameState!.copyWith(player2Sanctuaries: newSanctuaries);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  bool setCaptureZone(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    if (currentPlayer == PlayerSide.player1) {
+      final newCaptures = List<CaptureData>.from(_gameState!.player1Captures);
+      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 2));
+      _gameState = _gameState!.copyWith(player1Captures: newCaptures);
+    } else {
+      final newCaptures = List<CaptureData>.from(_gameState!.player2Captures);
+      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 2));
+      _gameState = _gameState!.copyWith(player2Captures: newCaptures);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  // ============================================================================
+  // Raid Perk
+  // ============================================================================
+
+  bool raidLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final opponent = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    // Check if enemy side has space (raid piece occupies enemy slot)
+    if (_gameState!.lanes[laneIndex].isSideFilled(opponent)) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Place piece on enemy's side (takes enemy slot)
+    _addPieceToLane(lanes, laneIndex, opponent);
+
+    // Track pending raid
+    final ownerInt = currentPlayer == PlayerSide.player1 ? 1 : 2;
+    final newPendingRaids = List<PendingRaidData>.from(_gameState!.pendingRaids);
+    newPendingRaids.add(PendingRaidData(
+      owner: ownerInt,
+      lane: laneIndex,
+      turnsUntilResolve: 2,
+      source: 'RAID',
+    ));
+
+    _gameState = _gameState!.copyWith(lanes: lanes, pendingRaids: newPendingRaids);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  // ============================================================================
+  // Infrastructure: Piece Helpers
+  // ============================================================================
+
+  /// Add a piece to a lane for a player (modifies lanes list in-place)
+  void _addPieceToLane(List<Lane> lanes, int laneIndex, PlayerSide player) {
+    final col = lanes[laneIndex].getNextEmptyColumn(player);
+    if (col == -1) return;
+    if (player == PlayerSide.player1) {
+      final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+      newCols[col] = true;
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+    } else {
+      final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+      newCols[col] = true;
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+    }
+  }
+
+  /// Remove the frontmost piece from a lane for a player (modifies lanes list in-place)
+  void _removePieceFromLane(List<Lane> lanes, int laneIndex, PlayerSide player) {
+    if (player == PlayerSide.player1) {
+      final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+    } else {
+      final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+      for (int i = 4; i >= 0; i--) {
+        if (newCols[i]) {
+          newCols[i] = false;
+          break;
+        }
+      }
+      lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+    }
+  }
+
+  // ============================================================================
+  // Infrastructure: Remove with Redirects
+  // ============================================================================
+
+  /// Remove a piece with Sanctuary/Capture redirection.
+  /// Returns a map with 'removed', 'redirected', 'redirect_type', 'destination', 'converted'.
+  Map<String, dynamic> _removePieceWithRedirects(
+    List<Lane> lanes, int laneIndex, PlayerSide pieceOwner,
+    {PlayerSide? remover}
+  ) {
+    if (lanes[laneIndex].countPieces(pieceOwner) <= 0) {
+      return {'removed': false, 'redirected': false};
+    }
+
+    // Check Capture first (if remover is opponent and has active Capture)
+    if (remover != null && remover != pieceOwner) {
+      final captureLane = _getCaptureLane(remover);
+      if (captureLane != null && lanes[captureLane].winner == null) {
+        _removePieceFromLane(lanes, laneIndex, pieceOwner);
+        _addPieceToLane(lanes, captureLane, remover);
+        return {
+          'removed': true, 'redirected': true, 'redirect_type': 'capture',
+          'destination': captureLane, 'converted': true,
+        };
+      }
+    }
+
+    // Check Sanctuary (if piece owner has active Sanctuary)
+    final sanctuaryLane = _getSanctuaryLane(pieceOwner);
+    if (sanctuaryLane != null && lanes[sanctuaryLane].winner == null) {
+      _removePieceFromLane(lanes, laneIndex, pieceOwner);
+      _addPieceToLane(lanes, sanctuaryLane, pieceOwner);
+      return {
+        'removed': true, 'redirected': true, 'redirect_type': 'sanctuary',
+        'destination': sanctuaryLane, 'converted': false,
+      };
+    }
+
+    // Normal removal
+    _removePieceFromLane(lanes, laneIndex, pieceOwner);
+    return {'removed': true, 'redirected': false};
+  }
+
+  /// Get the first active sanctuary lane for a player
+  int? _getSanctuaryLane(PlayerSide player) {
+    final sanctuaries = player == PlayerSide.player1
+        ? _gameState!.player1Sanctuaries
+        : _gameState!.player2Sanctuaries;
+    if (sanctuaries.isEmpty) return null;
+    return sanctuaries.first.lane;
+  }
+
+  /// Get the first active capture lane for a player
+  int? _getCaptureLane(PlayerSide player) {
+    final captures = player == PlayerSide.player1
+        ? _gameState!.player1Captures
+        : _gameState!.player2Captures;
+    if (captures.isEmpty) return null;
+    return captures.first.lane;
+  }
+
+  // ============================================================================
+  // Infrastructure: Trigger Firing
+  // ============================================================================
+
+  /// Fire placement triggers on a lane when a player places there.
+  void _firePlacementTriggers(int laneIndex, PlayerSide placingPlayer, int chainDepth) {
+    if (_gameState == null) return;
+    if (chainDepth >= 10) return;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    if (lanes[laneIndex].winner != null) return;
+
+    final placingOwnerInt = placingPlayer == PlayerSide.player1 ? 1 : 2;
+    final triggerOwner = placingPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    // Get placement triggers owned by opponent (sorted by orderId for FIFO)
+    final triggers = List<TriggerData>.from(lanes[laneIndex].triggers)
+        .where((t) => t.owner != placingOwnerInt)
+        .where((t) => ['PORTAL', 'TRAP', 'MIRROR', 'ECHO', 'SHOCKWAVE', 'RETALIATE'].contains(t.type))
+        .toList()
+      ..sort((a, b) => a.orderId.compareTo(b.orderId));
+
+    for (final trigger in triggers) {
+      if (lanes[laneIndex].winner != null) break;
+      if (_gameState!.status != CombatStatus.playing) break;
+
+      // Remove trigger by orderId (one-time use)
+      final updatedTriggers = List<TriggerData>.from(lanes[laneIndex].triggers)
+          .where((t) => t.orderId != trigger.orderId)
+          .toList();
+      lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: updatedTriggers);
+      _gameState = _gameState!.copyWith(lanes: lanes);
+
+      switch (trigger.type) {
+        case 'PORTAL':
+          _handlePortalTrigger(lanes, laneIndex, placingPlayer, chainDepth);
+          break;
+        case 'TRAP':
+          _handleTrapTrigger(lanes, laneIndex, placingPlayer);
+          break;
+        case 'MIRROR':
+          _handleMirrorTrigger(lanes, laneIndex, triggerOwner);
+          break;
+        case 'ECHO':
+          _handleEchoTrigger(lanes, laneIndex, triggerOwner);
+          break;
+        case 'SHOCKWAVE':
+          _handleShockwaveTrigger(lanes, laneIndex, placingPlayer, triggerOwner);
+          break;
+        case 'RETALIATE':
+          _handleRetaliateTrigger(lanes, laneIndex, triggerOwner, placingPlayer);
+          break;
+      }
+
+      _gameState = _gameState!.copyWith(lanes: lanes);
+      _checkAllLaneWins();
+    }
+  }
+
+  void _handlePortalTrigger(List<Lane> lanes, int laneIndex, PlayerSide placingPlayer, int chainDepth) {
+    // Remove the piece that was just placed
+    _removePieceFromLane(lanes, laneIndex, placingPlayer);
+
+    // Find available lanes with source exclusion
+    final available = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(placingPlayer)) {
+        available.add(i);
+      }
+    }
+    if (available.length >= 3 && available.contains(laneIndex)) {
+      available.remove(laneIndex);
+    }
+
+    if (available.isNotEmpty) {
+      final dest = available[_random.nextInt(available.length)];
+      _addPieceToLane(lanes, dest, placingPlayer);
+      _gameState = _gameState!.copyWith(lanes: lanes);
+      _checkLaneWin(dest);
+
+      // Trigger chaining at destination
+      if (_gameState!.lanes[dest].winner == null) {
+        _firePlacementTriggers(dest, placingPlayer, chainDepth + 1);
+      }
+    }
+  }
+
+  void _handleTrapTrigger(List<Lane> lanes, int laneIndex, PlayerSide placingPlayer) {
+    _removePieceWithRedirects(lanes, laneIndex, placingPlayer);
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleMirrorTrigger(List<Lane> lanes, int laneIndex, PlayerSide owner) {
+    for (int i = 0; i < 2; i++) {
+      if (!lanes[laneIndex].isSideFilled(owner)) {
+        _addPieceToLane(lanes, laneIndex, owner);
+      }
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleEchoTrigger(List<Lane> lanes, int laneIndex, PlayerSide owner) {
+    for (int i = 0; i < 2; i++) {
+      final available = <int>[];
+      for (int j = 0; j < 5; j++) {
+        if (lanes[j].winner == null && !lanes[j].isSideFilled(owner)) {
+          available.add(j);
+        }
+      }
+      if (available.length >= 3 && available.contains(laneIndex)) {
+        available.remove(laneIndex);
+      }
+      if (available.isNotEmpty) {
+        final dest = available[_random.nextInt(available.length)];
+        _addPieceToLane(lanes, dest, owner);
+      }
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleShockwaveTrigger(List<Lane> lanes, int laneIndex, PlayerSide placingPlayer, PlayerSide triggerOwner) {
+    for (int i = 0; i < 2; i++) {
+      final otherLanes = <int>[];
+      for (int j = 0; j < 5; j++) {
+        if (j != laneIndex && lanes[j].winner == null && lanes[j].countPieces(placingPlayer) > 0) {
+          otherLanes.add(j);
+        }
+      }
+      if (otherLanes.isNotEmpty) {
+        final removeLane = otherLanes[_random.nextInt(otherLanes.length)];
+        _removePieceWithRedirects(lanes, removeLane, placingPlayer, remover: triggerOwner);
+      }
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleRetaliateTrigger(List<Lane> lanes, int laneIndex, PlayerSide owner, PlayerSide opponent) {
+    // Place raid piece on opponent's side
+    if (lanes[laneIndex].isSideFilled(opponent)) return;
+
+    _addPieceToLane(lanes, laneIndex, opponent);
+
+    final ownerInt = owner == PlayerSide.player1 ? 1 : 2;
+    final newPendingRaids = List<PendingRaidData>.from(_gameState!.pendingRaids);
+    newPendingRaids.add(PendingRaidData(
+      owner: ownerInt,
+      lane: laneIndex,
+      turnsUntilResolve: 2,
+      source: 'RETALIATE',
+    ));
+
+    _gameState = _gameState!.copyWith(lanes: lanes, pendingRaids: newPendingRaids);
+  }
+
+  /// Fire removal triggers on a lane when a piece is removed.
+  void _fireRemovalTriggers(List<Lane> lanes, int laneIndex, PlayerSide removingPlayer) {
+    if (_gameState == null) return;
+    if (lanes[laneIndex].winner != null) return;
+
+    final removingOwnerInt = removingPlayer == PlayerSide.player1 ? 1 : 2;
+    final pieceOwner = removingPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    // Get removal triggers owned by piece owner (sorted by orderId)
+    final triggers = List<TriggerData>.from(lanes[laneIndex].triggers)
+        .where((t) => t.owner != removingOwnerInt)
+        .where((t) => ['HYDRA', 'BACKFIRE', 'ABSORB'].contains(t.type))
+        .toList()
+      ..sort((a, b) => a.orderId.compareTo(b.orderId));
+
+    for (final trigger in triggers) {
+      if (lanes[laneIndex].winner != null) break;
+      if (_gameState!.status != CombatStatus.playing) break;
+
+      // Remove trigger by orderId
+      final updatedTriggers = List<TriggerData>.from(lanes[laneIndex].triggers)
+          .where((t) => t.orderId != trigger.orderId)
+          .toList();
+      lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: updatedTriggers);
+      _gameState = _gameState!.copyWith(lanes: lanes);
+
+      switch (trigger.type) {
+        case 'HYDRA':
+          _handleHydraTrigger(lanes, laneIndex, pieceOwner);
+          break;
+        case 'BACKFIRE':
+          _handleBackfireTrigger(lanes, laneIndex, removingPlayer, pieceOwner);
+          break;
+        case 'ABSORB':
+          _handleAbsorbTrigger(lanes, laneIndex, pieceOwner);
+          break;
+      }
+
+      _gameState = _gameState!.copyWith(lanes: lanes);
+      _checkAllLaneWins();
+    }
+  }
+
+  void _handleHydraTrigger(List<Lane> lanes, int laneIndex, PlayerSide owner) {
+    for (int i = 0; i < 2; i++) {
+      final available = <int>[];
+      for (int j = 0; j < 5; j++) {
+        if (lanes[j].winner == null && !lanes[j].isSideFilled(owner)) {
+          available.add(j);
+        }
+      }
+      if (available.length >= 3 && available.contains(laneIndex)) {
+        available.remove(laneIndex);
+      }
+      if (available.isNotEmpty) {
+        final dest = available[_random.nextInt(available.length)];
+        _addPieceToLane(lanes, dest, owner);
+      }
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleBackfireTrigger(List<Lane> lanes, int laneIndex, PlayerSide removingPlayer, PlayerSide triggerOwner) {
+    for (int i = 0; i < 2; i++) {
+      final lanesWithPieces = <int>[];
+      for (int j = 0; j < 5; j++) {
+        if (lanes[j].winner == null && lanes[j].countPieces(removingPlayer) > 0) {
+          lanesWithPieces.add(j);
+        }
+      }
+      if (lanesWithPieces.isNotEmpty) {
+        final removeLane = lanesWithPieces[_random.nextInt(lanesWithPieces.length)];
+        _removePieceWithRedirects(lanes, removeLane, removingPlayer, remover: triggerOwner);
+      }
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  void _handleAbsorbTrigger(List<Lane> lanes, int laneIndex, PlayerSide owner) {
+    final available = <int>[];
+    for (int i = 0; i < 5; i++) {
+      if (lanes[i].winner == null && !lanes[i].isSideFilled(owner)) {
+        available.add(i);
+      }
+    }
+    if (available.length >= 3 && available.contains(laneIndex)) {
+      available.remove(laneIndex);
+    }
+    if (available.isNotEmpty) {
+      final dest = available[_random.nextInt(available.length)];
+      _addPieceToLane(lanes, dest, owner);
+    }
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  // ============================================================================
+  // Infrastructure: Deferred + Raid Resolution
+  // ============================================================================
+
+  /// Process pending raids for a player at start of their turn
+  void _processPendingRaids(PlayerSide player) {
+    if (_gameState == null) return;
+
+    final ownerInt = player == PlayerSide.player1 ? 1 : 2;
+    final opponent = player == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    final readyRaids = _gameState!.pendingRaids
+        .where((r) => r.owner == ownerInt && r.turnsUntilResolve <= 0)
+        .toList();
+
+    if (readyRaids.isEmpty) return;
+
+    // Remove resolved raids from pending
+    final remainingRaids = _gameState!.pendingRaids
+        .where((r) => !(r.owner == ownerInt && r.turnsUntilResolve <= 0))
+        .toList();
+
+    _gameState = _gameState!.copyWith(pendingRaids: remainingRaids);
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    for (final raid in readyRaids) {
+      final laneIdx = raid.lane;
+      if (lanes[laneIdx].winner != null) continue;
+
+      // Roll probability (0-99)
+      final roll = _random.nextInt(100);
+
+      if (roll < 10) {
+        // 10% - Lost: Remove the raid piece from opponent's side
+        if (lanes[laneIdx].countPieces(opponent) > 0) {
+          _removePieceFromLane(lanes, laneIdx, opponent);
+        }
+      } else if (roll < 25) {
+        // 15% - +2 recruits: Convert to player's piece + 2 more = 3 total
+        if (lanes[laneIdx].countPieces(opponent) > 0) {
+          _removePieceFromLane(lanes, laneIdx, opponent);
+        }
+        for (int i = 0; i < 3; i++) {
+          if (!lanes[laneIdx].isSideFilled(player)) {
+            _addPieceToLane(lanes, laneIdx, player);
+          }
+        }
+      } else if (roll < 55) {
+        // 30% - +1 recruit: Convert to player's piece + 1 more = 2 total
+        if (lanes[laneIdx].countPieces(opponent) > 0) {
+          _removePieceFromLane(lanes, laneIdx, opponent);
+        }
+        for (int i = 0; i < 2; i++) {
+          if (!lanes[laneIdx].isSideFilled(player)) {
+            _addPieceToLane(lanes, laneIdx, player);
+          }
+        }
+      } else {
+        // 45% - Alone: Just convert to player's piece
+        if (lanes[laneIdx].countPieces(opponent) > 0) {
+          _removePieceFromLane(lanes, laneIdx, opponent);
+        }
+        if (!lanes[laneIdx].isSideFilled(player)) {
+          _addPieceToLane(lanes, laneIdx, player);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+  }
+
+  /// Process deferred effects for a player at start of their turn
+  void _processDeferredEffects(PlayerSide player) {
+    if (_gameState == null) return;
+
+    final ownerInt = player == PlayerSide.player1 ? 1 : 2;
+    final opponent = player == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    for (int laneIdx = 0; laneIdx < 5; laneIdx++) {
+      if (lanes[laneIdx].winner != null) continue;
+
+      // Get and remove deferred effects for this player
+      final effects = lanes[laneIdx].deferred
+          .where((d) => d.owner == ownerInt)
+          .toList();
+      if (effects.isEmpty) continue;
+
+      // Remove processed effects from lane
+      final remainingDeferred = lanes[laneIdx].deferred
+          .where((d) => d.owner != ownerInt)
+          .toList();
+      lanes[laneIdx] = lanes[laneIdx].copyWith(deferred: remainingDeferred);
+
+      for (final effect in effects) {
+        switch (effect.type) {
+          case 'SIGNAL':
+            // Pull 1 piece from MOST POPULATED lane (not this lane)
+            final sourceLanes = <int>[];
+            int maxPieces = 0;
+            for (int i = 0; i < 5; i++) {
+              if (i != laneIdx && lanes[i].winner == null && lanes[i].countPieces(player) > 0) {
+                final count = lanes[i].countPieces(player);
+                if (count > maxPieces) {
+                  maxPieces = count;
+                  sourceLanes.clear();
+                  sourceLanes.add(i);
+                } else if (count == maxPieces) {
+                  sourceLanes.add(i);
+                }
+              }
+            }
+            if (sourceLanes.isNotEmpty && !lanes[laneIdx].isSideFilled(player)) {
+              final source = sourceLanes[_random.nextInt(sourceLanes.length)];
+              _removePieceFromLane(lanes, source, player);
+              _addPieceToLane(lanes, laneIdx, player);
+            }
+            break;
+
+          case 'ENLIST':
+            // Move the immediate piece + captured enemy to LEAST POPULATED lane
+            if (lanes[laneIdx].countPieces(player) <= 0) break;
+
+            _removePieceFromLane(lanes, laneIdx, player);
+            bool enemyCaptured = false;
+            if (lanes[laneIdx].countPieces(opponent) > 0) {
+              _removePieceFromLane(lanes, laneIdx, opponent);
+              enemyCaptured = true;
+            }
+
+            // Find least populated lane for player (excluding current)
+            final destLanes = <int>[];
+            int minPieces = 999;
+            for (int i = 0; i < 5; i++) {
+              if (i != laneIdx && lanes[i].winner == null && !lanes[i].isSideFilled(player)) {
+                final count = lanes[i].countPieces(player);
+                if (count < minPieces) {
+                  minPieces = count;
+                  destLanes.clear();
+                  destLanes.add(i);
+                } else if (count == minPieces) {
+                  destLanes.add(i);
+                }
+              }
+            }
+            // Fallback to current lane
+            if (destLanes.isEmpty && lanes[laneIdx].winner == null && !lanes[laneIdx].isSideFilled(player)) {
+              destLanes.add(laneIdx);
+            }
+            if (destLanes.isNotEmpty) {
+              final dest = destLanes[_random.nextInt(destLanes.length)];
+              final piecesToAdd = enemyCaptured ? 2 : 1;
+              for (int i = 0; i < piecesToAdd; i++) {
+                if (!lanes[dest].isSideFilled(player)) {
+                  _addPieceToLane(lanes, dest, player);
+                }
+              }
+            }
+            break;
+
+          case 'AMBUSH':
+            // Remove enemy piece from lane X or adjacent (X-1, X+1)
+            final targetLane = effect.targetLane;
+            final adjacentLanes = <int>[targetLane];
+            if (targetLane > 0) adjacentLanes.add(targetLane - 1);
+            if (targetLane < 4) adjacentLanes.add(targetLane + 1);
+
+            final validRemoval = adjacentLanes
+                .where((i) => lanes[i].winner == null && lanes[i].countPieces(opponent) > 0)
+                .toList();
+
+            if (validRemoval.isNotEmpty) {
+              final removeFrom = validRemoval[_random.nextInt(validRemoval.length)];
+              _removePieceFromLane(lanes, removeFrom, opponent);
+            }
+            break;
+
+          case 'REINFORCE':
+            // Add 1 piece to same lane
+            if (!lanes[laneIdx].isSideFilled(player)) {
+              _addPieceToLane(lanes, laneIdx, player);
+            }
+            break;
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
   }
 
   // ============================================================================

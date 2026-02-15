@@ -28,7 +28,7 @@ class GameConfig:
     MIRROR_DURATION: int = 1
     ECHO_DURATION: int = 1
     SHOCKWAVE_DURATION: int = 1
-    RETALIATE_DURATION: int = 2  # Design doc Section 7: Retaliate has 2 turns duration
+    RETALIATE_DURATION: int = 1
 
     # Removal trigger durations (1 turn = fires once when opponent removes)
     HYDRA_DURATION: int = 1
@@ -41,21 +41,17 @@ class GameConfig:
     RAID_ONE_RECRUIT_PROB: float = 0.30
     RAID_ALONE_PROB: float = 0.45  # = 1 - (0.10 + 0.15 + 0.30)
 
-    # Perk magnitude constants (from design doc Section 15)
-    MIRROR_PIECES: int = 2
-    ECHO_PIECES: int = 2
-    SHOCKWAVE_REMOVES: int = 2
-    HYDRA_PIECES: int = 2
-    BACKFIRE_REMOVES: int = 2
-    SPLIT_GAIN: int = 2
-    KAMIKAZE_REMOVES: int = 2
-    GAMBIT_ENEMY_GAIN: int = 3
-    GAMBIT_PLAYER_GAIN: int = 2
-    RUSH_PIECES_EACH: int = 2
-    RUSH_PLAYER_LOSS: int = 1
-
-    # Source exclusion threshold (exclude source lane if 3+ lanes available)
-    SOURCE_EXCLUSION_THRESHOLD: int = 3
+    # Slot 3/4 perk pools (default = current hardcoded assignment)
+    slot3_pool: tuple[str, ...] = (
+        'FREEZE', 'CLOAK', 'PORTAL', 'TRAP', 'MIRROR', 'ECHO', 'SHOCKWAVE',
+        'HYDRA', 'BACKFIRE', 'REGROUP', 'SCATTER', 'SIGNAL', 'ABSORB',
+        'SANCTUARY', 'RETALIATE',
+    )
+    slot4_pool: tuple[str, ...] = (
+        'SCRAMBLE', 'BLIND', 'SPLIT', 'KAMIKAZE', 'DISRUPT', 'DISPERSE',
+        'GAMBIT', 'STEAL', 'RUSH', 'ENLIST', 'AMBUSH', 'REINFORCE',
+        'NULLIFY', 'CAPTURE', 'RAID',
+    )
 
 
 # Default config instance

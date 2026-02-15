@@ -202,10 +202,7 @@ func (e *PerkExecutor) executePlaceAnother(player models.PlayerSide, targets []i
 	result.AffectedLanes = []int{laneIdx}
 	result.Placements = []int{laneIdx}
 
-	// Fire placement triggers
-	result.TriggerResults = e.FirePlacementTriggers(laneIdx, player, 0)
-
-	// Check lane win
+	// Check lane win (no trigger firing for PlaceAnother — only auto-placement fires triggers)
 	e.checkLaneAndGameWin(laneIdx, result)
 
 	return result
@@ -324,8 +321,8 @@ func (e *PerkExecutor) executeRegroup(player models.PlayerSide, targets []int) *
 	count1 := e.game.Lanes[lane1].CountPieces(player)
 	count2 := e.game.Lanes[lane2].CountPieces(player)
 
-	if count1 == 0 && count2 == 0 {
-		result.Error = "At least one lane must have pieces"
+	if count1 == 0 || count2 == 0 {
+		result.Error = "Both lanes must have pieces"
 		return result
 	}
 
@@ -1058,7 +1055,7 @@ func (e *PerkExecutor) executeGambit(player models.PlayerSide) *PerkResult {
 	// You get pieces on random lane
 	playerPlacements := []int{}
 	if !result.GameWonMidPerk {
-		available := e.game.GetAvailableLanes(player)
+		available := e.game.GetAvailableLanesIgnoreFreeze(player)
 		if len(available) > 0 {
 			playerLane := available[e.game.Rand().Intn(len(available))]
 			for i := 0; i < models.GambitPlayerGain; i++ {
@@ -2142,7 +2139,7 @@ func (e *PerkExecutor) ProcessDeferredEffects(player models.PlayerSide) []Deferr
 // ============================================================================
 
 func (e *PerkExecutor) getRandomLaneExcluding(player models.PlayerSide, sourceLane int) int {
-	available := e.game.GetAvailableLanes(player)
+	available := e.game.GetAvailableLanesIgnoreFreeze(player)
 	if len(available) == 0 {
 		return -1
 	}

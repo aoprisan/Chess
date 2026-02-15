@@ -55,20 +55,21 @@ def execute_enlist(state: 'GameState', player: 'Player',
                    target: int) -> tuple[bool, dict]:
     """
     Enlist (Slot 4)
-    Effect: Immediate +1 piece on target lane. Next turn, capture enemy from same lane
-    + move both (your piece + captured) to LEAST POPULATED lane.
+    Effect: Immediate +1 piece on target lane. Next turn, take enemy from X + move both to LEAST POPULATED lane.
 
     Args:
         state: Game state
         player: Player executing
-        target: Target lane (mandatory) - any valid placement lane
+        target: Target lane (mandatory) - non-won, not full for you
 
     Returns:
         (success, result_dict)
     """
     from src.game.state import DeferredType
 
-    # Find valid lanes (not won, not full for player)
+    opponent = player.opponent()
+
+    # Find valid lanes (not won, not full for you)
     valid_lanes = [
         i for i, lane in enumerate(state.lanes)
         if lane.winner is None

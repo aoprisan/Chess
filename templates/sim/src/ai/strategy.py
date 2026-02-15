@@ -3,7 +3,8 @@
 from typing import Optional, Union, TYPE_CHECKING
 from .heuristics import (
     Difficulty, get_best_placement_lane, get_best_removal_lane,
-    score_lane_for_placement, score_lane_for_removal, evaluate_board_state
+    score_lane_for_placement, score_lane_for_removal, evaluate_board_state,
+    avg_placement_score, avg_removal_score
 )
 from .profiles import HeuristicProfile, get_profile, PROFILES
 
@@ -372,6 +373,47 @@ class AIPlayer:
         if best_lane is None:
             return -100, None  # No valid target
 
+        # State-aware dynamic component (v3+ only)
+        if self.profile.state_aware_scoring:
+            lane = state.lanes[best_lane]
+            their_p = lane.pieces_for(opponent)
+            my_p = lane.pieces_for(player)
+
+            near_win = state.config.SLOTS_PER_SIDE - 1
+
+            if perk_name in ('PORTAL', 'TRAP', 'MIRROR', 'ECHO', 'SHOCKWAVE'):
+                fire_prob = min(1.0, their_p / near_win) * 0.7
+                if perk_name == 'TRAP':
+                    effect = score_lane_for_removal(state, player, best_lane, self.difficulty)
+                    best_score += effect * fire_prob * 0.5
+                elif perk_name == 'PORTAL':
+                    effect = score_lane_for_removal(state, player, best_lane, self.difficulty) * 0.6
+                    best_score += effect * fire_prob * 0.5
+                elif perk_name == 'MIRROR':
+                    effect = score_lane_for_placement(state, player, best_lane, self.difficulty) * 0.8
+                    best_score += effect * fire_prob * 0.5
+                elif perk_name == 'ECHO':
+                    effect = avg_placement_score(state, player, self.difficulty) * 1.5
+                    best_score += effect * fire_prob * 0.5
+                elif perk_name == 'SHOCKWAVE':
+                    effect = avg_removal_score(state, player, self.difficulty) * 1.5
+                    best_score += effect * fire_prob * 0.5
+
+            elif perk_name in ('HYDRA', 'BACKFIRE', 'ABSORB'):
+                fire_prob = min(1.0, my_p / near_win) * 0.4
+                if perk_name == 'HYDRA':
+                    effect = avg_placement_score(state, player, self.difficulty) * 1.5
+                elif perk_name == 'BACKFIRE':
+                    effect = avg_removal_score(state, player, self.difficulty) * 1.5
+                else:  # ABSORB
+                    effect = avg_placement_score(state, player, self.difficulty) * 0.7
+                best_score += effect * fire_prob * 0.5
+
+            elif perk_name == 'RETALIATE':
+                fire_prob = min(1.0, their_p / near_win) * 0.5
+                effect = avg_placement_score(state, player, self.difficulty) * 0.7
+                best_score += effect * fire_prob * 0.5
+
         return best_score, best_lane
 
     def _evaluate_duration_perk(self, state: 'GameState', player: 'Player',
@@ -404,12 +446,17 @@ class AIPlayer:
                 if lane.winner is not None or lane.freeze_turns > 0:
                     continue
                 their_pieces = lane.pieces_for(opponent)
-                if their_pieces >= 4:
-                    score = p.freeze_multi_threat
-                elif their_pieces >= 3:
-                    score = p.freeze_single_threat
+                if self.profile.state_aware_scoring:
+                    # Dynamic: value = how much opponent benefits from placing here
+                    opp_place = score_lane_for_placement(state, opponent, i, self.difficulty)
+                    score = p.freeze_base + max(0, opp_place) * 0.6
                 else:
-                    score = p.freeze_base + their_pieces * 5
+                    if their_pieces >= 4:
+                        score = p.freeze_multi_threat
+                    elif their_pieces >= 3:
+                        score = p.freeze_single_threat
+                    else:
+                        score = p.freeze_base + their_pieces * 5
                 if score > best_score:
                     best_score = score
                     best_lane = i
@@ -426,7 +473,10 @@ class AIPlayer:
                 if lane.winner is not None or lane.is_full_for(player):
                     continue
                 my_pieces = lane.pieces_for(player)
-                score = p.sanctuary_base + my_pieces * p.sanctuary_piece_mult  # Prefer lanes where we have pieces
+                score = p.sanctuary_base + my_pieces * p.sanctuary_piece_mult
+                if self.profile.state_aware_scoring:
+                    place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                    score += max(0, place_val) * 0.3
                 if score > best_score:
                     best_score = score
                     best_lane = i
@@ -434,7 +484,7 @@ class AIPlayer:
                 return -100, None
             return best_score, best_lane
 
-        # CAPTURE: Mandatory target (YOUR field - must have your pieces)
+        # CAPTURE: Mandatory target (YOUR field - not full)
         # Multiple captures are now allowed
         elif perk_name == 'CAPTURE':
             best_score = 0
@@ -443,10 +493,13 @@ class AIPlayer:
                 if lane.winner is not None:
                     continue
                 my_pieces = lane.pieces_for(player)
-                if my_pieces == 0 or lane.is_full_for(player):
-                    continue  # Must have your pieces and space
+                if lane.is_full_for(player):
+                    continue  # Must have space
                 their_pieces = lane.pieces_for(opponent)
-                score = p.capture_base + their_pieces * p.capture_piece_mult  # Value based on enemy pieces to capture
+                score = p.capture_base + their_pieces * p.capture_piece_mult
+                if self.profile.state_aware_scoring:
+                    place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                    score += max(0, place_val) * 0.3
                 if score > best_score:
                     best_score = score
                     best_lane = i
@@ -466,44 +519,79 @@ class AIPlayer:
         if perk_name == 'GAMBIT':
             available_lanes = sum(1 for l in state.lanes
                                  if l.winner is None and not l.is_full_for(player))
-            return p.gambit_base if available_lanes >= 2 else p.gambit_low, None
+            score = p.gambit_base if available_lanes >= 2 else p.gambit_low
+            if self.profile.state_aware_scoring and available_lanes >= 2:
+                avg_place = avg_placement_score(state, player, self.difficulty)
+                avg_remove = avg_removal_score(state, player, self.difficulty)
+                score += avg_place * 2 * 0.5 - avg_remove * 3 * 0.3
+                score = max(score, p.gambit_low)
+            return score, None
 
         # SPLIT: Mandatory single target (lane to sacrifice from)
         elif perk_name == 'SPLIT':
-            lanes_with_pieces = state.get_lanes_with_pieces(player)
+            lanes_with_pieces = [i for i in state.get_lanes_with_pieces(player)
+                                 if state.lanes[i].winner is None]
             if not lanes_with_pieces:
                 return -100, None
-            # Pick lane with most pieces to sacrifice from
             best_lane = max(lanes_with_pieces, key=lambda i: state.lanes[i].pieces_for(player))
-            return p.split_base, best_lane
+            score = p.split_base
+            if self.profile.state_aware_scoring:
+                avg_place = avg_placement_score(state, player, self.difficulty)
+                sacrifice_cost = score_lane_for_placement(state, player, best_lane, self.difficulty) * 0.3
+                score += avg_place * 2 * 0.5 - max(0, sacrifice_cost)
+            return score, best_lane
 
         # SCRAMBLE: No target (affects all enemy pieces)
         elif perk_name == 'SCRAMBLE':
             enemy_pieces = sum(l.pieces_for(opponent) for l in state.lanes if l.winner is None)
-            return p.scramble_base + enemy_pieces * p.scramble_piece_mult if enemy_pieces > 0 else -100, None
+            if enemy_pieces == 0:
+                return -100, None
+            score = p.scramble_base + enemy_pieces * p.scramble_piece_mult
+            if self.profile.state_aware_scoring:
+                # Value of disrupting enemy's best concentrated lane
+                enemy_lanes = [i for i, l in enumerate(state.lanes)
+                               if l.winner is None and l.pieces_for(opponent) > 0]
+                if enemy_lanes:
+                    best_remove = max(score_lane_for_removal(state, player, i, self.difficulty)
+                                      for i in enemy_lanes)
+                    score += best_remove * 0.4
+            return score, None
 
         # KAMIKAZE: Mandatory single target (lane to sacrifice from)
         elif perk_name == 'KAMIKAZE':
-            my_lanes = state.get_lanes_with_pieces(player)
+            my_lanes = [i for i in state.get_lanes_with_pieces(player)
+                        if state.lanes[i].winner is None]
             if not my_lanes:
                 return -100, None
-            # Pick lane with fewest pieces to sacrifice from
             best_lane = min(my_lanes, key=lambda i: state.lanes[i].pieces_for(player))
-            # Still valuable even if enemy has 0 pieces (sacrifice happens)
-            return p.kamikaze_base, best_lane
+            score = p.kamikaze_base
+            if self.profile.state_aware_scoring:
+                avg_remove = avg_removal_score(state, player, self.difficulty)
+                enemy_lane_count = len(state.get_lanes_with_pieces(opponent))
+                actual_removals = min(2, enemy_lane_count)
+                sacrifice_cost = score_lane_for_placement(state, player, best_lane, self.difficulty) * 0.2
+                score += avg_remove * actual_removals * 0.5 - max(0, sacrifice_cost)
+            return score, best_lane
 
         # STEAL: No target (fully automatic)
-        # Requires enemy pieces to steal - placement is secondary
         elif perk_name == 'STEAL':
             enemy_lanes = state.get_lanes_with_pieces(opponent)
             if not enemy_lanes:
-                return -100, None  # No enemy pieces to steal
-            # Bonus for having space to place the stolen piece
+                return -100, None
             available_for_us = [i for i, l in enumerate(state.lanes)
                                if l.winner is None and not l.is_full_for(player)]
             if available_for_us:
-                return p.steal_full, None  # Full value: steal + place
-            return p.steal_partial, None  # Partial value: steal only (piece is lost)
+                score = p.steal_full
+            else:
+                score = p.steal_partial
+            if self.profile.state_aware_scoring:
+                avg_place = avg_placement_score(state, player, self.difficulty)
+                avg_remove = avg_removal_score(state, player, self.difficulty)
+                if available_for_us:
+                    score += (avg_place + avg_remove) * 0.5
+                else:
+                    score += avg_remove * 0.5
+            return score, None
 
         # RUSH: Mandatory single target
         elif perk_name == 'RUSH':
@@ -513,54 +601,86 @@ class AIPlayer:
             best_lane = get_best_placement_lane(state, player, self.difficulty)
             if best_lane is None:
                 best_lane = state.rng.choice(valid_lanes)
-            return p.rush_base, best_lane
+            score = p.rush_base
+            if self.profile.state_aware_scoring:
+                place_val = score_lane_for_placement(state, player, best_lane, self.difficulty)
+                opp_pieces = state.lanes[best_lane].pieces_for(opponent)
+                score += place_val * 0.6 - opp_pieces * 10 * 0.3
+            return score, best_lane
 
-        # NULLIFY: Mandatory single target (lane with triggers)
+        # NULLIFY: Mandatory single target (lane with triggers, deferred, or pending raids)
         elif perk_name == 'NULLIFY':
+            raid_lanes = {r['lane'] for r in state.pending_raids}
             lanes_with_triggers = [i for i, l in enumerate(state.lanes)
-                                  if l.winner is None and l.has_triggers()]
+                                  if l.winner is None and (l.has_triggers() or l.has_deferred() or i in raid_lanes)]
             if not lanes_with_triggers:
                 return -100, None
-            # Pick lane with most triggers
             best_lane = max(lanes_with_triggers, key=lambda i: len(state.lanes[i].triggers))
-            return p.nullify_base, best_lane
+            score = p.nullify_base
+            if self.profile.state_aware_scoring:
+                trigger_count = len(state.lanes[best_lane].triggers)
+                my_pieces = state.lanes[best_lane].pieces_for(player)
+                score += trigger_count * 20
+                if my_pieces >= 3:
+                    score += 25
+            return score, best_lane
 
         # DISPERSE: Mandatory single target (enemy lane to disperse from)
         elif perk_name == 'DISPERSE':
-            enemy_lanes = state.get_lanes_with_pieces(opponent)
+            enemy_lanes = [i for i in state.get_lanes_with_pieces(opponent)
+                           if state.lanes[i].winner is None]
             if not enemy_lanes:
                 return -100, None
-            # Pick lane with most enemy pieces
             best_lane = max(enemy_lanes, key=lambda i: state.lanes[i].pieces_for(opponent))
-            return p.disperse_base, best_lane
+            score = p.disperse_base
+            if self.profile.state_aware_scoring:
+                removal_val = score_lane_for_removal(state, player, best_lane, self.difficulty)
+                enemy_on_target = state.lanes[best_lane].pieces_for(opponent)
+                score += removal_val * 0.3 * enemy_on_target / state.config.SLOTS_PER_SIDE
+            return score, best_lane
 
         # SCATTER: Mandatory single target (your lane to scatter from)
         elif perk_name == 'SCATTER':
-            my_lanes = state.get_lanes_with_pieces(player)
+            my_lanes = [i for i in state.get_lanes_with_pieces(player)
+                        if state.lanes[i].winner is None]
             if not my_lanes:
                 return -100, None
-            # Pick lane with most of your pieces
             best_lane = max(my_lanes, key=lambda i: state.lanes[i].pieces_for(player))
-            return p.scatter_base, best_lane
+            score = p.scatter_base
+            if self.profile.state_aware_scoring:
+                my_pieces = state.lanes[best_lane].pieces_for(player)
+                avg_place = avg_placement_score(state, player, self.difficulty)
+                source_val = score_lane_for_placement(state, player, best_lane, self.difficulty)
+                score += max(0, avg_place * my_pieces * 0.5 - source_val * my_pieces * 0.2)
+            return score, best_lane
 
         # DISRUPT: Two mandatory targets (enemy lanes to swap)
         elif perk_name == 'DISRUPT':
-            enemy_lanes = state.get_lanes_with_pieces(opponent)
+            enemy_lanes = state.get_non_empty_enemy_lanes(player)
             if len(enemy_lanes) < 2:
                 return -100, None
-            # Pick two lanes with most enemy pieces
             sorted_lanes = sorted(enemy_lanes, key=lambda i: state.lanes[i].pieces_for(opponent), reverse=True)
-            return p.disrupt_base, (sorted_lanes[0], sorted_lanes[1])
+            score = p.disrupt_base
+            if self.profile.state_aware_scoring:
+                r1 = score_lane_for_removal(state, player, sorted_lanes[0], self.difficulty)
+                r2 = score_lane_for_removal(state, player, sorted_lanes[1], self.difficulty)
+                score += abs(r1 - r2) * 0.3
+            return score, (sorted_lanes[0], sorted_lanes[1])
 
         # REGROUP: Two mandatory targets (your lanes to swap)
         elif perk_name == 'REGROUP':
-            my_lanes = state.get_lanes_with_pieces(player)
+            my_lanes = [i for i in state.get_lanes_with_pieces(player)
+                        if state.lanes[i].winner is None]
             if len(my_lanes) < 2:
                 return -100, None
-            # Pick two lanes with most and least pieces (maximize impact)
             sorted_lanes = sorted(my_lanes, key=lambda i: state.lanes[i].pieces_for(player))
-            # Swap from most populated to least populated
-            return p.regroup_base, (sorted_lanes[-1], sorted_lanes[0])
+            score = p.regroup_base
+            if self.profile.state_aware_scoring:
+                dest_lane = sorted_lanes[0]  # least populated (receives pieces)
+                dest_score = score_lane_for_placement(state, player, dest_lane, self.difficulty)
+                pieces_incoming = state.lanes[sorted_lanes[-1]].pieces_for(player)
+                score += dest_score * 0.4 * (pieces_incoming / state.config.SLOTS_PER_SIDE)
+            return score, (sorted_lanes[-1], sorted_lanes[0])
 
         return -100, None
 
@@ -582,42 +702,82 @@ class AIPlayer:
             if perk_name == 'SIGNAL':
                 if not lane.is_full_for(player):
                     my_pieces = lane.pieces_for(player)
-                    score = p.signal_base + my_pieces * p.signal_piece_mult  # +immediate piece makes it better
+                    score = p.signal_base + my_pieces * p.signal_piece_mult
+                    if self.profile.state_aware_scoring:
+                        place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                        # Cost of pulling from most populated lane
+                        source_lanes = [(j, state.lanes[j].pieces_for(player)) for j in range(len(state.lanes))
+                                        if j != i and state.lanes[j].winner is None and state.lanes[j].pieces_for(player) > 0]
+                        pull_cost = 0
+                        if source_lanes:
+                            source_lane = max(source_lanes, key=lambda x: x[1])[0]
+                            pull_cost = score_lane_for_placement(state, player, source_lane, self.difficulty) * 0.3
+                        score += place_val * 0.8 - max(0, pull_cost)
 
-            # ENLIST: Target must be YOUR field (has your pieces)
+            # ENLIST: Target must be YOUR field (not full)
             elif perk_name == 'ENLIST':
                 my_pieces = lane.pieces_for(player)
-                if my_pieces > 0 and not lane.is_full_for(player):
-                    score = p.enlist_base  # Immediate placement + capture later
+                if not lane.is_full_for(player):
+                    score = p.enlist_base
+                    if self.profile.state_aware_scoring:
+                        place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                        their_pieces = lane.pieces_for(opponent)
+                        capture_val = score_lane_for_removal(state, player, i, self.difficulty) * 0.4 if their_pieces > 0 else 0
+                        # Move to least populated lane
+                        least_pop = min(
+                            (j for j in range(len(state.lanes)) if j != i and state.lanes[j].winner is None
+                             and not state.lanes[j].is_full_for(player)),
+                            key=lambda j: state.lanes[j].pieces_for(player),
+                            default=None
+                        )
+                        move_val = score_lane_for_placement(state, player, least_pop, self.difficulty) * 0.4 if least_pop is not None else 0
+                        score += place_val + capture_val + move_val
 
             # AMBUSH: Target for immediate +1 and remove from lane or adjacent
             elif perk_name == 'AMBUSH':
                 if not lane.is_full_for(player):
-                    # Check if lane or adjacent has enemy pieces for deferred removal
                     adjacent = [i]
                     if i > 0: adjacent.append(i - 1)
                     if i < len(state.lanes) - 1: adjacent.append(i + 1)
                     has_enemy_nearby = any(state.lanes[j].pieces_for(opponent) > 0
                                           for j in adjacent if state.lanes[j].winner is None)
                     if has_enemy_nearby:
-                        score = p.ambush_full  # Immediate + removal
+                        score = p.ambush_full
                     else:
-                        score = p.ambush_partial  # Just immediate
+                        score = p.ambush_partial
+                    if self.profile.state_aware_scoring:
+                        place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                        # Best removal from adjacent lanes (deferred, discounted)
+                        adj_remove_scores = [
+                            score_lane_for_removal(state, player, j, self.difficulty)
+                            for j in adjacent
+                            if state.lanes[j].winner is None and state.lanes[j].pieces_for(opponent) > 0
+                        ]
+                        best_adj_remove = max(adj_remove_scores) if adj_remove_scores else 0
+                        score += place_val + best_adj_remove * 0.5
 
             # REINFORCE: Target for immediate +1 and +1 more next turn
             elif perk_name == 'REINFORCE':
                 if not lane.is_full_for(player):
                     my_pieces = lane.pieces_for(player)
                     if my_pieces >= 3:
-                        score = p.reinforce_near_win  # Near win - 2 pieces!
+                        score = p.reinforce_near_win
                     else:
-                        score = p.reinforce_base  # Double placement value
+                        score = p.reinforce_base
+                    if self.profile.state_aware_scoring:
+                        place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                        # 1 immediate + 1 deferred (0.5 delay discount)
+                        score += place_val * 1.5
 
             # RAID: Target must not be full for opponent, immediate on enemy side
             elif perk_name == 'RAID':
                 if not lane.is_full_for(opponent):
                     their_pieces = lane.pieces_for(opponent)
-                    score = p.raid_base + their_pieces * p.raid_piece_mult  # Probability of recruits
+                    score = p.raid_base + their_pieces * p.raid_piece_mult
+                    if self.profile.state_aware_scoring:
+                        place_val = score_lane_for_placement(state, player, i, self.difficulty)
+                        # Expected ~1.4 pieces, 2-turn delay discount
+                        score += place_val * 1.4 * 0.5
 
             if score > best_score:
                 best_score = score
@@ -716,14 +876,16 @@ def random_ai(state: 'GameState') -> tuple[int | str, TargetType]:
         valid = [i for i, l in enumerate(state.lanes) if l.winner is None and l.pieces_for(opponent) > 0]
         target = state.rng.choice(valid) if valid else None
 
-    # Your pieces target (sacrifice perks)
+    # Your pieces target (sacrifice perks, exclude won lanes)
     elif perk_name in ['SPLIT', 'KAMIKAZE', 'SCATTER']:
-        valid = state.get_lanes_with_pieces(player)
+        valid = [i for i in state.get_lanes_with_pieces(player)
+                 if state.lanes[i].winner is None]
         target = state.rng.choice(valid) if valid else None
 
-    # Enemy pieces target
+    # Enemy pieces target (exclude won lanes)
     elif perk_name == 'DISPERSE':
-        valid = state.get_lanes_with_pieces(opponent)
+        valid = [i for i in state.get_lanes_with_pieces(opponent)
+                 if state.lanes[i].winner is None]
         target = state.rng.choice(valid) if valid else None
 
     # Rush - any non-won lane
@@ -737,8 +899,13 @@ def random_ai(state: 'GameState') -> tuple[int | str, TargetType]:
         target = state.rng.choice(valid) if valid else None
 
     # Your-side triggers (need your pieces)
-    elif perk_name in ['HYDRA', 'BACKFIRE', 'ABSORB', 'RETALIATE', 'ENLIST', 'CAPTURE']:
+    elif perk_name in ['HYDRA', 'BACKFIRE', 'ABSORB', 'RETALIATE']:
         valid = [i for i, l in enumerate(state.lanes) if l.winner is None and l.pieces_for(player) > 0]
+        target = state.rng.choice(valid) if valid else None
+
+    # Enlist/Capture - non-won lane, not full for you (no piece requirement)
+    elif perk_name in ['ENLIST', 'CAPTURE']:
+        valid = [i for i, l in enumerate(state.lanes) if l.winner is None and not l.is_full_for(player)]
         target = state.rng.choice(valid) if valid else None
 
     # Ambush - any non-won lane not full
@@ -751,20 +918,23 @@ def random_ai(state: 'GameState') -> tuple[int | str, TargetType]:
         valid = [i for i, l in enumerate(state.lanes) if l.winner is None and not l.is_full_for(opponent)]
         target = state.rng.choice(valid) if valid else None
 
-    # Nullify - lanes with triggers
+    # Nullify - lanes with triggers, deferred effects, or pending raids
     elif perk_name == 'NULLIFY':
-        valid = [i for i, l in enumerate(state.lanes) if l.winner is None and l.has_triggers()]
+        raid_lanes = {r['lane'] for r in state.pending_raids}
+        valid = [i for i, l in enumerate(state.lanes)
+                 if l.winner is None and (l.has_triggers() or l.has_deferred() or i in raid_lanes)]
         target = state.rng.choice(valid) if valid else None
 
-    # Two-target perks
+    # Two-target perks (exclude won lanes)
     elif perk_name == 'REGROUP':
-        valid = state.get_lanes_with_pieces(player)
+        valid = [i for i in state.get_lanes_with_pieces(player)
+                 if state.lanes[i].winner is None]
         if len(valid) >= 2:
             lanes = state.rng.sample(valid, 2)
             target = (lanes[0], lanes[1])
 
     elif perk_name == 'DISRUPT':
-        valid = state.get_lanes_with_pieces(opponent)
+        valid = state.get_non_empty_enemy_lanes(player)
         if len(valid) >= 2:
             lanes = state.rng.sample(valid, 2)
             target = (lanes[0], lanes[1])

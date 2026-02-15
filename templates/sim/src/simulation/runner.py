@@ -9,6 +9,7 @@ import time
 
 from src.game.engine import GameEngine
 from src.game.state import GameState, Player
+from src.game.config import GameConfig
 from src.game.logger import GameLogger
 from src.ai import easy_ai, medium_ai, hard_ai, random_ai, Difficulty, create_ai_function
 
@@ -21,11 +22,23 @@ class SimulationResult:
     player2_wins: int = 0
     draws: int = 0
     total_turns: int = 0
-    slot_usage: Counter = field(default_factory=Counter)
-    perk_usage: Counter = field(default_factory=Counter)
+    slot_usage_p1: Counter = field(default_factory=Counter)
+    slot_usage_p2: Counter = field(default_factory=Counter)
+    perk_usage_p1: Counter = field(default_factory=Counter)
+    perk_usage_p2: Counter = field(default_factory=Counter)
     game_lengths: list[int] = field(default_factory=list)
     elapsed_time: float = 0.0
     seed_start: int = 0
+
+    @property
+    def slot_usage(self) -> Counter:
+        """Combined slot usage (backward compat)."""
+        return self.slot_usage_p1 + self.slot_usage_p2
+
+    @property
+    def perk_usage(self) -> Counter:
+        """Combined perk usage (backward compat)."""
+        return self.perk_usage_p1 + self.perk_usage_p2
 
     @property
     def player1_win_rate(self) -> float:
@@ -39,15 +52,25 @@ class SimulationResult:
     def avg_turns(self) -> float:
         return self.total_turns / self.games_played if self.games_played > 0 else 0.0
 
-    @property
-    def slot_percentages(self) -> dict[int, float]:
-        total = sum(v for k, v in self.slot_usage.items() if k != 'pass')
+    @staticmethod
+    def _slot_pcts(usage: Counter) -> dict[int, float]:
+        """Compute slot percentages from a usage counter."""
+        total = sum(v for k, v in usage.items() if k != 'pass')
         if total == 0:
             return {1: 0, 2: 0, 3: 0, 4: 0}
-        return {
-            slot: (self.slot_usage[slot] / total * 100)
-            for slot in [1, 2, 3, 4]
-        }
+        return {slot: (usage[slot] / total * 100) for slot in [1, 2, 3, 4]}
+
+    @property
+    def slot_percentages(self) -> dict[int, float]:
+        return self._slot_pcts(self.slot_usage)
+
+    @property
+    def slot_percentages_p1(self) -> dict[int, float]:
+        return self._slot_pcts(self.slot_usage_p1)
+
+    @property
+    def slot_percentages_p2(self) -> dict[int, float]:
+        return self._slot_pcts(self.slot_usage_p2)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -63,6 +86,12 @@ class SimulationResult:
             'slot_percentages': {k: round(v, 1) for k, v in self.slot_percentages.items()},
             'slot_usage': dict(self.slot_usage),
             'perk_usage': dict(self.perk_usage),
+            'slot_percentages_p1': {k: round(v, 1) for k, v in self.slot_percentages_p1.items()},
+            'slot_percentages_p2': {k: round(v, 1) for k, v in self.slot_percentages_p2.items()},
+            'slot_usage_p1': dict(self.slot_usage_p1),
+            'slot_usage_p2': dict(self.slot_usage_p2),
+            'perk_usage_p1': dict(self.perk_usage_p1),
+            'perk_usage_p2': dict(self.perk_usage_p2),
             'game_lengths': self.game_lengths,
         }
 
@@ -76,7 +105,8 @@ class SimulationRunner:
                  seed_start: int = 0,
                  max_turns: int = 100,
                  log_games: bool = False,
-                 log_dir: str = 'logs'):
+                 log_dir: str = 'logs',
+                 config: Optional[GameConfig] = None):
         """
         Initialize simulation runner.
 
@@ -87,6 +117,7 @@ class SimulationRunner:
             max_turns: Maximum turns per game
             log_games: Whether to save detailed per-game logs
             log_dir: Directory for game logs (default: 'logs')
+            config: Game configuration (uses default if not provided)
         """
         self.player1_ai = player1_ai or hard_ai
         self.player2_ai = player2_ai or hard_ai
@@ -94,6 +125,7 @@ class SimulationRunner:
         self.max_turns = max_turns
         self.log_games = log_games
         self.log_dir = Path(log_dir)
+        self.config = config
 
     def run(self, n_games: int, verbose: bool = False) -> SimulationResult:
         """
@@ -123,7 +155,7 @@ class SimulationRunner:
             # Create logger if logging is enabled
             logger = GameLogger(enabled=self.log_games) if self.log_games else None
 
-            engine = GameEngine(seed=seed, logger=logger)
+            engine = GameEngine(seed=seed, config=self.config, logger=logger)
             final_state = engine.run_game(
                 self.player1_ai,
                 self.player2_ai,
@@ -147,11 +179,15 @@ class SimulationRunner:
             else:
                 result.draws += 1
 
-            # Aggregate slot/perk usage
-            for slot, count in final_state.slot_usage.items():
-                result.slot_usage[slot] += count
-            for perk, count in final_state.perk_usage.items():
-                result.perk_usage[perk] += count
+            # Aggregate per-player slot/perk usage
+            for slot, count in final_state.player1_slot_usage.items():
+                result.slot_usage_p1[slot] += count
+            for slot, count in final_state.player2_slot_usage.items():
+                result.slot_usage_p2[slot] += count
+            for perk, count in final_state.player1_perk_usage.items():
+                result.perk_usage_p1[perk] += count
+            for perk, count in final_state.player2_perk_usage.items():
+                result.perk_usage_p2[perk] += count
 
         result.elapsed_time = time.time() - start_time
         return result

@@ -19,10 +19,11 @@ class FitnessResult:
     slot1_pct: float = 0.0
     slot2_pct: float = 0.0
 
-    def meets_criteria(self, slot_target: float = 22.0, win_target: float = 0.45) -> bool:
+    def meets_criteria(self, slot3_target: float = 22.0, slot4_target: float = 22.0,
+                       win_target: float = 0.65) -> bool:
         """Check if this result meets all optimization criteria."""
-        return (self.slot3_pct >= slot_target and
-                self.slot4_pct >= slot_target and
+        return (self.slot3_pct >= slot3_target and
+                self.slot4_pct >= slot4_target and
                 self.win_rate_vs_v1 >= win_target)
 
     def __str__(self) -> str:
@@ -36,8 +37,9 @@ class FitnessResult:
 def evaluate_profile(profile: HeuristicProfile,
                      n_games: int = 200,
                      seed: int = 0,
-                     slot_target: float = 22.0,
-                     win_target: float = 0.45) -> FitnessResult:
+                     slot3_target: float = 22.0,
+                     slot4_target: float = 22.0,
+                     win_target: float = 0.65) -> FitnessResult:
     """
     Evaluate a profile's fitness.
 
@@ -49,8 +51,9 @@ def evaluate_profile(profile: HeuristicProfile,
         profile: The HeuristicProfile to evaluate
         n_games: Total games to run (split between self-play and vs-v1)
         seed: Random seed for reproducibility
-        slot_target: Target percentage for slots 3-4 (default 22%)
-        win_target: Target win rate vs v1 (default 45%)
+        slot3_target: Target percentage for slot 3 (default 22%)
+        slot4_target: Target percentage for slot 4 (default 22%)
+        win_target: Target win rate vs v1 (default 65%)
 
     Returns:
         FitnessResult with all metrics and composite score
@@ -84,7 +87,7 @@ def evaluate_profile(profile: HeuristicProfile,
         del PROFILES[temp_name]
 
     # Compute composite fitness
-    fitness = compute_fitness(slot3, slot4, win_rate, slot_target, win_target)
+    fitness = compute_fitness(slot3, slot4, win_rate, slot3_target, slot4_target, win_target)
 
     return FitnessResult(
         slot1_pct=slot1,
@@ -98,42 +101,53 @@ def evaluate_profile(profile: HeuristicProfile,
 
 
 def compute_fitness(slot3: float, slot4: float, win_rate: float,
-                    slot_target: float = 22.0, win_target: float = 0.45) -> float:
+                    slot3_target: float = 22.0, slot4_target: float = 22.0,
+                    win_target: float = 0.65) -> float:
     """
     Compute composite fitness score.
 
     Objectives (all must be met for perfect score):
-    - slot3 >= slot_target (default 22%)
-    - slot4 >= slot_target (default 22%)
-    - win_rate >= win_target (default 0.45 = 45%)
+    - slot3 >= slot3_target (default 22%)
+    - slot4 >= slot4_target (default 22%)
+    - win_rate >= win_target (default 0.65 = 65%)
 
     Score breakdown:
     - Slot 3 component: 0-25 points (full points if >= target)
     - Slot 4 component: 0-25 points (full points if >= target)
-    - Win rate component: 0-50 points (full points if >= target)
+    - Win rate component: 0-25 points (full points if >= target)
+    - All criteria met bonus: +25 points
 
-    Total possible: 100 points
+    Total possible: 100 points (only achievable when ALL criteria met)
+    Max without all criteria: 75 points
     """
     score = 0.0
+    all_met = True
 
     # Slot 3 component (0-25 points)
-    if slot3 >= slot_target:
+    if slot3 >= slot3_target:
         score += 25.0
     else:
-        # Partial credit: linear scaling up to target
-        score += max(0.0, (slot3 / slot_target) * 25.0)
+        all_met = False
+        score += max(0.0, (slot3 / slot3_target) * 25.0)
 
     # Slot 4 component (0-25 points)
-    if slot4 >= slot_target:
+    if slot4 >= slot4_target:
         score += 25.0
     else:
-        score += max(0.0, (slot4 / slot_target) * 25.0)
+        all_met = False
+        score += max(0.0, (slot4 / slot4_target) * 25.0)
 
-    # Win rate component (0-50 points)
+    # Win rate component (0-25 points)
     if win_rate >= win_target:
-        score += 50.0
+        score += 25.0
     else:
-        score += max(0.0, (win_rate / win_target) * 50.0)
+        all_met = False
+        score += max(0.0, (win_rate / win_target) * 25.0)
+
+    # Bonus for meeting ALL criteria (+25 points)
+    # This ensures fitness >= 95 is only possible when all criteria are met
+    if all_met:
+        score += 25.0
 
     return score
 
