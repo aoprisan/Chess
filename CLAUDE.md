@@ -16,7 +16,7 @@ The V2 lane combat system is the primary development focus. It uses a client-ser
 - **Client**: Flutter (v3.2.0+) with Flame game engine, Provider for state management
 - **Server**: Go (v1.21) with gorilla/websocket
 - **Database**: SQLite with WAL mode
-- **Simulation**: Python 3.x for perk balance testing
+- **Simulation**: Python 3.x for perk balance testing (reference-only, do not modify)
 
 ## Development Commands
 
@@ -93,8 +93,9 @@ python run_simulation.py -n 1000  # Run AI matchup simulation
   - `perks.go`: Perk definitions
   - `targeting.go`: Perk targeting system
 
-### Python Simulation (`templates/sim/`)
-**Note: The Python simulation code is reference-only and should not be modified.**
+### Python Simulation (`templates/sim/`) -- REFERENCE ONLY, DO NOT MODIFY
+**The Python simulation code is strictly reference-only. Do not modify, refactor, or add code to `templates/sim/`.** It exists solely as a reference implementation for understanding perk logic and for offline balance testing. All active development happens in the Go server and Flutter client.
+
 A comprehensive simulation engine for perk balance testing:
 - **src/game/**: Game engine, state, rules, configuration
 - **src/perks/**: Perk implementations by category
@@ -113,11 +114,9 @@ Messages follow `{"type": "messageType", "payload": {...}}` format. Key types: `
 ## Adding Features
 
 ### New V2 Perks
-1. Add to `PerkType` in `templates/sim/src/perks/base.py`
-2. Implement in appropriate file (`immediate.py`, `triggers.py`, `deferred.py`, `duration.py`)
-3. Add tests in `templates/sim/tests/`
-4. Port to Go server in `server/internal/perks/`
-5. Update client perk UI in `client/lib/widgets/perk_selection_panel.dart`
+1. Implement in Go server in `server/internal/perks/`
+2. Update client perk UI in `client/lib/widgets/perk_selection_panel.dart`
+3. Refer to `templates/sim/` for logic reference (but do not modify the Python code)
 
 ### New V1 Perks
 1. Add to `Perk` enum in `client/lib/models/hero.dart`
