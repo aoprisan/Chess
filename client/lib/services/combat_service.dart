@@ -729,15 +729,17 @@ class CombatService extends ChangeNotifier {
     return true;
   }
 
-  /// Cloak - hide your pieces from the opponent for 3 turns
+  /// Cloak - hide your pieces from the opponent for 2 turns
   bool cloakField() {
     if (_gameState == null) return false;
 
     final currentPlayer = _gameState!.currentPlayer;
+    if (_gameState!.isCloaked(currentPlayer)) return false; // already cloaked
+
     if (currentPlayer == PlayerSide.player1) {
-      _gameState = _gameState!.copyWith(player1Cloaked: 3);
+      _gameState = _gameState!.copyWith(player1Cloaked: 2);
     } else {
-      _gameState = _gameState!.copyWith(player2Cloaked: 3);
+      _gameState = _gameState!.copyWith(player2Cloaked: 2);
     }
 
     notifyListeners();
@@ -756,6 +758,197 @@ class CombatService extends ChangeNotifier {
     } else {
       _gameState = _gameState!.copyWith(player2Blinded: 2);
     }
+    notifyListeners();
+    return true;
+  }
+
+  /// Gambit - give enemy 3 pieces on random lanes, gain 2 on one lane
+  bool gambitPieces() {
+    if (_gameState == null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Give opponent 3 pieces on random lanes (can repeat same lane)
+    for (int i = 0; i < 3; i++) {
+      final available = <int>[];
+      for (int j = 0; j < 5; j++) {
+        if (lanes[j].winner == null && !lanes[j].isSideFilled(enemy)) {
+          available.add(j);
+        }
+      }
+      if (available.isEmpty) break;
+      final laneIdx = available[_random.nextInt(available.length)];
+      final col = lanes[laneIdx].getNextEmptyColumn(enemy);
+      if (col != -1) {
+        if (enemy == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[laneIdx].player1Columns);
+          newCols[col] = true;
+          lanes[laneIdx] = lanes[laneIdx].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[laneIdx].player2Columns);
+          newCols[col] = true;
+          lanes[laneIdx] = lanes[laneIdx].copyWith(player2Columns: newCols);
+        }
+      }
+    }
+
+    // Give player 2 pieces on the same randomly chosen lane
+    final playerAvailable = <int>[];
+    for (int j = 0; j < 5; j++) {
+      if (lanes[j].winner == null && !lanes[j].isSideFilled(currentPlayer)) {
+        playerAvailable.add(j);
+      }
+    }
+    if (playerAvailable.isNotEmpty) {
+      final playerLane = playerAvailable[_random.nextInt(playerAvailable.length)];
+      for (int i = 0; i < 2; i++) {
+        final col = lanes[playerLane].getNextEmptyColumn(currentPlayer);
+        if (col == -1) break;
+        if (lanes[playerLane].winner != null) break;
+        if (currentPlayer == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[playerLane].player1Columns);
+          newCols[col] = true;
+          lanes[playerLane] = lanes[playerLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[playerLane].player2Columns);
+          newCols[col] = true;
+          lanes[playerLane] = lanes[playerLane].copyWith(player2Columns: newCols);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Rush - both players get 2 pieces on a lane, you lose 1 from elsewhere
+  bool rushLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final currentPlayer = _gameState!.currentPlayer;
+    final enemy = currentPlayer == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+    bool laneWonDuringPlacement = false;
+
+    // Add 2 pieces for player on target lane
+    for (int i = 0; i < 2; i++) {
+      if (lanes[laneIndex].winner != null) {
+        laneWonDuringPlacement = true;
+        break;
+      }
+      if (lanes[laneIndex].isSideFilled(currentPlayer)) break;
+      final col = lanes[laneIndex].getNextEmptyColumn(currentPlayer);
+      if (col == -1) break;
+      if (currentPlayer == PlayerSide.player1) {
+        final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+        newCols[col] = true;
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+      } else {
+        final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+        newCols[col] = true;
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+      }
+    }
+
+    // Add 2 pieces for opponent on target lane
+    for (int i = 0; i < 2; i++) {
+      if (lanes[laneIndex].winner != null) {
+        laneWonDuringPlacement = true;
+        break;
+      }
+      if (lanes[laneIndex].isSideFilled(enemy)) break;
+      final col = lanes[laneIndex].getNextEmptyColumn(enemy);
+      if (col == -1) break;
+      if (enemy == PlayerSide.player1) {
+        final newCols = List<bool>.from(lanes[laneIndex].player1Columns);
+        newCols[col] = true;
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player1Columns: newCols);
+      } else {
+        final newCols = List<bool>.from(lanes[laneIndex].player2Columns);
+        newCols[col] = true;
+        lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
+      }
+    }
+
+    // Remove 1 piece from player's OTHER lanes (skip if lane won during placement)
+    if (!laneWonDuringPlacement) {
+      final otherLanes = <int>[];
+      for (int i = 0; i < 5; i++) {
+        if (i != laneIndex && lanes[i].winner == null &&
+            lanes[i].countPieces(currentPlayer) > 0) {
+          otherLanes.add(i);
+        }
+      }
+      int? removeLane;
+      if (otherLanes.isNotEmpty) {
+        removeLane = otherLanes[_random.nextInt(otherLanes.length)];
+      } else if (lanes[laneIndex].countPieces(currentPlayer) > 0) {
+        removeLane = laneIndex;
+      }
+      if (removeLane != null) {
+        if (currentPlayer == PlayerSide.player1) {
+          final newCols = List<bool>.from(lanes[removeLane].player1Columns);
+          for (int i = 4; i >= 0; i--) {
+            if (newCols[i]) {
+              newCols[i] = false;
+              break;
+            }
+          }
+          lanes[removeLane] = lanes[removeLane].copyWith(player1Columns: newCols);
+        } else {
+          final newCols = List<bool>.from(lanes[removeLane].player2Columns);
+          for (int i = 4; i >= 0; i--) {
+            if (newCols[i]) {
+              newCols[i] = false;
+              break;
+            }
+          }
+          lanes[removeLane] = lanes[removeLane].copyWith(player2Columns: newCols);
+        }
+      }
+    }
+
+    _gameState = _gameState!.copyWith(lanes: lanes);
+    _checkAllLaneWins();
+    notifyListeners();
+    return true;
+  }
+
+  /// Nullify - clear all triggers, deferred effects, and raids on a lane
+  bool nullifyLane(int laneIndex) {
+    if (_gameState == null) return false;
+    if (laneIndex < 0 || laneIndex >= 5) return false;
+    if (_gameState!.lanes[laneIndex].winner != null) return false;
+
+    final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
+
+    // Clear triggers and deferred on the lane
+    lanes[laneIndex] = lanes[laneIndex].copyWith(
+      triggers: [],
+      deferred: [],
+    );
+
+    // Cancel pending raids on this lane (raid piece stays as normal piece)
+    final remainingRaids = _gameState!.pendingRaids
+        .where((r) => r.lane != laneIndex)
+        .toList();
+
+    _gameState = _gameState!.copyWith(
+      lanes: lanes,
+      pendingRaids: remainingRaids,
+    );
     notifyListeners();
     return true;
   }
@@ -891,13 +1084,13 @@ class CombatService extends ChangeNotifier {
         ? _gameState!.player2Cloaked - 1
         : 0;
 
-    // Decrement blind counters only for the player whose turn is ending
-    final newP1Blinded = (currentPlayer == PlayerSide.player1 && _gameState!.player1Blinded > 0)
+    // Decrement blind counters for both players each turn switch
+    final newP1Blinded = _gameState!.player1Blinded > 0
         ? _gameState!.player1Blinded - 1
-        : _gameState!.player1Blinded;
-    final newP2Blinded = (currentPlayer == PlayerSide.player2 && _gameState!.player2Blinded > 0)
+        : 0;
+    final newP2Blinded = _gameState!.player2Blinded > 0
         ? _gameState!.player2Blinded - 1
-        : _gameState!.player2Blinded;
+        : 0;
 
     _gameState = _gameState!.copyWith(
       currentPlayer: nextPlayer,
