@@ -170,6 +170,7 @@ class CombatService extends ChangeNotifier {
     // Fire placement triggers after placing
     _firePlacementTriggers(laneIndex, currentPlayer, 0);
     _checkAllLaneWins();
+    notifyListeners();
 
     return laneIndex;
   }
@@ -190,6 +191,8 @@ class CombatService extends ChangeNotifier {
     if (lane.getNextEmptyColumn(currentPlayer) == -1) return false;
 
     _placePiece(laneIndex, currentPlayer);
+    _firePlacementTriggers(laneIndex, currentPlayer, 0);
+    _checkAllLaneWins();
     return true;
   }
 

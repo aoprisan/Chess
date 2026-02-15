@@ -442,9 +442,10 @@ class CombatGameState {
       if (lane.winner != null) continue;
 
       for (final trigger in lane.triggers) {
-        final polarity = beneficialTriggers.contains(trigger.type)
+        final typeLower = trigger.type.toLowerCase();
+        final polarity = beneficialTriggers.contains(typeLower)
             ? EffectPolarity.beneficial
-            : detrimentalTriggers.contains(trigger.type)
+            : detrimentalTriggers.contains(typeLower)
                 ? EffectPolarity.detrimental
                 : EffectPolarity.beneficial;
         final onOwnerSide = polarity == EffectPolarity.beneficial;
@@ -452,7 +453,7 @@ class CombatGameState {
           effectName: trigger.type.toUpperCase(),
           effectType: 'trigger',
           polarity: polarity,
-          category: _perkCategory[trigger.type] ?? EffectCategory.defensive,
+          category: _perkCategory[typeLower] ?? EffectCategory.defensive,
           ownerPlayer: trigger.owner,
           laneIndex: i,
           onOwnerSide: onOwnerSide,
@@ -465,9 +466,10 @@ class CombatGameState {
       const detrimentalDeferred = {'ambush'};
 
       for (final def in lane.deferred) {
-        final polarity = beneficialDeferred.contains(def.type)
+        final typeLower = def.type.toLowerCase();
+        final polarity = beneficialDeferred.contains(typeLower)
             ? EffectPolarity.beneficial
-            : detrimentalDeferred.contains(def.type)
+            : detrimentalDeferred.contains(typeLower)
                 ? EffectPolarity.detrimental
                 : EffectPolarity.beneficial;
         final onOwnerSide = polarity == EffectPolarity.beneficial;
@@ -475,7 +477,7 @@ class CombatGameState {
           effectName: def.type.toUpperCase(),
           effectType: 'deferred',
           polarity: polarity,
-          category: _perkCategory[def.type] ?? EffectCategory.utility,
+          category: _perkCategory[typeLower] ?? EffectCategory.utility,
           ownerPlayer: def.owner,
           laneIndex: i,
           onOwnerSide: onOwnerSide,

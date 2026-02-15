@@ -343,6 +343,15 @@ class _CombatScreenState extends State<CombatScreen> {
                     ),
                   ),
                   Text(
+                    perkInfo?.description ?? '',
+                    style: TextStyle(
+                      fontSize: fontSize * 0.8,
+                      color: Colors.grey.shade400,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
                     instruction,
                     style: TextStyle(
                       fontSize: fontSize * 0.85,
@@ -1636,6 +1645,8 @@ class _GameBoard extends StatelessWidget {
   List<Widget> _buildLaneSelectionHighlights() {
     // Freeze perk (4) shows blue highlight on opponent's half only
     final isFreezePerk = selectedPerkId == 4;
+    // Enemy-targeting trigger perks highlight opponent's half in purple
+    final isEnemyTriggerPerk = const {24, 25}.contains(selectedPerkId);
     final currentPlayer = gameState.currentPlayer;
 
     return [
@@ -1712,6 +1723,69 @@ class _GameBoard extends StatelessWidget {
                                 const SizedBox(width: 4),
                                 Text(
                                   'Freeze ${i + 1}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                // Enemy-targeting trigger perks (Portal, Trap) highlight opponent's half in purple
+                if (isEnemyTriggerPerk) {
+                  final perkName = selectedPerkId == 24 ? 'Portal' : 'Trap';
+                  return Positioned(
+                    top: i * laneHeight,
+                    left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
+                    width: halfWidth,
+                    height: laneHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onLaneSelected?.call(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withValues(alpha: 0.35),
+                          border: Border.all(
+                            color: Colors.purple.shade400,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.purple.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade700.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  selectedPerkId == 24 ? Icons.swap_horiz : Icons.warning,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$perkName ${i + 1}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,

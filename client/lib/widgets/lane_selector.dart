@@ -321,6 +321,10 @@ class LaneValidator {
             }
           }
           break;
+        case 24: // Portal - any non-won lane (target enemy field)
+        case 25: // Trap - any non-won lane (target enemy field)
+          validLanes.add(i);
+          break;
         default:
           // Default: any non-won lane
           validLanes.add(i);
