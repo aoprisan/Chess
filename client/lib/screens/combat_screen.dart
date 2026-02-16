@@ -460,13 +460,19 @@ class _CombatScreenState extends State<CombatScreen> {
       onTap: () {}, // Absorb taps to prevent interaction with board
       child: Container(
         color: Colors.black.withValues(alpha: 0.5),
-        child: Center(
-          child: _PerkSelectionArea(
-            perkSlots: _combatService.currentPerkSlots,
-            isMyTurn: true,
-            onPerkSelected: _onPerkSelected,
-            onPass: _onPass,
-            screenWidth: MediaQuery.of(context).size.width,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+            ),
+            child: _PerkSelectionArea(
+              perkSlots: _combatService.currentPerkSlots,
+              isMyTurn: true,
+              onPerkSelected: _onPerkSelected,
+              onPass: _onPass,
+              screenWidth: MediaQuery.of(context).size.width,
+            ),
           ),
         ),
       ),
