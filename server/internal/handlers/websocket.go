@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/kiddiechess/server/internal/auth"
 	"github.com/kiddiechess/server/internal/database"
 	"github.com/kiddiechess/server/internal/game"
 	"github.com/kiddiechess/server/internal/matchmaking"
@@ -63,6 +64,7 @@ type Client struct {
 	Conn     *websocket.Conn
 	Send     chan []byte
 	PlayerID string
+	Username string
 	GameID   string
 	mu       sync.Mutex
 }
@@ -162,8 +164,20 @@ func (h *Hub) handlePlayerDisconnect(client *Client) {
 	}
 }
 
-// ServeWS handles WebSocket upgrade requests
-func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
+// ServeWS handles WebSocket upgrade requests with JWT authentication.
+func ServeWS(hub *Hub, authSvc *auth.AuthService, w http.ResponseWriter, r *http.Request) {
+	// Extract and validate JWT from query param
+	tokenStr := r.URL.Query().Get("token")
+	if tokenStr == "" {
+		http.Error(w, "token query parameter required", http.StatusUnauthorized)
+		return
+	}
+	claims, err := authSvc.ValidateToken(tokenStr)
+	if err != nil {
+		http.Error(w, "invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
@@ -171,19 +185,23 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		ID:   uuid.New().String(),
-		Hub:  hub,
-		Conn: conn,
-		Send: make(chan []byte, 256),
+		ID:       uuid.New().String(),
+		Hub:      hub,
+		Conn:     conn,
+		Send:     make(chan []byte, 256),
+		PlayerID: claims.UserID,
+		Username: claims.Username,
 	}
 
 	hub.Register <- client
 
-	// Send connection confirmation
+	// Send connection confirmation with authenticated identity
 	msg := WSMessage{
 		Type: MsgConnect,
 		Payload: map[string]interface{}{
 			"clientId": client.ID,
+			"playerId": claims.UserID,
+			"username": claims.Username,
 		},
 	}
 	data, _ := json.Marshal(msg)
@@ -285,12 +303,9 @@ func (c *Client) handleMessage(msg WSMessage) {
 
 // handleJoinGame processes game join requests
 func (c *Client) handleJoinGame(payload map[string]interface{}) {
-	playerID, _ := payload["playerId"].(string)
 	heroType, _ := payload["heroType"].(string)
 	vsAI, _ := payload["vsAI"].(bool)
 	aiDifficulty, _ := payload["aiDifficulty"].(string)
-
-	c.PlayerID = playerID
 
 	if vsAI {
 		// Create AI game immediately
@@ -300,7 +315,7 @@ func (c *Client) handleJoinGame(payload map[string]interface{}) {
 		game.Status = models.StatusPlaying
 
 		game.Player1 = &models.Player{
-			ID:             playerID,
+			ID:             c.PlayerID,
 			ConnectionID:   c.ID,
 			HeroType:       models.HeroType(heroType),
 			Color:          models.White,
@@ -319,7 +334,7 @@ func (c *Client) handleJoinGame(payload map[string]interface{}) {
 	} else {
 		// Add to matchmaking queue
 		c.Hub.Matchmaker.AddPlayer(&matchmaking.QueuedPlayer{
-			ID:           playerID,
+			ID:           c.PlayerID,
 			ConnectionID: c.ID,
 			HeroType:     heroType,
 			JoinedAt:     time.Now(),
@@ -593,12 +608,9 @@ func (c *Client) sendError(message string) {
 
 // handleJoinLaneGame processes V2 lane game join requests
 func (c *Client) handleJoinLaneGame(payload map[string]interface{}) {
-	playerID, _ := payload["playerId"].(string)
 	heroType, _ := payload["heroType"].(string)
 	vsAI, _ := payload["vsAI"].(bool)
 	aiDifficulty, _ := payload["aiDifficulty"].(string)
-
-	c.PlayerID = playerID
 
 	if vsAI {
 		// Create AI game immediately
@@ -608,7 +620,7 @@ func (c *Client) handleJoinLaneGame(payload map[string]interface{}) {
 		laneGame.Status = models.LaneStatusPlaying
 
 		laneGame.Player1 = &models.LanePlayer{
-			ID:           playerID,
+			ID:           c.PlayerID,
 			ConnectionID: c.ID,
 			HeroType:     models.HeroType(heroType),
 			Side:         models.Player1,

@@ -53,12 +53,16 @@ class WebSocketService {
   Stream<WSMessage> get messages => _messageController.stream;
   bool get isConnected => _isConnected;
 
-  /// Connect to game server
-  Future<void> connect(String serverUrl) async {
+  /// Connect to game server. If [token] is provided, it's appended as a query param for auth.
+  Future<void> connect(String serverUrl, {String? token}) async {
     if (_isConnected) return;
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(serverUrl));
+      var uri = Uri.parse(serverUrl);
+      if (token != null) {
+        uri = uri.replace(queryParameters: {...uri.queryParameters, 'token': token});
+      }
+      _channel = WebSocketChannel.connect(uri);
       _isConnected = true;
 
       _channel!.stream.listen(

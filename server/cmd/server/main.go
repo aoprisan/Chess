@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/google/uuid"
+	"github.com/kiddiechess/server/internal/auth"
 	"github.com/kiddiechess/server/internal/database"
 	"github.com/kiddiechess/server/internal/handlers"
 	"github.com/kiddiechess/server/internal/matchmaking"
@@ -37,6 +40,14 @@ func main() {
 	defer db.Close()
 	log.Println("Database initialized at", dbPath)
 
+	// Initialize auth service
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "kiddiechess-dev-secret-change-in-production"
+		log.Println("WARNING: Using default JWT_SECRET. Set JWT_SECRET env var in production!")
+	}
+	authSvc := auth.NewAuthService(jwtSecret)
+
 	// Initialize matchmaking service
 	mm := matchmaking.NewMatchmaker()
 	go mm.Run()
@@ -47,7 +58,7 @@ func main() {
 
 	// WebSocket endpoint
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		handlers.ServeWS(hub, w, r)
+		handlers.ServeWS(hub, authSvc, w, r)
 	})
 
 	// Health check
@@ -59,6 +70,18 @@ func main() {
 	// REST API endpoints
 	http.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		handleUsers(db, w, r)
+	})
+
+	http.HandleFunc("/api/auth/guest", func(w http.ResponseWriter, r *http.Request) {
+		handleAuthGuest(db, authSvc, w, r)
+	})
+
+	http.HandleFunc("/api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+		handleAuthLogin(db, authSvc, w, r)
+	})
+
+	http.HandleFunc("/api/auth/upgrade", func(w http.ResponseWriter, r *http.Request) {
+		handleAuthUpgrade(db, authSvc, w, r)
 	})
 
 	http.HandleFunc("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
@@ -209,4 +232,169 @@ func handleLeaderboard(db *database.DB, w http.ResponseWriter, r *http.Request) 
 	}
 
 	json.NewEncoder(w).Encode(results)
+}
+
+// handleAuthGuest handles guest registration / returning guest login
+func handleAuthGuest(db *database.DB, authSvc *auth.AuthService, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != "POST" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		DeviceID    string `json:"deviceId"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error": "invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	if req.DeviceID == "" || req.DisplayName == "" {
+		http.Error(w, `{"error": "deviceId and displayName are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Check if a user already exists with this deviceId
+	user, err := db.GetUserByDeviceID(req.DeviceID)
+	if err != nil {
+		http.Error(w, `{"error": "database error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if user == nil {
+		// Create new guest user
+		user = &database.User{
+			ID:       uuid.New().String(),
+			Username: req.DisplayName,
+			IsGuest:  true,
+			DeviceID: &req.DeviceID,
+		}
+		if err := db.CreateUser(user); err != nil {
+			http.Error(w, `{"error": "failed to create user"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	token, err := authSvc.GenerateToken(user.ID, user.Username, user.IsGuest)
+	if err != nil {
+		http.Error(w, `{"error": "failed to generate token"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"userId":   user.ID,
+		"username": user.Username,
+		"token":    token,
+		"isGuest":  user.IsGuest,
+	})
+}
+
+// handleAuthLogin handles email/password login
+func handleAuthLogin(db *database.DB, authSvc *auth.AuthService, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != "POST" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error": "invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		http.Error(w, `{"error": "email and password are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	user, err := db.GetUserByEmail(req.Email)
+	if err != nil {
+		http.Error(w, `{"error": "database error"}`, http.StatusInternalServerError)
+		return
+	}
+	if user == nil || user.PasswordHash == nil || !auth.CheckPassword(req.Password, *user.PasswordHash) {
+		http.Error(w, `{"error": "invalid email or password"}`, http.StatusUnauthorized)
+		return
+	}
+
+	token, err := authSvc.GenerateToken(user.ID, user.Username, user.IsGuest)
+	if err != nil {
+		http.Error(w, `{"error": "failed to generate token"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"userId":   user.ID,
+		"username": user.Username,
+		"token":    token,
+		"isGuest":  user.IsGuest,
+	})
+}
+
+// handleAuthUpgrade upgrades a guest account to a full account with email/password
+func handleAuthUpgrade(db *database.DB, authSvc *auth.AuthService, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != "POST" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Validate JWT from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, `{"error": "authorization required"}`, http.StatusUnauthorized)
+		return
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := authSvc.ValidateToken(tokenStr)
+	if err != nil {
+		http.Error(w, `{"error": "invalid token"}`, http.StatusUnauthorized)
+		return
+	}
+	if !claims.IsGuest {
+		http.Error(w, `{"error": "account is already upgraded"}`, http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error": "invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		http.Error(w, `{"error": "email and password are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		http.Error(w, `{"error": "internal error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if err := db.UpgradeGuestAccount(claims.UserID, req.Email, hash); err != nil {
+		http.Error(w, `{"error": "failed to upgrade account"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Issue new token with isGuest=false
+	newToken, err := authSvc.GenerateToken(claims.UserID, claims.Username, false)
+	if err != nil {
+		http.Error(w, `{"error": "failed to generate token"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"userId":   claims.UserID,
+		"username": claims.Username,
+		"token":    newToken,
+		"isGuest":  false,
+	})
 }

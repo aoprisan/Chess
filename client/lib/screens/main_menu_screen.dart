@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import 'hero_selection_screen.dart';
+import 'upgrade_account_screen.dart';
+import 'welcome_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -15,6 +19,16 @@ class MainMenuScreen extends StatelessWidget {
             'assets/images/ui/main-bg.png',
             fit: BoxFit.cover,
             repeat: ImageRepeat.repeat,
+          ),
+          // Profile indicator
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: _ProfileChip(),
+              ),
+            ),
           ),
           // Content
           SafeArea(
@@ -96,6 +110,119 @@ class MainMenuScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pop(dialogContext);
                   _navigateToHeroSelection(context, mode: GameMode.online);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthService>(
+      builder: (context, auth, _) {
+        final user = auth.currentUser;
+        if (user == null) return const SizedBox.shrink();
+        return GestureDetector(
+          onTap: () => _showProfileDialogStatic(context, auth),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5E6D3).withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF8D6E63), width: 2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person, size: 20, color: Color(0xFF5D4037)),
+                const SizedBox(width: 6),
+                Text(
+                  user.username,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.settings, size: 18, color: Color(0xFF8D6E63)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static void _showProfileDialogStatic(BuildContext context, AuthService authService) {
+    final user = authService.currentUser;
+    if (user == null) return;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 300,
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5E6D3),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF8D6E63), width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.person, size: 48, color: Color(0xFF5D4037)),
+              const SizedBox(height: 8),
+              Text(
+                user.username,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+              if (user.isGuest)
+                const Text(
+                  'Guest Account',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF8D6E63)),
+                ),
+              const SizedBox(height: 20),
+              if (user.isGuest) ...[
+                _StyledButton(
+                  text: 'Add Email & Password',
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UpgradeAccountScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+              _StyledButton(
+                text: 'Log Out',
+                onPressed: () async {
+                  Navigator.pop(dialogContext);
+                  await authService.logout();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const WelcomeScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  }
                 },
               ),
             ],

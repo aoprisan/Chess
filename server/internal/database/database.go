@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/kiddiechess/server/internal/models"
@@ -112,6 +113,24 @@ func (db *DB) migrate() error {
 		}
 	}
 
+	// Safe column additions (swallow "duplicate column" errors for idempotency)
+	alterMigrations := []string{
+		`ALTER TABLE users ADD COLUMN is_guest INTEGER DEFAULT 1`,
+		`ALTER TABLE users ADD COLUMN device_id TEXT`,
+	}
+	for _, m := range alterMigrations {
+		if _, err := db.Exec(m); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("alter migration failed: %w\nSQL: %s", err, m)
+			}
+		}
+	}
+
+	// Index on device_id
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_device_id ON users(device_id)`); err != nil {
+		return fmt.Errorf("index migration failed: %w", err)
+	}
+
 	log.Println("Database migrations completed successfully")
 	return nil
 }
@@ -122,6 +141,8 @@ type User struct {
 	Username     string
 	Email        *string
 	PasswordHash *string
+	IsGuest      bool
+	DeviceID     *string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	GamesPlayed  int
@@ -134,11 +155,15 @@ type User struct {
 // CreateUser creates a new user
 func (db *DB) CreateUser(user *User) error {
 	query := `
-		INSERT INTO users (id, username, email, password_hash, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO users (id, username, email, password_hash, is_guest, device_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	now := time.Now()
-	_, err := db.Exec(query, user.ID, user.Username, user.Email, user.PasswordHash, now, now)
+	isGuest := 0
+	if user.IsGuest {
+		isGuest = 1
+	}
+	_, err := db.Exec(query, user.ID, user.Username, user.Email, user.PasswordHash, isGuest, user.DeviceID, now, now)
 	return err
 }
 
@@ -178,6 +203,57 @@ func (db *DB) GetUserByUsername(username string) (*User, error) {
 		return nil, nil
 	}
 	return user, err
+}
+
+// GetUserByDeviceID retrieves a user by device ID
+func (db *DB) GetUserByDeviceID(deviceID string) (*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, is_guest, device_id, created_at, updated_at,
+		       games_played, games_won, games_lost, games_drawn, rating
+		FROM users WHERE device_id = ?
+	`
+	user := &User{}
+	var isGuest int
+	err := db.QueryRow(query, deviceID).Scan(
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
+		&isGuest, &user.DeviceID,
+		&user.CreatedAt, &user.UpdatedAt, &user.GamesPlayed,
+		&user.GamesWon, &user.GamesLost, &user.GamesDrawn, &user.Rating,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	user.IsGuest = isGuest == 1
+	return user, err
+}
+
+// GetUserByEmail retrieves a user by email
+func (db *DB) GetUserByEmail(email string) (*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, is_guest, device_id, created_at, updated_at,
+		       games_played, games_won, games_lost, games_drawn, rating
+		FROM users WHERE email = ?
+	`
+	user := &User{}
+	var isGuest int
+	err := db.QueryRow(query, email).Scan(
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
+		&isGuest, &user.DeviceID,
+		&user.CreatedAt, &user.UpdatedAt, &user.GamesPlayed,
+		&user.GamesWon, &user.GamesLost, &user.GamesDrawn, &user.Rating,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	user.IsGuest = isGuest == 1
+	return user, err
+}
+
+// UpgradeGuestAccount sets email, password_hash, and is_guest=0 for a guest user
+func (db *DB) UpgradeGuestAccount(userID, email, passwordHash string) error {
+	query := `UPDATE users SET email = ?, password_hash = ?, is_guest = 0, updated_at = ? WHERE id = ?`
+	_, err := db.Exec(query, email, passwordHash, time.Now(), userID)
+	return err
 }
 
 // UpdateUserStats updates user game statistics
