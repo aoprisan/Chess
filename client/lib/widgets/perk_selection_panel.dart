@@ -205,27 +205,25 @@ class CompactPerkBar extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.8),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.amber.shade700),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
         children: [
           // Perks
           ...perkSlots.where((s) => s.perkId > 0).map((slot) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: CompactPerkCard(
-                perkId: slot.perkId,
-                perkName: slot.perkName,
-                onTap: () => onPerkSelected(slot.perkId),
-              ),
+            return CompactPerkCard(
+              perkId: slot.perkId,
+              perkName: slot.perkName,
+              onTap: () => onPerkSelected(slot.perkId),
             );
           }),
-          const SizedBox(width: 4),
           // Pass button
           GestureDetector(
             behavior: HitTestBehavior.opaque,

@@ -464,7 +464,9 @@ class _CombatScreenState extends State<CombatScreen> {
           alignment: Alignment.bottomCenter,
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 24,
             ),
             child: _PerkSelectionArea(
               perkSlots: _combatService.currentPerkSlots,
@@ -673,14 +675,14 @@ class _CombatScreenState extends State<CombatScreen> {
 
             return Column(
               children: [
-                SizedBox(height: screenHeight * 0.01),
+                SizedBox(height: screenHeight * 0.005),
                 // Turn indicator
                 _TurnIndicator(
                   playerName: service.currentPlayerName,
                   isPlayer1: gameState.currentPlayer == PlayerSide.player1,
                   screenWidth: screenWidth,
                 ),
-                SizedBox(height: screenHeight * 0.01),
+                SizedBox(height: screenHeight * 0.005),
                 // Player headers with avatars
                 _PlayerHeaders(
                   player1Hero: widget.player1Hero,
@@ -691,10 +693,12 @@ class _CombatScreenState extends State<CombatScreen> {
                   screenWidth: screenWidth,
                   screenHeight: screenHeight,
                 ),
-                SizedBox(height: screenHeight * 0.01),
+                SizedBox(height: screenHeight * 0.005),
                 // Game board area
-                Expanded(
-                  child: _GameArea(
+                Flexible(
+                  child: AspectRatio(
+                    aspectRatio: 2.0,
+                    child: _GameArea(
                     gameState: gameState,
                     player1Hero: widget.player1Hero,
                     player2Hero: widget.player2Hero,
@@ -710,8 +714,9 @@ class _CombatScreenState extends State<CombatScreen> {
                     placementCounter: _placementCounter,
                     firstSelectedLane: _firstSelectedLane,
                   ),
+                  ),
                 ),
-                SizedBox(height: screenHeight * 0.01),
+                SizedBox(height: screenHeight * 0.005),
                 // Game over UI or skip turn button (perk selection now shown as overlay)
                 if (gameState.status == CombatStatus.finished)
                   _SkipTurnButton(
@@ -724,7 +729,7 @@ class _CombatScreenState extends State<CombatScreen> {
                   )
                 else if (gameState.currentPhase == TurnPhase.autoPlacement)
                   _AutoPlacingIndicator(screenWidth: screenWidth),
-                SizedBox(height: screenHeight * 0.02),
+                SizedBox(height: screenHeight * 0.01),
               ],
             );
           },
@@ -895,8 +900,8 @@ class _PlayerPanel extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    final avatarWidth = (screenWidth * 0.12).clamp(70.0, 140.0);
-    final avatarHeight = (screenHeight * 0.16).clamp(80.0, 160.0);
+    final avatarWidth = (screenWidth * 0.10).clamp(50.0, 140.0);
+    final avatarHeight = (screenHeight * 0.10).clamp(60.0, 160.0);
 
     return SizedBox(
       width: avatarWidth,
@@ -999,7 +1004,7 @@ class _FlagIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final indicatorWidth = (screenWidth * 0.08).clamp(50.0, 90.0);
-    final indicatorHeight = (screenHeight * 0.16).clamp(80.0, 160.0);
+    final indicatorHeight = (screenHeight * 0.10).clamp(60.0, 160.0);
     final poleWidth = (screenWidth * 0.005).clamp(3.0, 6.0);
     final flagWidth = (screenWidth * 0.04).clamp(28.0, 50.0);
     final flagHeight = (screenWidth * 0.05).clamp(34.0, 60.0);
@@ -1082,110 +1087,25 @@ class _GameArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final horizontalPadding = (screenWidth * 0.015).clamp(8.0, 16.0);
-    final spacing = (screenWidth * 0.01).clamp(4.0, 10.0);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      child: Row(
-        children: [
-          // Player 1 placement buttons (left)
-          _PlacementSlots(
-            isPlayer1: true,
-            gameState: gameState,
-            screenWidth: screenWidth,
-            screenHeight: screenHeight,
-          ),
-          SizedBox(width: spacing),
-          // Game board
-          Expanded(
-            child: _GameBoard(
-              gameState: gameState,
-              player1Hero: player1Hero,
-              player2Hero: player2Hero,
-              screenWidth: screenWidth,
-              screenHeight: screenHeight,
-              isSelectingLane: isSelectingLane,
-              selectedPerkId: selectedPerkId,
-              validLanes: validLanes,
-              viewer: viewer,
-              onLaneSelected: onLaneSelected,
-              lastPlacedLane: lastPlacedLane,
-              lastPlacedPlayer: lastPlacedPlayer,
-              placementCounter: placementCounter,
-              firstSelectedLane: firstSelectedLane,
-            ),
-          ),
-          SizedBox(width: spacing),
-          // Player 2 placement buttons (right)
-          _PlacementSlots(
-            isPlayer1: false,
-            gameState: gameState,
-            screenWidth: screenWidth,
-            screenHeight: screenHeight,
-          ),
-        ],
+      child: _GameBoard(
+        gameState: gameState,
+        player1Hero: player1Hero,
+        player2Hero: player2Hero,
+        screenWidth: screenWidth,
+        screenHeight: screenHeight,
+        isSelectingLane: isSelectingLane,
+        selectedPerkId: selectedPerkId,
+        validLanes: validLanes,
+        viewer: viewer,
+        onLaneSelected: onLaneSelected,
+        lastPlacedLane: lastPlacedLane,
+        lastPlacedPlayer: lastPlacedPlayer,
+        placementCounter: placementCounter,
+        firstSelectedLane: firstSelectedLane,
       ),
-    );
-  }
-}
-
-/// Side placement slot buttons (visual only — placement is automatic)
-class _PlacementSlots extends StatelessWidget {
-  final bool isPlayer1;
-  final CombatGameState gameState;
-  final double screenWidth;
-  final double screenHeight;
-
-  const _PlacementSlots({
-    required this.isPlayer1,
-    required this.gameState,
-    required this.screenWidth,
-    required this.screenHeight,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final asset = isPlayer1
-        ? 'assets/images/ui/combat/player-1-place-btn.png'
-        : 'assets/images/ui/combat/player-2-place-btn.png';
-    final slotSize = (screenWidth * 0.055).clamp(40.0, 65.0);
-    final verticalSpacing = (screenHeight * 0.012).clamp(4.0, 10.0);
-
-    final lastPlacedLane = gameState.lastAutoPlacedLane;
-    final currentPlayer = gameState.currentPlayer;
-    final isMyTurn = (isPlayer1 && currentPlayer == PlayerSide.player1) ||
-        (!isPlayer1 && currentPlayer == PlayerSide.player2);
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(5, (index) {
-        final isHighlighted = isMyTurn && lastPlacedLane == index;
-
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: verticalSpacing),
-          child: Opacity(
-            opacity: isHighlighted ? 1.0 : 0.5,
-            child: Container(
-              width: slotSize,
-              height: slotSize,
-              decoration: isHighlighted
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isPlayer1 ? Colors.green : Colors.purple)
-                              .withValues(alpha: 0.6),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    )
-                  : null,
-              child: Image.asset(asset, fit: BoxFit.contain),
-            ),
-          ),
-        );
-      }),
     );
   }
 }
