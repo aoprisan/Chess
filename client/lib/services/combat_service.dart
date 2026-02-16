@@ -8,10 +8,10 @@ import 'websocket_service.dart';
 
 /// Enable deterministic perk pairing for testing.
 /// Set to false for production random perk selection.
-const bool _testModePerks = true;
+const bool _testModePerks = false;
 
 /// Fixed perk pair index for testing. Change this value and restart to test a different pair.
-const int _testPerkPairIndex = 14;
+const int _testPerkPairIndex = 0;
 
 /// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
 const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
