@@ -189,19 +189,22 @@ func (db *DB) GetUser(id string) (*User, error) {
 // GetUserByUsername retrieves a user by username
 func (db *DB) GetUserByUsername(username string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at, updated_at,
+		SELECT id, username, email, password_hash, is_guest, device_id, created_at, updated_at,
 		       games_played, games_won, games_lost, games_drawn, rating
 		FROM users WHERE username = ?
 	`
 	user := &User{}
+	var isGuest int
 	err := db.QueryRow(query, username).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
+		&isGuest, &user.DeviceID,
 		&user.CreatedAt, &user.UpdatedAt, &user.GamesPlayed,
 		&user.GamesWon, &user.GamesLost, &user.GamesDrawn, &user.Rating,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+	user.IsGuest = isGuest == 1
 	return user, err
 }
 
@@ -247,6 +250,13 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	}
 	user.IsGuest = isGuest == 1
 	return user, err
+}
+
+// UpdateUserDeviceID updates the device_id for an existing user
+func (db *DB) UpdateUserDeviceID(userID, deviceID string) error {
+	query := `UPDATE users SET device_id = ?, updated_at = ? WHERE id = ?`
+	_, err := db.Exec(query, deviceID, time.Now(), userID)
+	return err
 }
 
 // UpgradeGuestAccount sets email, password_hash, and is_guest=0 for a guest user

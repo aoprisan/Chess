@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import 'server_config.dart';
+
 /// Represents an authenticated user (guest or full account).
 class AuthUser {
   final String userId;
@@ -39,18 +41,6 @@ class AuthService extends ChangeNotifier {
   String? get token => _currentUser?.token;
   bool get isLoggedIn => _currentUser != null;
 
-  String get _baseUrl {
-    if (kIsWeb) {
-      // When served by the Go server, same origin works directly.
-      // When running via `flutter run -d chrome`, the dev server is on a
-      // different port — fall back to the Go server at :8080.
-      if (Uri.base.port == 8080) {
-        return Uri.base.origin;
-      }
-    }
-    return 'http://localhost:8080';
-  }
-
   /// Load stored session from SharedPreferences.
   Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
@@ -79,14 +69,24 @@ class AuthService extends ChangeNotifier {
   /// Register as a guest with a display name.
   Future<void> registerGuest(String displayName) async {
     final deviceId = await getDeviceId();
+    final url = '${ServerConfig.baseUrl}/api/auth/guest';
+    debugPrint('[AuthService] POST $url  deviceId=$deviceId  name=$displayName');
+
     final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/guest'),
+      Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'deviceId': deviceId, 'displayName': displayName}),
     );
 
+    debugPrint('[AuthService] ${response.statusCode}: ${response.body}');
+
     if (response.statusCode != 200) {
-      throw Exception('Guest registration failed: ${response.body}');
+      String msg = 'Registration failed (${response.statusCode})';
+      try {
+        final body = jsonDecode(response.body);
+        if (body['error'] != null) msg = body['error'];
+      } catch (_) {}
+      throw Exception(msg);
     }
 
     final data = jsonDecode(response.body);
@@ -98,7 +98,7 @@ class AuthService extends ChangeNotifier {
   /// Log in with email and password.
   Future<void> login(String email, String password) async {
     final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/login'),
+      Uri.parse('${ServerConfig.baseUrl}/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
@@ -118,7 +118,7 @@ class AuthService extends ChangeNotifier {
     if (_currentUser == null) throw Exception('Not logged in');
 
     final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/upgrade'),
+      Uri.parse('${ServerConfig.baseUrl}/api/auth/upgrade'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${_currentUser!.token}',

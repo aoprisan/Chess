@@ -255,29 +255,60 @@ func handleAuthGuest(db *database.DB, authSvc *auth.AuthService, w http.Response
 		return
 	}
 
+	log.Printf("[auth/guest] deviceId=%s name=%q", req.DeviceID, req.DisplayName)
+
 	// Check if a user already exists with this deviceId
 	user, err := db.GetUserByDeviceID(req.DeviceID)
 	if err != nil {
+		log.Printf("[auth/guest] error looking up deviceId: %v", err)
 		http.Error(w, `{"error": "database error"}`, http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("[auth/guest] deviceId lookup: found=%v", user != nil)
+
 	if user == nil {
-		// Create new guest user
-		user = &database.User{
-			ID:       uuid.New().String(),
-			Username: req.DisplayName,
-			IsGuest:  true,
-			DeviceID: &req.DeviceID,
-		}
-		if err := db.CreateUser(user); err != nil {
-			http.Error(w, `{"error": "failed to create user"}`, http.StatusInternalServerError)
+		// No user with this deviceId — check if the username is already taken
+		existing, err := db.GetUserByUsername(req.DisplayName)
+		if err != nil {
+			log.Printf("[auth/guest] error looking up username: %v", err)
+			http.Error(w, `{"error": "database error"}`, http.StatusInternalServerError)
 			return
+		}
+
+		log.Printf("[auth/guest] username lookup: found=%v isGuest=%v", existing != nil, existing != nil && existing.IsGuest)
+
+		if existing != nil && existing.IsGuest {
+			// Reclaim the existing guest account with the new device
+			if err := db.UpdateUserDeviceID(existing.ID, req.DeviceID); err != nil {
+				log.Printf("[auth/guest] error updating deviceId: %v", err)
+				http.Error(w, `{"error": "failed to update user"}`, http.StatusInternalServerError)
+				return
+			}
+			user = existing
+		} else if existing != nil {
+			// Username belongs to a full (upgraded) account
+			http.Error(w, `{"error": "username already taken"}`, http.StatusConflict)
+			return
+		} else {
+			// Create new guest user
+			user = &database.User{
+				ID:       uuid.New().String(),
+				Username: req.DisplayName,
+				IsGuest:  true,
+				DeviceID: &req.DeviceID,
+			}
+			if err := db.CreateUser(user); err != nil {
+				log.Printf("[auth/guest] error creating user: %v", err)
+				http.Error(w, `{"error": "failed to create user"}`, http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
 	token, err := authSvc.GenerateToken(user.ID, user.Username, user.IsGuest)
 	if err != nil {
+		log.Printf("[auth/guest] error generating token: %v", err)
 		http.Error(w, `{"error": "failed to generate token"}`, http.StatusInternalServerError)
 		return
 	}

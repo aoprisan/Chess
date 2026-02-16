@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'server_config.dart';
+
 /// Message types for WebSocket communication
 enum MessageType {
   connect,
@@ -54,11 +56,11 @@ class WebSocketService {
   bool get isConnected => _isConnected;
 
   /// Connect to game server. If [token] is provided, it's appended as a query param for auth.
-  Future<void> connect(String serverUrl, {String? token}) async {
+  Future<void> connect({String? token}) async {
     if (_isConnected) return;
 
     try {
-      var uri = Uri.parse(serverUrl);
+      var uri = Uri.parse(ServerConfig.wsUrl);
       if (token != null) {
         uri = uri.replace(queryParameters: {...uri.queryParameters, 'token': token});
       }

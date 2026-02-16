@@ -47,7 +47,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _error = 'Could not connect to server: $e';
+          _error = e.toString().replaceFirst('Exception: ', '');
         });
       }
     }
