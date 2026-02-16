@@ -42,6 +42,7 @@ class _CombatScreenState extends State<CombatScreen> {
   // Perk selection state
   int? _selectedPerkId;
   bool _isSelectingLane = false;
+  bool _isShowingPerkConfirmation = false;
   int? _firstSelectedLane; // For dual-lane perks (Regroup, Disrupt)
 
   // AI turn automation
@@ -191,6 +192,9 @@ class _CombatScreenState extends State<CombatScreen> {
                   ? _buildContent()
                   : const Center(child: CircularProgressIndicator()),
             ),
+            // Perk confirmation bar (shown before targeting/execution)
+            if (_isShowingPerkConfirmation && _selectedPerkId != null)
+              _buildPerkConfirmationBar(),
             // Perk targeting info bar (replaces full-screen overlay)
             if (_isSelectingLane && _selectedPerkId != null)
               _buildPerkTargetingBar(),
@@ -445,9 +449,141 @@ class _CombatScreenState extends State<CombatScreen> {
     );
   }
 
+  Widget _buildPerkConfirmationBar() {
+    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = (screenWidth * 0.016).clamp(12.0, 18.0);
+    final iconSize = (screenWidth * 0.022).clamp(16.0, 24.0);
+    final horizontalPadding = (screenWidth * 0.02).clamp(12.0, 20.0);
+    final verticalPadding = (screenWidth * 0.01).clamp(8.0, 14.0);
+    final categoryColor = perkInfo?.categoryColor ?? Colors.amber;
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade900.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: categoryColor,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: categoryColor.withValues(alpha: 0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            if (perkInfo != null)
+              Icon(
+                perkInfo.categoryIcon,
+                color: categoryColor,
+                size: iconSize,
+              ),
+            SizedBox(width: horizontalPadding * 0.5),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    perkInfo?.name ?? 'Unknown',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    perkInfo?.description ?? '',
+                    style: TextStyle(
+                      fontSize: fontSize * 0.8,
+                      color: Colors.grey.shade400,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: horizontalPadding * 0.5),
+            GestureDetector(
+              onTap: _onPerkConfirmGo,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding * 0.75,
+                  vertical: verticalPadding * 0.5,
+                ),
+                decoration: BoxDecoration(
+                  color: categoryColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check, color: Colors.white, size: iconSize * 0.85),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Go',
+                      style: TextStyle(
+                        fontSize: fontSize * 0.9,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _cancelPerkConfirmation,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding * 0.75,
+                  vertical: verticalPadding * 0.5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close, color: Colors.white, size: iconSize * 0.85),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: fontSize * 0.9,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _cancelLaneSelection() {
     setState(() {
       _isSelectingLane = false;
+      _isShowingPerkConfirmation = false;
       _selectedPerkId = null;
       _firstSelectedLane = null;
     });
@@ -502,6 +638,7 @@ class _CombatScreenState extends State<CombatScreen> {
     if (gameState == null || gameState.status == CombatStatus.finished) {
       return false;
     }
+    if (_isShowingPerkConfirmation) return false;
     if (_isSelectingLane) return false;
     // Show during perk selection phase (human turn)
     if (gameState.currentPhase == TurnPhase.perkSelection) return true;
@@ -511,14 +648,33 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _onPerkSelected(int perkId) {
+    setState(() {
+      _selectedPerkId = perkId;
+      _isShowingPerkConfirmation = true;
+    });
+  }
+
+  void _onPerkConfirmGo() {
+    if (_selectedPerkId == null) return;
+    final perkId = _selectedPerkId!;
     if (LaneValidator.perkRequiresTarget(perkId)) {
       setState(() {
-        _selectedPerkId = perkId;
+        _isShowingPerkConfirmation = false;
         _isSelectingLane = true;
       });
     } else {
+      setState(() {
+        _isShowingPerkConfirmation = false;
+      });
       _executePerk(perkId, -1);
     }
+  }
+
+  void _cancelPerkConfirmation() {
+    setState(() {
+      _isShowingPerkConfirmation = false;
+      _selectedPerkId = null;
+    });
   }
 
   void _executePerk(int perkId, int targetLane, {int? secondLane}) {
