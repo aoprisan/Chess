@@ -11,7 +11,7 @@ import 'websocket_service.dart';
 const bool _testModePerks = true;
 
 /// Fixed perk pair index for testing. Change this value and restart to test a different pair.
-const int _testPerkPairIndex = 6;
+const int _testPerkPairIndex = 12;
 
 /// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
 const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
@@ -1464,11 +1464,11 @@ class CombatService extends ChangeNotifier {
     final currentPlayer = _gameState!.currentPlayer;
     if (currentPlayer == PlayerSide.player1) {
       final newCaptures = List<CaptureData>.from(_gameState!.player1Captures);
-      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 2));
+      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 3));
       _gameState = _gameState!.copyWith(player1Captures: newCaptures);
     } else {
       final newCaptures = List<CaptureData>.from(_gameState!.player2Captures);
-      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 2));
+      newCaptures.add(CaptureData(lane: laneIndex, turnsLeft: 3));
       _gameState = _gameState!.copyWith(player2Captures: newCaptures);
     }
     notifyListeners();

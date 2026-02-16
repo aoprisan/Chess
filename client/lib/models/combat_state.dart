@@ -516,17 +516,17 @@ class CombatGameState {
       }
     }
 
-    // Captures (beneficial, on owner's target lane)
+    // Captures (detrimental, on opponent's half - affects enemy pieces)
     for (final c in player1Captures) {
       if (c.lane >= 0 && c.lane < lanes.length && lanes[c.lane].winner == null) {
         effects.putIfAbsent(c.lane, () => []).add(LaneEffect(
           effectName: 'CAPTURE',
           effectType: 'duration',
-          polarity: EffectPolarity.beneficial,
+          polarity: EffectPolarity.detrimental,
           category: EffectCategory.offensive,
           ownerPlayer: 1,
           laneIndex: c.lane,
-          onOwnerSide: true,
+          onOwnerSide: false,
           turnsLeft: c.turnsLeft,
         ));
       }
@@ -536,11 +536,11 @@ class CombatGameState {
         effects.putIfAbsent(c.lane, () => []).add(LaneEffect(
           effectName: 'CAPTURE',
           effectType: 'duration',
-          polarity: EffectPolarity.beneficial,
+          polarity: EffectPolarity.detrimental,
           category: EffectCategory.offensive,
           ownerPlayer: 2,
           laneIndex: c.lane,
-          onOwnerSide: true,
+          onOwnerSide: false,
           turnsLeft: c.turnsLeft,
         ));
       }
