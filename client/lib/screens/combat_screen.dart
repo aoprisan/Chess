@@ -11,13 +11,15 @@ import '../widgets/lane_effect_indicator.dart';
 class CombatScreen extends StatefulWidget {
   final Hero player1Hero;
   final Hero player2Hero;
-  final bool vsAI;
+  final bool player1IsAI;
+  final bool player2IsAI;
 
   const CombatScreen({
     super.key,
     required this.player1Hero,
     required this.player2Hero,
-    this.vsAI = false,
+    this.player1IsAI = false,
+    this.player2IsAI = false,
   });
 
   @override

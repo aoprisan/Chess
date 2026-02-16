@@ -29,22 +29,16 @@ class MainMenuScreen extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 60),
-                  // Play vs Friend button
-                  _StyledButton(
-                    text: 'Play vs Friend',
-                    onPressed: () => _navigateToHeroSelection(context, vsAI: false),
-                  ),
-                  const SizedBox(height: 16),
-                  // Play vs AI button
-                  _StyledButton(
-                    text: 'Play vs AI',
-                    onPressed: () => _navigateToHeroSelection(context, vsAI: true),
-                  ),
-                  const SizedBox(height: 16),
                   // Play Online button
                   _StyledButton(
                     text: 'Play Online',
                     onPressed: () => _navigateToHeroSelection(context, online: true),
+                  ),
+                  const SizedBox(height: 16),
+                  // Play Offline button
+                  _StyledButton(
+                    text: 'Play Offline',
+                    onPressed: () => _navigateToHeroSelection(context),
                   ),
                 ],
               ),
@@ -56,12 +50,11 @@ class MainMenuScreen extends StatelessWidget {
   }
 
   void _navigateToHeroSelection(BuildContext context,
-      {bool vsAI = false, bool online = false}) {
+      {bool online = false}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => HeroSelectionScreen(
-          vsAI: vsAI,
           online: online,
         ),
       ),

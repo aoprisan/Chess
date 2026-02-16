@@ -5,12 +5,10 @@ import '../services/game_service.dart';
 import 'combat_screen.dart';
 
 class HeroSelectionScreen extends StatefulWidget {
-  final bool vsAI;
   final bool online;
 
   const HeroSelectionScreen({
     super.key,
-    this.vsAI = false,
     this.online = false,
   });
 
@@ -22,12 +20,16 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   int _currentPlayer = 1; // 1 or 2
   Hero? _player1Hero;
   Hero? _player2Hero;
-  bool _aiModeEnabled = true; // Default to true when in vsAI mode
+  bool _player1IsAI = false;
+  bool _player2IsAI = false;
   String _difficulty = 'medium';
 
   Hero? get _selectedHero => _currentPlayer == 1 ? _player1Hero : _player2Hero;
 
-  bool get _needsTwoPlayers => !widget.vsAI && !widget.online;
+  bool get _anyAI => _player1IsAI || _player2IsAI;
+  bool get _currentPlayerIsAI => _currentPlayer == 1 ? _player1IsAI : _player2IsAI;
+
+  bool get _needsTwoPlayers => !widget.online;
 
   @override
   Widget build(BuildContext context) {
@@ -294,11 +296,17 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                                 );
                               }),
                               const Spacer(),
-                              // AI Mode checkbox (only in vsAI mode)
-                              if (widget.vsAI) ...[
+                              // AI Mode section (offline only)
+                              if (!widget.online) ...[
                                 _buildAIModeCheckbox(screenWidth),
                                 SizedBox(height: padding * 0.5),
-                                if (_aiModeEnabled) _buildDifficultySelector(screenWidth),
+                                Opacity(
+                                  opacity: _anyAI ? 1.0 : 0.5,
+                                  child: IgnorePointer(
+                                    ignoring: !_anyAI,
+                                    child: _buildDifficultySelector(screenWidth),
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -319,7 +327,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          _aiModeEnabled = !_aiModeEnabled;
+          if (_currentPlayer == 1) {
+            _player1IsAI = !_player1IsAI;
+          } else {
+            _player2IsAI = !_player2IsAI;
+          }
         });
       },
       child: Row(
@@ -330,7 +342,7 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
             decoration: BoxDecoration(
               image: DecorationImage(
                 image: AssetImage(
-                  _aiModeEnabled
+                  _currentPlayerIsAI
                       ? 'assets/images/ui/checkbox-active-bg.png'
                       : 'assets/images/ui/checkbox-bg.png',
                 ),
@@ -340,7 +352,7 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            'AI Mode',
+            'Player $_currentPlayer AI',
             style: TextStyle(
               fontSize: fontSize,
               color: const Color(0xFF5D4037),
@@ -367,21 +379,21 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
         children: [
           _DifficultyButton(
             label: 'Easy',
-            isSelected: _difficulty == 'easy',
+            isSelected: _anyAI && _difficulty == 'easy',
             backgroundAsset: 'assets/images/ui/eazy-level-bg.png',
             fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'easy'),
           ),
           _DifficultyButton(
             label: 'Medium',
-            isSelected: _difficulty == 'medium',
+            isSelected: _anyAI && _difficulty == 'medium',
             backgroundAsset: 'assets/images/ui/medium-level-bg.png',
             fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'medium'),
           ),
           _DifficultyButton(
             label: 'Hard',
-            isSelected: _difficulty == 'hard',
+            isSelected: _anyAI && _difficulty == 'hard',
             backgroundAsset: 'assets/images/ui/hard-level-bg.png',
             fontSize: fontSize,
             onTap: () => setState(() => _difficulty = 'hard'),
@@ -488,7 +500,7 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     gameService.selectHero(_player1Hero!);
 
     // Set AI mode and difficulty
-    if (widget.vsAI && _aiModeEnabled) {
+    if (_anyAI) {
       gameService.setAIMode(true);
       gameService.setAIDifficulty(_getDifficulty());
     } else {
@@ -506,7 +518,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
         builder: (context) => CombatScreen(
           player1Hero: _player1Hero!,
           player2Hero: player2,
-          vsAI: widget.vsAI && _aiModeEnabled,
+          player1IsAI: _player1IsAI,
+          player2IsAI: _player2IsAI,
         ),
       ),
     );
