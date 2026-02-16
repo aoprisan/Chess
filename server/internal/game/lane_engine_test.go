@@ -494,22 +494,23 @@ func TestExecuteFullTurn_GameEndsEarly(t *testing.T) {
 func TestLaneAI_ChoosePerk_Easy(t *testing.T) {
 	game := newTestGame(42)
 	game.CurrentPhase = models.PhasePerkSelection
+	game.GeneratePerkSlots(int(perks.PerkFreeze), "Freeze", int(perks.PerkScramble), "Scramble")
 
 	ai := NewLaneAI("easy")
 
 	// Run multiple times to test randomness
 	for i := 0; i < 10; i++ {
-		perkID, targetLane := ai.ChoosePerk(game)
+		perkID, targets := ai.ChoosePerk(game)
 
-		// Easy AI should choose: 0 (pass), 1 (PlaceAnother), or 2 (RemoveEnemy)
-		if perkID < 0 || perkID > 2 {
-			t.Errorf("Easy AI should choose perk 0-2, got %d", perkID)
+		// Easy AI should choose a valid perk ID or pass (0)
+		if perkID < 0 {
+			t.Errorf("Easy AI should choose perk >= 0, got %d", perkID)
 		}
 
-		// If choosing PlaceAnother, target should be valid
-		if perkID == 1 {
-			if targetLane < 0 || targetLane >= models.DefaultLaneCount {
-				t.Errorf("Invalid target lane for PlaceAnother: %d", targetLane)
+		// If choosing a single-target perk, target should be valid
+		if perkID > 0 && len(targets) == 1 {
+			if targets[0] < 0 || targets[0] >= models.DefaultLaneCount {
+				t.Errorf("Invalid target lane: %d", targets[0])
 			}
 		}
 	}
@@ -518,6 +519,7 @@ func TestLaneAI_ChoosePerk_Easy(t *testing.T) {
 func TestLaneAI_ChoosePerk_Medium_CompletesLane(t *testing.T) {
 	game := newTestGame(42)
 	game.CurrentPhase = models.PhasePerkSelection
+	game.GeneratePerkSlots(int(perks.PerkFreeze), "Freeze", int(perks.PerkScramble), "Scramble")
 
 	// Set up lane with 4 pieces (AI should complete it)
 	for i := 0; i < 4; i++ {
@@ -525,16 +527,17 @@ func TestLaneAI_ChoosePerk_Medium_CompletesLane(t *testing.T) {
 	}
 
 	ai := NewLaneAI("medium")
-	perkID, targetLane := ai.ChoosePerk(game)
+	perkID, targets := ai.ChoosePerk(game)
 
-	if perkID != 1 || targetLane != 2 {
-		t.Errorf("Medium AI should complete lane 2, got perk %d, lane %d", perkID, targetLane)
+	if perkID != 1 || len(targets) != 1 || targets[0] != 2 {
+		t.Errorf("Medium AI should complete lane 2, got perk %d, targets %v", perkID, targets)
 	}
 }
 
 func TestLaneAI_ChoosePerk_Medium_BlocksOpponent(t *testing.T) {
 	game := newTestGame(42)
 	game.CurrentPhase = models.PhasePerkSelection
+	game.GeneratePerkSlots(int(perks.PerkFreeze), "Freeze", int(perks.PerkScramble), "Scramble")
 
 	// Set up opponent near-win (4+ pieces)
 	for i := 0; i < 4; i++ {
@@ -542,16 +545,17 @@ func TestLaneAI_ChoosePerk_Medium_BlocksOpponent(t *testing.T) {
 	}
 
 	ai := NewLaneAI("medium")
-	perkID, targetLane := ai.ChoosePerk(game)
+	perkID, targets := ai.ChoosePerk(game)
 
-	if perkID != 2 || targetLane != 3 {
-		t.Errorf("Medium AI should block opponent on lane 3, got perk %d, lane %d", perkID, targetLane)
+	if perkID != 2 || len(targets) != 1 || targets[0] != 3 {
+		t.Errorf("Medium AI should block opponent on lane 3, got perk %d, targets %v", perkID, targets)
 	}
 }
 
 func TestLaneAI_ChoosePerk_Hard(t *testing.T) {
 	game := newTestGame(42)
 	game.CurrentPhase = models.PhasePerkSelection
+	game.GeneratePerkSlots(int(perks.PerkFreeze), "Freeze", int(perks.PerkScramble), "Scramble")
 
 	// Set up winning opportunity
 	for i := 0; i < 4; i++ {
@@ -559,17 +563,18 @@ func TestLaneAI_ChoosePerk_Hard(t *testing.T) {
 	}
 
 	ai := NewLaneAI("hard")
-	perkID, targetLane := ai.ChoosePerk(game)
+	perkID, targets := ai.ChoosePerk(game)
 
 	// Hard AI should recognize winning move
-	if perkID != 1 || targetLane != 0 {
-		t.Errorf("Hard AI should win on lane 0, got perk %d, lane %d", perkID, targetLane)
+	if perkID != 1 || len(targets) != 1 || targets[0] != 0 {
+		t.Errorf("Hard AI should win on lane 0, got perk %d, targets %v", perkID, targets)
 	}
 }
 
 func TestLaneAI_ChoosePerk_Hard_BlocksWin(t *testing.T) {
 	game := newTestGame(42)
 	game.CurrentPhase = models.PhasePerkSelection
+	game.GeneratePerkSlots(int(perks.PerkFreeze), "Freeze", int(perks.PerkScramble), "Scramble")
 
 	// Set up opponent about to win
 	for i := 0; i < 5; i++ {
@@ -577,11 +582,11 @@ func TestLaneAI_ChoosePerk_Hard_BlocksWin(t *testing.T) {
 	}
 
 	ai := NewLaneAI("hard")
-	perkID, targetLane := ai.ChoosePerk(game)
+	perkID, targets := ai.ChoosePerk(game)
 
 	// Hard AI should block the winning lane
-	if perkID != 2 || targetLane != 2 {
-		t.Errorf("Hard AI should block opponent's win on lane 2, got perk %d, lane %d", perkID, targetLane)
+	if perkID != 2 || len(targets) != 1 || targets[0] != 2 {
+		t.Errorf("Hard AI should block opponent's win on lane 2, got perk %d, targets %v", perkID, targets)
 	}
 }
 

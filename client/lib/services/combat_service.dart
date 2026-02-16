@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/combat_state.dart';
 import '../models/hero.dart';
 import '../widgets/perk_card.dart';
+import '../widgets/lane_selector.dart';
 import 'websocket_service.dart';
 
 /// Enable deterministic perk pairing for testing.
@@ -58,6 +59,13 @@ class CombatService extends ChangeNotifier {
 
   bool _isAutoPlacing = false;
 
+  // AI flags for local game mode
+  bool _player1IsAI = false;
+  bool _player2IsAI = false;
+
+  // AI perk highlight: stores the perk ID the AI chose during its turn
+  int? _lastAIPerkId;
+
   // Getters
   CombatGameState? get gameState => _gameState;
   bool get isGameOver => _gameState?.isGameOver ?? false;
@@ -68,9 +76,21 @@ class CombatService extends ChangeNotifier {
   String? get lastError => _lastError;
   bool get isServerDriven => _isServerDriven;
   bool get isMyTurn => _gameState?.currentPlayer == _mySide;
+  int? get lastAIPerkId => _lastAIPerkId;
+
+  /// Whether the current player is AI-controlled
+  bool get isCurrentPlayerAI {
+    if (_gameState == null) return false;
+    return _gameState!.currentPlayer == PlayerSide.player1
+        ? _player1IsAI
+        : _player2IsAI;
+  }
 
   /// Initialize a new combat game
-  void initGame(String gameId, {Hero? player1Hero, Hero? player2Hero}) {
+  void initGame(String gameId, {Hero? player1Hero, Hero? player2Hero,
+      bool player1IsAI = false, bool player2IsAI = false}) {
+    _player1IsAI = player1IsAI;
+    _player2IsAI = player2IsAI;
     _gameState = CombatGameState.initial(
       gameId,
       player1Hero: player1Hero,
@@ -78,6 +98,210 @@ class CombatService extends ChangeNotifier {
     );
     _currentPerkSlots = generatePerkSlots();
     notifyListeners();
+  }
+
+  /// Set the AI perk highlight for visual feedback
+  void setAIPerkHighlight(int? perkId) {
+    _lastAIPerkId = perkId;
+    notifyListeners();
+  }
+
+  /// AI perk selection: returns (perkId, targetLane, secondLane).
+  /// perkId=0 means pass. secondLane is non-null only for dual-lane perks.
+  (int, int, int?) chooseAIPerk() {
+    if (_gameState == null) return (0, -1, null);
+    final player = _gameState!.currentPlayer;
+    final opponent = player == PlayerSide.player1
+        ? PlayerSide.player2
+        : PlayerSide.player1;
+
+    int bestPerkId = 0;
+    int bestTarget = -1;
+    int? bestSecondTarget;
+    int bestScore = 0; // pass baseline
+
+    for (final slot in _currentPerkSlots) {
+      if (slot.perkId <= 0) continue;
+      final perkDef = PerkDefinitions.getPerk(slot.perkId);
+      if (perkDef == null) continue;
+
+      // Dual-lane perks (Regroup/Disrupt)
+      if (slot.perkId == 33 || slot.perkId == 34) {
+        final result = _scoreDualLanePerk(slot.perkId, player, opponent);
+        if (result.$1 > bestScore) {
+          bestScore = result.$1;
+          bestPerkId = slot.perkId;
+          bestTarget = result.$2;
+          bestSecondTarget = result.$3;
+        }
+        continue;
+      }
+
+      if (!perkDef.requiresTarget) {
+        // Auto-target perks (Cloak, Blind, Scramble, Gambit, Steal)
+        final score = _scoreAutoTargetPerk(slot.perkId, player, opponent);
+        if (score > bestScore) {
+          bestScore = score;
+          bestPerkId = slot.perkId;
+          bestTarget = -1;
+          bestSecondTarget = null;
+        }
+      } else {
+        // Targeted perks — evaluate each valid lane
+        final validLanes = LaneValidator.getValidLanesForPerk(
+            slot.perkId, _gameState!, player);
+        for (final lane in validLanes) {
+          final score = _scorePerkOnLane(slot.perkId, lane, player, opponent);
+          if (score > bestScore) {
+            bestScore = score;
+            bestPerkId = slot.perkId;
+            bestTarget = lane;
+            bestSecondTarget = null;
+          }
+        }
+      }
+    }
+
+    return (bestPerkId, bestTarget, bestSecondTarget);
+  }
+
+  /// Score a targeted perk on a specific lane
+  int _scorePerkOnLane(int perkId, int lane, PlayerSide player, PlayerSide opponent) {
+    final laneState = _gameState!.lanes[lane];
+    final myPieces = laneState.countPieces(player);
+    final enemyPieces = laneState.countPieces(opponent);
+
+    switch (perkId) {
+      case 1: // PlaceAnother
+        if (myPieces == 4) return 100; // winning move
+        if (enemyPieces >= 4) return 40; // contested lane
+        return 10 + myPieces * 5;
+      case 2: // RemoveEnemy
+        if (enemyPieces >= 5) return 90; // block near-win
+        if (enemyPieces >= 4) return 80;
+        return 5 + enemyPieces * 8;
+      case 4: // Freeze
+        if (enemyPieces >= 3) return 30 + enemyPieces * 5;
+        return 10;
+      case 31: // Split
+        if (myPieces >= 2) return 20;
+        return 8;
+      case 32: // Kamikaze
+        if (enemyPieces >= 4) return 35;
+        return 10;
+      case 35: // Scatter
+        if (myPieces >= 3) return 15;
+        return 5;
+      case 36: // Disperse
+        if (enemyPieces >= 4) return 40;
+        return 5 + enemyPieces * 5;
+      case 39: // Rush
+        if (myPieces >= 3) return 30;
+        return 12;
+      case 48: // Nullify
+        if (laneState.triggers.isNotEmpty) return 25;
+        return 2;
+      case 24: // Portal
+      case 25: // Trap
+      case 26: // Mirror
+      case 27: // Echo
+      case 28: // Shockwave
+      case 29: // Hydra
+      case 30: // Backfire
+      case 46: // Absorb
+      case 52: // Retaliate
+        // Triggers: value based on lane contest level
+        if (enemyPieces >= 3) return 20 + enemyPieces * 3;
+        return 10;
+      case 43: // Signal
+        return 15;
+      case 40: // Enlist
+        return 15 + myPieces * 3;
+      case 41: // Ambush
+        if (enemyPieces >= 3) return 25;
+        return 12;
+      case 42: // Reinforce
+        if (myPieces >= 3) return 25;
+        return 12;
+      case 49: // Sanctuary
+        if (myPieces >= 3) return 20;
+        return 8;
+      case 50: // Capture
+        if (enemyPieces >= 3) return 25;
+        return 10;
+      case 51: // Raid
+        if (myPieces >= 2) return 18;
+        return 8;
+      default:
+        return 10;
+    }
+  }
+
+  /// Score an auto-target (no lane selection) perk
+  int _scoreAutoTargetPerk(int perkId, PlayerSide player, PlayerSide opponent) {
+    switch (perkId) {
+      case 13: // Scramble
+        // Value based on opponent's max concentration
+        int maxEnemy = 0;
+        for (final lane in _gameState!.lanes) {
+          if (lane.winner != null) continue;
+          final ep = lane.countPieces(opponent);
+          if (ep > maxEnemy) maxEnemy = ep;
+        }
+        if (maxEnemy >= 4) return 50;
+        if (maxEnemy >= 3) return 25;
+        return 5;
+      case 22: // Cloak
+        return 15;
+      case 23: // Blind
+        return 15;
+      case 37: // Gambit
+        return 12;
+      case 38: // Steal
+        return 20;
+      default:
+        return 10;
+    }
+  }
+
+  /// Score dual-lane perks (Regroup/Disrupt), returns (score, lane1, lane2)
+  (int, int, int?) _scoreDualLanePerk(int perkId, PlayerSide player, PlayerSide opponent) {
+    final firstLanes = LaneValidator.getValidLanesForPerk(
+        perkId, _gameState!, player);
+    if (firstLanes.isEmpty) return (0, -1, null);
+
+    int bestScore = 0;
+    int bestL1 = -1;
+    int bestL2 = -1;
+
+    for (final l1 in firstLanes) {
+      final secondLanes = LaneValidator.getValidLanesForPerk(
+          perkId, _gameState!, player, firstSelectedLane: l1);
+      for (final l2 in secondLanes) {
+        int score;
+        if (perkId == 33) {
+          // Regroup: value moving pieces to a lane where we're close to winning
+          final myL1 = _gameState!.lanes[l1].countPieces(player);
+          final myL2 = _gameState!.lanes[l2].countPieces(player);
+          score = (myL1 - myL2).abs() * 5 + 5;
+          // Bonus if either lane is near win after swap
+          if (myL1 >= 3 || myL2 >= 3) score += 15;
+        } else {
+          // Disrupt: value disrupting enemy concentrations
+          final eL1 = _gameState!.lanes[l1].countPieces(opponent);
+          final eL2 = _gameState!.lanes[l2].countPieces(opponent);
+          score = (eL1 - eL2).abs() * 5 + 5;
+          if (eL1 >= 4 || eL2 >= 4) score += 20;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestL1 = l1;
+          bestL2 = l2;
+        }
+      }
+    }
+
+    return (bestScore, bestL1, bestL2 == -1 ? null : bestL2);
   }
 
   /// Generate perk slots: 2 fixed + 2 from pools (deterministic or random)
@@ -2144,6 +2368,10 @@ class CombatService extends ChangeNotifier {
   void _handleLaneGameState(Map<String, dynamic> payload) {
     final gameData = payload['game'] as Map<String, dynamic>;
     _updateGameStateFromServer(gameData);
+    // Clear AI perk highlight when it becomes our turn
+    if (isMyTurn) {
+      _lastAIPerkId = null;
+    }
     notifyListeners();
   }
 
@@ -2158,6 +2386,13 @@ class CombatService extends ChangeNotifier {
       _lastError = payload['error'] as String?;
     } else {
       _lastError = null;
+    }
+    // Store AI's perk choice for highlight display
+    if (success && !isMyTurn) {
+      final perkId = payload['perkId'];
+      if (perkId is num && perkId > 0) {
+        _lastAIPerkId = perkId.toInt();
+      }
     }
     notifyListeners();
   }

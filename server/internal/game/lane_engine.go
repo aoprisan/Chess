@@ -294,182 +294,6 @@ func (e *LaneEngine) ExecutePerkSelection(perkID int, targetLane int, targetLane
 	return result
 }
 
-// LaneAI handles AI decision making for lane games
-type LaneAI struct {
-	difficulty string
-}
-
-// NewLaneAI creates a new AI for lane games
-func NewLaneAI(difficulty string) *LaneAI {
-	return &LaneAI{
-		difficulty: difficulty,
-	}
-}
-
-// ChoosePerk selects a perk and target for the AI
-// Returns perkID and targetLane
-func (ai *LaneAI) ChoosePerk(game *models.LaneGame) (int, int) {
-	player := game.CurrentPlayer
-	opponent := player.Opponent()
-
-	switch ai.difficulty {
-	case "easy":
-		return ai.chooseEasy(game, player)
-	case "medium":
-		return ai.chooseMedium(game, player, opponent)
-	case "hard":
-		return ai.chooseHard(game, player, opponent)
-	default:
-		return ai.chooseEasy(game, player)
-	}
-}
-
-// chooseEasy makes random decisions
-func (ai *LaneAI) chooseEasy(game *models.LaneGame, player models.PlayerSide) (int, int) {
-	// 50% chance to pass
-	if rand.Intn(2) == 0 {
-		return 0, -1 // Pass
-	}
-
-	// 50% PlaceAnother, 50% RemoveEnemy
-	if rand.Intn(2) == 0 {
-		available := game.GetAvailableLanes(player)
-		if len(available) > 0 {
-			return 1, available[rand.Intn(len(available))]
-		}
-	}
-
-	// Try RemoveEnemy
-	opponent := player.Opponent()
-	nonEmpty := game.GetNonEmptyLanes(opponent)
-	if len(nonEmpty) > 0 {
-		return 2, nonEmpty[rand.Intn(len(nonEmpty))]
-	}
-
-	// Fallback to pass
-	return 0, -1
-}
-
-// chooseMedium prefers strategic moves
-func (ai *LaneAI) chooseMedium(game *models.LaneGame, player, opponent models.PlayerSide) (int, int) {
-	// Try to complete a lane that's close to winning
-	for i, lane := range game.Lanes {
-		if lane.IsWon() {
-			continue
-		}
-		pieceCount := lane.CountPieces(player)
-		// If we have 4 pieces, try to place the 5th
-		if pieceCount == 4 && !lane.IsSideFull(player) {
-			return 1, i // PlaceAnother
-		}
-	}
-
-	// Try to disrupt opponent's near-win lanes
-	for i, lane := range game.Lanes {
-		if lane.IsWon() {
-			continue
-		}
-		opponentCount := lane.CountPieces(opponent)
-		// If opponent has 4+ pieces, try to remove
-		if opponentCount >= 4 {
-			return 2, i // RemoveEnemy
-		}
-	}
-
-	// Default to placing in lane with most pieces
-	bestLane := -1
-	bestCount := -1
-	for i, lane := range game.Lanes {
-		if lane.IsWon() || lane.IsSideFull(player) {
-			continue
-		}
-		count := lane.CountPieces(player)
-		if count > bestCount {
-			bestCount = count
-			bestLane = i
-		}
-	}
-
-	if bestLane != -1 {
-		return 1, bestLane
-	}
-
-	return 0, -1 // Pass
-}
-
-// chooseHard uses evaluation
-func (ai *LaneAI) chooseHard(game *models.LaneGame, player, opponent models.PlayerSide) (int, int) {
-	bestPerk := 0
-	bestTarget := -1
-	bestScore := -1000
-
-	// Evaluate passing
-	passScore := 0
-
-	// Evaluate PlaceAnother on each lane
-	for i, lane := range game.Lanes {
-		if lane.IsWon() || lane.IsSideFull(player) {
-			continue
-		}
-
-		score := ai.evaluatePlacement(game, player, i)
-		if score > bestScore {
-			bestScore = score
-			bestPerk = 1
-			bestTarget = i
-		}
-	}
-
-	// Evaluate RemoveEnemy on each lane
-	for i, lane := range game.Lanes {
-		if lane.IsWon() || lane.CountPieces(opponent) == 0 {
-			continue
-		}
-
-		score := ai.evaluateRemoval(game, opponent, i)
-		if score > bestScore {
-			bestScore = score
-			bestPerk = 2
-			bestTarget = i
-		}
-	}
-
-	// If best action is worse than passing, pass
-	if bestScore < passScore {
-		return 0, -1
-	}
-
-	return bestPerk, bestTarget
-}
-
-// evaluatePlacement scores a placement action
-func (ai *LaneAI) evaluatePlacement(game *models.LaneGame, player models.PlayerSide, laneIndex int) int {
-	lane := game.Lanes[laneIndex]
-	currentPieces := lane.CountPieces(player)
-
-	// Winning move is very valuable
-	if currentPieces == 4 {
-		return 1000
-	}
-
-	// More pieces = higher priority (concentrate)
-	return currentPieces * 10
-}
-
-// evaluateRemoval scores a removal action
-func (ai *LaneAI) evaluateRemoval(game *models.LaneGame, opponent models.PlayerSide, laneIndex int) int {
-	lane := game.Lanes[laneIndex]
-	opponentPieces := lane.CountPieces(opponent)
-
-	// Blocking opponent's win is very valuable
-	if opponentPieces == 5 {
-		return 900
-	}
-
-	// More opponent pieces = higher priority to disrupt
-	return opponentPieces * 8
-}
-
 // ExecuteAITurn runs a full turn for the AI
 func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
 	results := make([]*TurnResult, 0, 4)
@@ -499,8 +323,15 @@ func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
 	}
 
 	// Phase 4: Perk selection
-	perkID, targetLane := ai.ChoosePerk(e.game)
-	perkResult := e.ExecutePerkSelection(perkID, targetLane)
+	perkID, targets := ai.ChoosePerk(e.game)
+	var perkResult *TurnResult
+	if len(targets) == 0 {
+		perkResult = e.ExecutePerkSelection(perkID, -1)
+	} else if len(targets) == 1 {
+		perkResult = e.ExecutePerkSelection(perkID, targets[0])
+	} else {
+		perkResult = e.ExecutePerkSelection(perkID, targets[0], targets[1:]...)
+	}
 	results = append(results, perkResult)
 
 	return results

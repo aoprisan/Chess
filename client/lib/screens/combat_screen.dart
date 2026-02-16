@@ -44,6 +44,9 @@ class _CombatScreenState extends State<CombatScreen> {
   bool _isSelectingLane = false;
   int? _firstSelectedLane; // For dual-lane perks (Regroup, Disrupt)
 
+  // AI turn automation
+  bool _aiPerkInProgress = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,13 +58,23 @@ class _CombatScreenState extends State<CombatScreen> {
     });
   }
 
+  bool get _isCurrentPlayerAI => _combatService.isCurrentPlayerAI;
+
   void _onServiceChanged() {
     if (mounted) {
       final gameState = _combatService.gameState;
       if (gameState != null && gameState.status == CombatStatus.playing) {
         // Detect turn change for pass-and-play dialog
         if (_previousPlayer != gameState.currentPlayer) {
-          _showTurnDialog = true;
+          if (_isCurrentPlayerAI) {
+            // Show dialog briefly for AI, then auto-dismiss
+            _showTurnDialog = true;
+            Future.delayed(const Duration(milliseconds: 800), () {
+              if (mounted && _showTurnDialog) _dismissTurnDialog();
+            });
+          } else {
+            _showTurnDialog = true;
+          }
           _previousPlayer = gameState.currentPlayer;
         }
         // Detect new piece placement for animation
@@ -74,6 +87,7 @@ class _CombatScreenState extends State<CombatScreen> {
       }
       setState(() {});
       _maybeAutoPlace();
+      _maybeAISelectPerk();
     }
   }
 
@@ -82,6 +96,8 @@ class _CombatScreenState extends State<CombatScreen> {
       'game_${DateTime.now().millisecondsSinceEpoch}',
       player1Hero: widget.player1Hero,
       player2Hero: widget.player2Hero,
+      player1IsAI: widget.player1IsAI,
+      player2IsAI: widget.player2IsAI,
     );
     _previousPlayer = PlayerSide.player1;
     setState(() {
@@ -111,6 +127,41 @@ class _CombatScreenState extends State<CombatScreen> {
       _showTurnDialog = false;
     });
     _maybeAutoPlace();
+  }
+
+  void _maybeAISelectPerk() {
+    if (_aiPerkInProgress) return;
+    final gameState = _combatService.gameState;
+    if (gameState == null) return;
+    if (gameState.status != CombatStatus.playing) return;
+    if (gameState.currentPhase != TurnPhase.perkSelection) return;
+    if (!_isCurrentPlayerAI) return;
+
+    _aiPerkInProgress = true;
+
+    // Step 1: AI "thinking" delay
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) { _aiPerkInProgress = false; return; }
+
+      // Step 2: Choose perk
+      final (perkId, targetLane, secondLane) = _combatService.chooseAIPerk();
+
+      // Step 3: Show highlight
+      _combatService.setAIPerkHighlight(perkId > 0 ? perkId : null);
+
+      // Step 4: Hold highlight briefly, then execute
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (!mounted) { _aiPerkInProgress = false; return; }
+        _combatService.setAIPerkHighlight(null);
+
+        if (perkId == 0) {
+          _onPass();
+        } else {
+          _executePerk(perkId, targetLane, secondLane: secondLane);
+        }
+        _aiPerkInProgress = false;
+      });
+    });
   }
 
   @override
@@ -448,10 +499,15 @@ class _CombatScreenState extends State<CombatScreen> {
 
   bool _shouldShowPerkOverlay() {
     final gameState = _combatService.gameState;
-    return gameState != null &&
-        gameState.status != CombatStatus.finished &&
-        gameState.currentPhase == TurnPhase.perkSelection &&
-        !_isSelectingLane;
+    if (gameState == null || gameState.status == CombatStatus.finished) {
+      return false;
+    }
+    if (_isSelectingLane) return false;
+    // Show during perk selection phase (human turn)
+    if (gameState.currentPhase == TurnPhase.perkSelection) return true;
+    // Show when AI just chose a perk (highlight display)
+    if (_combatService.lastAIPerkId != null) return true;
+    return false;
   }
 
   void _onPerkSelected(int perkId) {
@@ -693,10 +749,11 @@ class _CombatScreenState extends State<CombatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: _PerkSelectionArea(
                       perkSlots: _combatService.currentPerkSlots,
-                      isMyTurn: true,
+                      isMyTurn: _combatService.lastAIPerkId == null,
                       onPerkSelected: _onPerkSelected,
                       onPass: _onPass,
                       screenWidth: screenWidth,
+                      aiHighlightPerkId: _combatService.lastAIPerkId,
                     ),
                   ),
                 // Game over UI or skip turn button
@@ -1864,6 +1921,7 @@ class _PerkSelectionArea extends StatelessWidget {
   final Function(int perkId) onPerkSelected;
   final VoidCallback onPass;
   final double screenWidth;
+  final int? aiHighlightPerkId;
 
   const _PerkSelectionArea({
     required this.perkSlots,
@@ -1871,6 +1929,7 @@ class _PerkSelectionArea extends StatelessWidget {
     required this.onPerkSelected,
     required this.onPass,
     required this.screenWidth,
+    this.aiHighlightPerkId,
   });
 
   @override
@@ -1880,6 +1939,7 @@ class _PerkSelectionArea extends StatelessWidget {
       isMyTurn: isMyTurn,
       onPerkSelected: onPerkSelected,
       onPass: onPass,
+      aiHighlightPerkId: aiHighlightPerkId,
     );
   }
 }

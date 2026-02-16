@@ -693,8 +693,15 @@ func (c *Client) executeAIPerkSelection(laneGame *models.LaneGame) {
 	ai := game.NewLaneAI(laneGame.AIDifficulty)
 	engine := game.NewLaneEngine(laneGame)
 
-	perkID, targetLane := ai.ChoosePerk(laneGame)
-	result := engine.ExecutePerkSelection(perkID, targetLane)
+	perkID, targets := ai.ChoosePerk(laneGame)
+	var result *game.TurnResult
+	if len(targets) == 0 {
+		result = engine.ExecutePerkSelection(perkID, -1)
+	} else if len(targets) == 1 {
+		result = engine.ExecutePerkSelection(perkID, targets[0])
+	} else {
+		result = engine.ExecutePerkSelection(perkID, targets[0], targets[1:]...)
+	}
 
 	// Send perk result
 	c.sendPerkResult(laneGame, result)
