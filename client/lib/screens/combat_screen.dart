@@ -1652,7 +1652,7 @@ class _GameBoard extends StatelessWidget {
     // Freeze perk (4) shows blue highlight on opponent's half only
     final isFreezePerk = selectedPerkId == 4;
     // Enemy-targeting trigger perks highlight opponent's half in purple
-    final isEnemyTriggerPerk = const {24, 25, 26}.contains(selectedPerkId);
+    final isEnemyTriggerPerk = const {24, 25, 26, 27}.contains(selectedPerkId);
     final currentPlayer = gameState.currentPlayer;
 
     return [
@@ -1802,9 +1802,9 @@ class _GameBoard extends StatelessWidget {
                   );
                 }
 
-                // Enemy-targeting trigger perks (Portal, Trap, Mirror) highlight opponent's half in purple
+                // Enemy-targeting trigger perks (Portal, Trap, Mirror, Echo) highlight opponent's half in purple
                 if (isEnemyTriggerPerk) {
-                  final perkName = selectedPerkId == 24 ? 'Portal' : selectedPerkId == 25 ? 'Trap' : 'Mirror';
+                  final perkName = {24: 'Portal', 25: 'Trap', 26: 'Mirror', 27: 'Echo'}[selectedPerkId] ?? 'Perk';
                   return Positioned(
                     top: i * laneHeight,
                     left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
@@ -1843,7 +1843,7 @@ class _GameBoard extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  selectedPerkId == 24 ? Icons.swap_horiz : selectedPerkId == 26 ? Icons.flip : Icons.warning,
+                                  {24: Icons.swap_horiz, 26: Icons.flip, 27: Icons.surround_sound}[selectedPerkId] ?? Icons.warning,
                                   color: Colors.white,
                                   size: 14,
                                 ),
