@@ -70,29 +70,41 @@ class AuthService extends ChangeNotifier {
   Future<void> registerGuest(String displayName) async {
     final deviceId = await getDeviceId();
     final url = '${ServerConfig.baseUrl}/api/auth/guest';
-    debugPrint('[AuthService] POST $url  deviceId=$deviceId  name=$displayName');
+    final payload = jsonEncode({'deviceId': deviceId, 'displayName': displayName});
+    debugPrint('[AuthService] baseUrl=${ServerConfig.baseUrl}');
+    debugPrint('[AuthService] POST $url');
+    debugPrint('[AuthService] headers: Content-Type=application/json');
+    debugPrint('[AuthService] body: $payload');
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': deviceId, 'displayName': displayName}),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: payload,
+      );
 
-    debugPrint('[AuthService] ${response.statusCode}: ${response.body}');
+      debugPrint('[AuthService] response.statusCode=${response.statusCode}');
+      debugPrint('[AuthService] response.headers=${response.headers}');
+      debugPrint('[AuthService] response.body=${response.body}');
 
-    if (response.statusCode != 200) {
-      String msg = 'Registration failed (${response.statusCode})';
-      try {
-        final body = jsonDecode(response.body);
-        if (body['error'] != null) msg = body['error'];
-      } catch (_) {}
-      throw Exception(msg);
+      if (response.statusCode != 200) {
+        String msg = 'Registration failed (${response.statusCode})';
+        try {
+          final body = jsonDecode(response.body);
+          if (body['error'] != null) msg = body['error'];
+        } catch (_) {}
+        throw Exception(msg);
+      }
+
+      final data = jsonDecode(response.body);
+      _currentUser = AuthUser.fromJson(data);
+      await _saveUser();
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('[AuthService] registerGuest error: $e');
+      debugPrint('[AuthService] stacktrace: $st');
+      rethrow;
     }
-
-    final data = jsonDecode(response.body);
-    _currentUser = AuthUser.fromJson(data);
-    await _saveUser();
-    notifyListeners();
   }
 
   /// Log in with email and password.

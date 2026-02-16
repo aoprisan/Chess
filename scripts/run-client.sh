@@ -50,5 +50,7 @@ if [ ! -d "web" ]; then
     "$FLUTTER_CMD" create . --platforms web
 fi
 
+SERVER_URL="${SERVER_URL:-http://localhost:8080}"
+
 "$FLUTTER_CMD" pub get
-"$FLUTTER_CMD" run -d chrome
+"$FLUTTER_CMD" run -d chrome --dart-define=SERVER_URL="$SERVER_URL"
