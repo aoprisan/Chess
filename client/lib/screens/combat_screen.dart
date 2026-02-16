@@ -702,6 +702,7 @@ class _CombatScreenState extends State<CombatScreen> {
                     lastPlacedLane: _lastPlacedLane,
                     lastPlacedPlayer: _lastPlacedPlayer,
                     placementCounter: _placementCounter,
+                    firstSelectedLane: _firstSelectedLane,
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.01),
@@ -1053,6 +1054,7 @@ class _GameArea extends StatelessWidget {
   final PlayerSide? lastPlacedPlayer;
   final int placementCounter;
   final PlayerSide? viewer;
+  final int? firstSelectedLane;
 
   const _GameArea({
     required this.gameState,
@@ -1068,6 +1070,7 @@ class _GameArea extends StatelessWidget {
     this.lastPlacedLane,
     this.lastPlacedPlayer,
     this.placementCounter = 0,
+    this.firstSelectedLane,
   });
 
   @override
@@ -1103,6 +1106,7 @@ class _GameArea extends StatelessWidget {
               lastPlacedLane: lastPlacedLane,
               lastPlacedPlayer: lastPlacedPlayer,
               placementCounter: placementCounter,
+              firstSelectedLane: firstSelectedLane,
             ),
           ),
           SizedBox(width: spacing),
@@ -1195,6 +1199,7 @@ class _GameBoard extends StatelessWidget {
   final PlayerSide? lastPlacedPlayer;
   final int placementCounter;
   final PlayerSide? viewer;
+  final int? firstSelectedLane;
 
   const _GameBoard({
     required this.gameState,
@@ -1210,6 +1215,7 @@ class _GameBoard extends StatelessWidget {
     this.lastPlacedLane,
     this.lastPlacedPlayer,
     this.placementCounter = 0,
+    this.firstSelectedLane,
   });
 
   @override
@@ -1646,7 +1652,7 @@ class _GameBoard extends StatelessWidget {
     // Freeze perk (4) shows blue highlight on opponent's half only
     final isFreezePerk = selectedPerkId == 4;
     // Enemy-targeting trigger perks highlight opponent's half in purple
-    final isEnemyTriggerPerk = const {24, 25}.contains(selectedPerkId);
+    final isEnemyTriggerPerk = const {24, 25, 26}.contains(selectedPerkId);
     final currentPlayer = gameState.currentPlayer;
 
     return [
@@ -1664,6 +1670,64 @@ class _GameBoard extends StatelessWidget {
 
                 // Skip won lanes - they keep their existing highlighting
                 if (isWon) return const SizedBox.shrink();
+
+                // First selected lane for dual-lane perks (Regroup/Disrupt)
+                if (i == firstSelectedLane) {
+                  // Regroup (33) affects your half, Disrupt (34) affects enemy half
+                  final isOwnHalf = selectedPerkId == 33;
+                  final left = isOwnHalf
+                      ? (currentPlayer == PlayerSide.player1 ? 0.0 : halfWidth)
+                      : (currentPlayer == PlayerSide.player1 ? halfWidth : 0.0);
+                  return Positioned(
+                    top: i * laneHeight,
+                    left: left,
+                    width: halfWidth,
+                    height: laneHeight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.35),
+                        border: Border.all(
+                          color: Colors.orange.shade400,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade700.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.check, color: Colors.white, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Lane ${i + 1} \u2713',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
 
                 if (!isValid) {
                   return Positioned(
@@ -1738,9 +1802,9 @@ class _GameBoard extends StatelessWidget {
                   );
                 }
 
-                // Enemy-targeting trigger perks (Portal, Trap) highlight opponent's half in purple
+                // Enemy-targeting trigger perks (Portal, Trap, Mirror) highlight opponent's half in purple
                 if (isEnemyTriggerPerk) {
-                  final perkName = selectedPerkId == 24 ? 'Portal' : 'Trap';
+                  final perkName = selectedPerkId == 24 ? 'Portal' : selectedPerkId == 25 ? 'Trap' : 'Mirror';
                   return Positioned(
                     top: i * laneHeight,
                     left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
@@ -1779,7 +1843,7 @@ class _GameBoard extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  selectedPerkId == 24 ? Icons.swap_horiz : Icons.warning,
+                                  selectedPerkId == 24 ? Icons.swap_horiz : selectedPerkId == 26 ? Icons.flip : Icons.warning,
                                   color: Colors.white,
                                   size: 14,
                                 ),

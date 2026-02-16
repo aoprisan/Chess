@@ -433,9 +433,9 @@ class CombatGameState {
     final effects = <int, List<LaneEffect>>{};
 
     // Triggers set on your own lane (beneficial)
-    const beneficialTriggers = {'mirror', 'echo', 'retaliate', 'hydra', 'backfire', 'absorb'};
+    const beneficialTriggers = {'echo', 'retaliate', 'hydra', 'backfire', 'absorb'};
     // Triggers set on enemy lane (detrimental)
-    const detrimentalTriggers = {'portal', 'trap', 'shockwave'};
+    const detrimentalTriggers = {'portal', 'trap', 'mirror', 'shockwave'};
 
     for (int i = 0; i < lanes.length; i++) {
       final lane = lanes[i];

@@ -11,7 +11,7 @@ import 'websocket_service.dart';
 const bool _testModePerks = true;
 
 /// Fixed perk pair index for testing. Change this value and restart to test a different pair.
-const int _testPerkPairIndex = 2;
+const int _testPerkPairIndex = 4;
 
 /// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
 const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
@@ -1237,7 +1237,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'MIRROR', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'MIRROR', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1251,7 +1251,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'ECHO', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'ECHO', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1265,7 +1265,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'SHOCKWAVE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'SHOCKWAVE', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1279,7 +1279,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'HYDRA', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'HYDRA', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1293,7 +1293,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'BACKFIRE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'BACKFIRE', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1307,7 +1307,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'ABSORB', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'ABSORB', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
@@ -1321,7 +1321,7 @@ class CombatService extends ChangeNotifier {
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
-    newTriggers.add(TriggerData(type: 'RETALIATE', owner: ownerInt, turnsLeft: 1, orderId: _nextTriggerOrder++));
+    newTriggers.add(TriggerData(type: 'RETALIATE', owner: ownerInt, turnsLeft: 2, orderId: _nextTriggerOrder++));
     lanes[laneIndex] = lanes[laneIndex].copyWith(triggers: newTriggers);
     _gameState = _gameState!.copyWith(lanes: lanes);
     notifyListeners();
