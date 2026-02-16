@@ -141,9 +141,6 @@ class _CombatScreenState extends State<CombatScreen> {
             // Perk targeting info bar (replaces full-screen overlay)
             if (_isSelectingLane && _selectedPerkId != null)
               _buildPerkTargetingBar(),
-            // Perk selection overlay
-            if (_initialized && _shouldShowPerkOverlay())
-              _buildPerkSelectionOverlay(),
             // Turn dialog for pass-and-play
             if (_initialized && _showTurnDialog)
               _buildTurnDialog(),
@@ -455,32 +452,6 @@ class _CombatScreenState extends State<CombatScreen> {
         !_isSelectingLane;
   }
 
-  Widget _buildPerkSelectionOverlay() {
-    return GestureDetector(
-      onTap: () {}, // Absorb taps to prevent interaction with board
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.5),
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 24,
-            ),
-            child: _PerkSelectionArea(
-              perkSlots: _combatService.currentPerkSlots,
-              isMyTurn: true,
-              onPerkSelected: _onPerkSelected,
-              onPass: _onPass,
-              screenWidth: MediaQuery.of(context).size.width,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _onPerkSelected(int perkId) {
     if (LaneValidator.perkRequiresTarget(perkId)) {
       setState(() {
@@ -695,10 +666,8 @@ class _CombatScreenState extends State<CombatScreen> {
                 ),
                 SizedBox(height: screenHeight * 0.005),
                 // Game board area
-                Flexible(
-                  child: AspectRatio(
-                    aspectRatio: 2.0,
-                    child: _GameArea(
+                Expanded(
+                  child: _GameArea(
                     gameState: gameState,
                     player1Hero: widget.player1Hero,
                     player2Hero: widget.player2Hero,
@@ -714,10 +683,21 @@ class _CombatScreenState extends State<CombatScreen> {
                     placementCounter: _placementCounter,
                     firstSelectedLane: _firstSelectedLane,
                   ),
-                  ),
                 ),
                 SizedBox(height: screenHeight * 0.005),
-                // Game over UI or skip turn button (perk selection now shown as overlay)
+                // Perk selection below the board
+                if (_shouldShowPerkOverlay())
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: _PerkSelectionArea(
+                      perkSlots: _combatService.currentPerkSlots,
+                      isMyTurn: true,
+                      onPerkSelected: _onPerkSelected,
+                      onPass: _onPass,
+                      screenWidth: screenWidth,
+                    ),
+                  ),
+                // Game over UI or skip turn button
                 if (gameState.status == CombatStatus.finished)
                   _SkipTurnButton(
                     onPressed: null,
