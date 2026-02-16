@@ -29,16 +29,16 @@ class MainMenuScreen extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 60),
-                  // Play Online button
+                  // Play Solo button
                   _StyledButton(
-                    text: 'Play Online',
-                    onPressed: () => _navigateToHeroSelection(context, online: true),
+                    text: 'Play Solo',
+                    onPressed: () => _navigateToHeroSelection(context, mode: GameMode.solo),
                   ),
                   const SizedBox(height: 16),
-                  // Play Offline button
+                  // Play with Friend button
                   _StyledButton(
-                    text: 'Play Offline',
-                    onPressed: () => _navigateToHeroSelection(context),
+                    text: 'Play with Friend',
+                    onPressed: () => _showFriendModeDialog(context),
                   ),
                 ],
               ),
@@ -49,13 +49,57 @@ class MainMenuScreen extends StatelessWidget {
     );
   }
 
-  void _navigateToHeroSelection(BuildContext context,
-      {bool online = false}) {
+  void _navigateToHeroSelection(BuildContext context, {required GameMode mode}) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => HeroSelectionScreen(
-          online: online,
+        builder: (context) => HeroSelectionScreen(mode: mode),
+      ),
+    );
+  }
+
+  void _showFriendModeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 280,
+          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5E6D3),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF8D6E63), width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Play with Friend',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _StyledButton(
+                text: 'Same Device',
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _navigateToHeroSelection(context, mode: GameMode.localMultiplayer);
+                },
+              ),
+              const SizedBox(height: 12),
+              _StyledButton(
+                text: 'Online',
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _navigateToHeroSelection(context, mode: GameMode.online);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

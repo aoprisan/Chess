@@ -4,12 +4,14 @@ import '../models/hero.dart';
 import '../services/game_service.dart';
 import 'combat_screen.dart';
 
+enum GameMode { solo, localMultiplayer, online }
+
 class HeroSelectionScreen extends StatefulWidget {
-  final bool online;
+  final GameMode mode;
 
   const HeroSelectionScreen({
     super.key,
-    this.online = false,
+    this.mode = GameMode.solo,
   });
 
   @override
@@ -29,7 +31,15 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   bool get _anyAI => _player1IsAI || _player2IsAI;
   bool get _currentPlayerIsAI => _currentPlayer == 1 ? _player1IsAI : _player2IsAI;
 
-  bool get _needsTwoPlayers => !widget.online;
+  bool get _needsTwoPlayers => widget.mode != GameMode.online;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mode == GameMode.solo) {
+      _player2IsAI = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +162,9 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Choose your hero',
+              widget.mode == GameMode.solo && _currentPlayer == 2
+                  ? 'Choose AI hero'
+                  : 'Choose your hero',
               style: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.bold,
@@ -296,8 +308,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                                 );
                               }),
                               const Spacer(),
-                              // AI Mode section (offline only)
-                              if (!widget.online) ...[
+                              // AI Mode section (solo only)
+                              if (widget.mode == GameMode.solo) ...[
                                 _buildAIModeCheckbox(screenWidth),
                                 SizedBox(height: padding * 0.5),
                                 Opacity(
@@ -438,7 +450,7 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               ),
               child: Center(
                 child: Text(
-                  'Back to menu',
+                  (_currentPlayer == 2 && _needsTwoPlayers) ? 'Back' : 'Back to menu',
                   style: TextStyle(
                     fontSize: fontSize * 0.9,
                     fontWeight: FontWeight.bold,
@@ -465,7 +477,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    widget.online ? 'Find Match' : 'Continue',
+                    widget.mode == GameMode.online
+                        ? 'Find Match'
+                        : (_needsTwoPlayers && _currentPlayer == 1)
+                            ? 'Continue'
+                            : 'Start',
                     style: TextStyle(
                       fontSize: fontSize,
                       fontWeight: FontWeight.bold,
@@ -499,8 +515,12 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     // Set Player 1's hero
     gameService.selectHero(_player1Hero!);
 
+    // For local multiplayer, force both AI flags off
+    final p1AI = widget.mode == GameMode.localMultiplayer ? false : _player1IsAI;
+    final p2AI = widget.mode == GameMode.localMultiplayer ? false : _player2IsAI;
+
     // Set AI mode and difficulty
-    if (_anyAI) {
+    if (p1AI || p2AI) {
       gameService.setAIMode(true);
       gameService.setAIDifficulty(_getDifficulty());
     } else {
@@ -518,8 +538,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
         builder: (context) => CombatScreen(
           player1Hero: _player1Hero!,
           player2Hero: player2,
-          player1IsAI: _player1IsAI,
-          player2IsAI: _player2IsAI,
+          player1IsAI: p1AI,
+          player2IsAI: p2AI,
         ),
       ),
     );
