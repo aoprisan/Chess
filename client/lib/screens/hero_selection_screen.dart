@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/hero.dart';
 import '../services/game_service.dart';
 import 'combat_screen.dart';
+import 'online_lobby_screen.dart';
 
 enum GameMode { solo, localMultiplayer, online }
 
@@ -510,6 +511,19 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   void _startGame() {
+    // Online mode: navigate to lobby screen
+    if (widget.mode == GameMode.online) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OnlineLobbyScreen(
+            selectedHero: _player1Hero!,
+          ),
+        ),
+      );
+      return;
+    }
+
     final gameService = context.read<GameService>();
 
     // Set Player 1's hero

@@ -10,6 +10,7 @@ type QueuedPlayer struct {
 	ID           string
 	ConnectionID string
 	HeroType     string
+	GameType     GameType // "chess" or "laneGame"
 	JoinedAt     time.Time
 }
 
@@ -84,7 +85,7 @@ func (m *Matchmaker) RemovePlayer(playerID string) {
 	}
 }
 
-// FindMatch looks for a match for the given player
+// FindMatch looks for a match for the given player (matches by game type)
 func (m *Matchmaker) FindMatch(playerID string) *Match {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -106,10 +107,12 @@ func (m *Matchmaker) FindMatch(playerID string) *Match {
 		return nil
 	}
 
-	// Find an opponent (first other player in queue)
+	player := m.queue[playerIdx]
+
+	// Find an opponent of the same game type
 	var opponentIdx = -1
 	for i, p := range m.queue {
-		if p.ID != playerID {
+		if p.ID != playerID && p.GameType == player.GameType {
 			opponentIdx = i
 			break
 		}
@@ -119,8 +122,6 @@ func (m *Matchmaker) FindMatch(playerID string) *Match {
 		return nil
 	}
 
-	// Create match
-	player := m.queue[playerIdx]
 	opponent := m.queue[opponentIdx]
 
 	// Remove both from queue
@@ -154,24 +155,44 @@ func (m *Matchmaker) processQueue() {
 	}
 	m.queue = activeQueue
 
-	// Auto-match if 2+ players waiting
-	for len(m.queue) >= 2 {
-		player1 := m.queue[0]
-		player2 := m.queue[1]
-		m.queue = m.queue[2:]
+	// Group players by game type for matching
+	byType := make(map[GameType][]*QueuedPlayer)
+	for _, p := range m.queue {
+		byType[p.GameType] = append(byType[p.GameType], p)
+	}
 
-		match := &Match{
-			Player1: player1,
-			Player2: player2,
-		}
+	matched := make(map[string]bool) // track matched player IDs
 
-		select {
-		case m.matches <- match:
-		default:
-			// Channel full, put players back
-			m.queue = append([]*QueuedPlayer{player1, player2}, m.queue...)
-			return
+	for _, players := range byType {
+		for len(players) >= 2 {
+			player1 := players[0]
+			player2 := players[1]
+			players = players[2:]
+
+			match := &Match{
+				Player1: player1,
+				Player2: player2,
+			}
+
+			select {
+			case m.matches <- match:
+				matched[player1.ID] = true
+				matched[player2.ID] = true
+			default:
+				return
+			}
 		}
+	}
+
+	// Remove matched players from queue
+	if len(matched) > 0 {
+		remaining := make([]*QueuedPlayer, 0)
+		for _, p := range m.queue {
+			if !matched[p.ID] {
+				remaining = append(remaining, p)
+			}
+		}
+		m.queue = remaining
 	}
 }
 

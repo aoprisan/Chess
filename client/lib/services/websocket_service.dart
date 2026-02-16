@@ -26,6 +26,15 @@ enum MessageType {
   laneWon,
   gameWon,
   laneMatchFound,
+  // Multiplayer Room message types
+  createRoom,
+  joinRoom,
+  roomCreated,
+  roomJoined,
+  cancelMatchmaking,
+  matchmakingCanceled,
+  findMatch,
+  matchmakingStarted,
 }
 
 /// WebSocket message wrapper
@@ -174,6 +183,51 @@ class WebSocketService {
   /// Pass on perk selection (equivalent to selectPerk with perkId 0)
   void passPerk(String gameId) {
     selectPerk(gameId, 0);
+  }
+
+  // ============================================================================
+  // Multiplayer Room & Matchmaking Methods
+  // ============================================================================
+
+  /// Create a private room for a friend to join
+  void createRoom(String heroType, {String gameType = 'laneGame'}) {
+    send(WSMessage(
+      type: MessageType.createRoom,
+      payload: {
+        'heroType': heroType,
+        'gameType': gameType,
+      },
+    ));
+  }
+
+  /// Join an existing room by code
+  void joinRoom(String roomCode, String heroType) {
+    send(WSMessage(
+      type: MessageType.joinRoom,
+      payload: {
+        'roomCode': roomCode.toUpperCase(),
+        'heroType': heroType,
+      },
+    ));
+  }
+
+  /// Start random matchmaking for a game type
+  void findMatch(String heroType, {String gameType = 'laneGame'}) {
+    send(WSMessage(
+      type: MessageType.findMatch,
+      payload: {
+        'heroType': heroType,
+        'gameType': gameType,
+      },
+    ));
+  }
+
+  /// Cancel matchmaking or room waiting
+  void cancelMatchmaking() {
+    send(WSMessage(
+      type: MessageType.cancelMatchmaking,
+      payload: {},
+    ));
   }
 
   void dispose() {

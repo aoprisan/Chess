@@ -52,8 +52,11 @@ func main() {
 	mm := matchmaking.NewMatchmaker()
 	go mm.Run()
 
+	// Initialize room manager for private games
+	rm := matchmaking.NewRoomManager()
+
 	// Initialize WebSocket hub with database
-	hub := handlers.NewHub(mm, db)
+	hub := handlers.NewHub(mm, rm, db)
 	go hub.Run()
 
 	// WebSocket endpoint
@@ -86,6 +89,10 @@ func main() {
 
 	http.HandleFunc("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
 		handleLeaderboard(db, w, r)
+	})
+
+	http.HandleFunc("/api/rooms/", func(w http.ResponseWriter, r *http.Request) {
+		handleRoomStatus(rm, w, r)
 	})
 
 	// Serve Flutter web build
@@ -203,6 +210,34 @@ func handleUsers(db *database.DB, w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
 	}
+}
+
+func handleRoomStatus(rm *matchmaking.RoomManager, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "GET" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract room code from URL path: /api/rooms/{code}
+	code := strings.TrimPrefix(r.URL.Path, "/api/rooms/")
+	if code == "" {
+		http.Error(w, `{"error": "room code required"}`, http.StatusBadRequest)
+		return
+	}
+
+	room := rm.GetRoom(code)
+	if room == nil {
+		http.Error(w, `{"error": "room not found"}`, http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":     room.Code,
+		"gameType": room.GameType,
+		"status":   room.Status,
+	})
 }
 
 func handleLeaderboard(db *database.DB, w http.ResponseWriter, r *http.Request) {

@@ -49,6 +49,16 @@ const (
 	MsgLaneWon           MessageType = "laneWon"
 	MsgGameWon           MessageType = "gameWon"
 	MsgLaneMatchFound    MessageType = "laneMatchFound"
+
+	// Multiplayer Room Message Types
+	MsgCreateRoom          MessageType = "createRoom"
+	MsgJoinRoom            MessageType = "joinRoom"
+	MsgRoomCreated         MessageType = "roomCreated"
+	MsgRoomJoined          MessageType = "roomJoined"
+	MsgCancelMatchmaking   MessageType = "cancelMatchmaking"
+	MsgMatchmakingCanceled MessageType = "matchmakingCanceled"
+	MsgFindMatch           MessageType = "findMatch"
+	MsgMatchmakingStarted  MessageType = "matchmakingStarted"
 )
 
 // WSMessage represents a WebSocket message
@@ -78,21 +88,23 @@ type Hub struct {
 	Unregister  chan *Client
 	Broadcast   chan []byte
 	Matchmaker  *matchmaking.Matchmaker
+	RoomManager *matchmaking.RoomManager
 	DB          *database.DB
 	mu          sync.RWMutex
 }
 
 // NewHub creates a new Hub
-func NewHub(mm *matchmaking.Matchmaker, db *database.DB) *Hub {
+func NewHub(mm *matchmaking.Matchmaker, rm *matchmaking.RoomManager, db *database.DB) *Hub {
 	return &Hub{
-		Clients:    make(map[string]*Client),
-		Games:      make(map[string]*models.Game),
-		LaneGames:  make(map[string]*models.LaneGame),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan []byte),
-		Matchmaker: mm,
-		DB:         db,
+		Clients:     make(map[string]*Client),
+		Games:       make(map[string]*models.Game),
+		LaneGames:   make(map[string]*models.LaneGame),
+		Register:    make(chan *Client),
+		Unregister:  make(chan *Client),
+		Broadcast:   make(chan []byte),
+		Matchmaker:  mm,
+		RoomManager: rm,
+		DB:          db,
 	}
 }
 
@@ -112,9 +124,16 @@ func (h *Hub) Run() {
 				delete(h.Clients, client.ID)
 				close(client.Send)
 
+				// Cancel any pending room
+				h.RoomManager.CancelRoom(client.ID)
+
+				// Remove from matchmaking queue
+				h.Matchmaker.RemovePlayer(client.PlayerID)
+
 				// Notify opponent if in game
 				if client.GameID != "" {
 					h.handlePlayerDisconnect(client)
+					h.handleLanePlayerDisconnect(client)
 				}
 			}
 			h.mu.Unlock()
@@ -152,6 +171,35 @@ func (h *Hub) handlePlayerDisconnect(client *Client) {
 
 	if opponentID != "" {
 		if opponent, ok := h.Clients[opponentID]; ok {
+			msg := WSMessage{
+				Type: MsgOpponentDisconnected,
+				Payload: map[string]interface{}{
+					"gameId": client.GameID,
+				},
+			}
+			data, _ := json.Marshal(msg)
+			opponent.Send <- data
+		}
+	}
+}
+
+// handleLanePlayerDisconnect notifies opponent when a player disconnects from a lane game
+func (h *Hub) handleLanePlayerDisconnect(client *Client) {
+	laneGame, ok := h.LaneGames[client.GameID]
+	if !ok {
+		return
+	}
+
+	// Find opponent
+	var opponentConnID string
+	if laneGame.Player1 != nil && laneGame.Player1.ConnectionID != client.ID && laneGame.Player1.ConnectionID != "" {
+		opponentConnID = laneGame.Player1.ConnectionID
+	} else if laneGame.Player2 != nil && laneGame.Player2.ConnectionID != client.ID && laneGame.Player2.ConnectionID != "" {
+		opponentConnID = laneGame.Player2.ConnectionID
+	}
+
+	if opponentConnID != "" {
+		if opponent, ok := h.Clients[opponentConnID]; ok {
 			msg := WSMessage{
 				Type: MsgOpponentDisconnected,
 				Payload: map[string]interface{}{
@@ -296,6 +344,15 @@ func (c *Client) handleMessage(msg WSMessage) {
 		c.handleJoinLaneGame(msg.Payload)
 	case MsgSelectPerk:
 		c.handleSelectPerk(msg.Payload)
+	// Multiplayer room handlers
+	case MsgCreateRoom:
+		c.handleCreateRoom(msg.Payload)
+	case MsgJoinRoom:
+		c.handleJoinRoom(msg.Payload)
+	case MsgCancelMatchmaking:
+		c.handleCancelMatchmaking(msg.Payload)
+	case MsgFindMatch:
+		c.handleFindMatch(msg.Payload)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -337,6 +394,7 @@ func (c *Client) handleJoinGame(payload map[string]interface{}) {
 			ID:           c.PlayerID,
 			ConnectionID: c.ID,
 			HeroType:     heroType,
+			GameType:     matchmaking.GameTypeChess,
 			JoinedAt:     time.Now(),
 		})
 
@@ -647,18 +705,28 @@ func (c *Client) handleJoinLaneGame(payload map[string]interface{}) {
 		// Start the game - execute first turn auto-placement
 		go c.executeLaneGameTurn(laneGame)
 	} else {
-		// For now, just create a single-player game
-		// TODO: Implement matchmaking for V2
-		c.sendError("Multiplayer V2 not yet implemented")
+		// Add to lane game matchmaking queue
+		c.Hub.Matchmaker.AddPlayer(&matchmaking.QueuedPlayer{
+			ID:           c.PlayerID,
+			ConnectionID: c.ID,
+			HeroType:     heroType,
+			GameType:     matchmaking.GameTypeLaneGame,
+			JoinedAt:     time.Now(),
+		})
+
+		log.Printf("Player %s added to lane game matchmaking queue", c.PlayerID)
+
+		// Check for match
+		go c.checkForLaneMatch()
 	}
 }
 
 // executeLaneGameTurn executes the current player's turn
 func (c *Client) executeLaneGameTurn(laneGame *models.LaneGame) {
 	c.Hub.mu.Lock()
-	defer c.Hub.mu.Unlock()
 
 	if laneGame.Status != models.LaneStatusPlaying {
+		c.Hub.mu.Unlock()
 		return
 	}
 
@@ -667,22 +735,24 @@ func (c *Client) executeLaneGameTurn(laneGame *models.LaneGame) {
 	// Execute auto-placement phase
 	autoResult := engine.ExecuteAutoPlacement()
 
-	// Send auto-placement notification
-	c.sendAutoPlacement(laneGame, autoResult)
+	// Broadcast auto-placement notification to all players
+	c.broadcastAutoPlacementLocked(laneGame, autoResult)
 
 	// Check if game ended
 	if autoResult.GameWinner != 0 {
-		c.sendGameWon(laneGame, autoResult.GameWinner)
+		c.broadcastGameWonLocked(laneGame, autoResult.GameWinner)
+		c.Hub.mu.Unlock()
 		return
 	}
 
 	// Check if lane was won
 	if autoResult.LaneWinner != 0 {
-		c.sendLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
+		c.broadcastLaneWonLocked(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
 	}
 
-	// Send updated game state with perk options
-	c.sendLaneGameState(laneGame)
+	// Broadcast updated game state with perk options to all players
+	c.broadcastLaneGameStateLocked(laneGame)
+	c.Hub.mu.Unlock()
 
 	// If it's AI's turn in perk selection, let AI choose
 	if laneGame.IsAIGame && laneGame.CurrentPlayer == models.Player2 {
@@ -696,9 +766,9 @@ func (c *Client) executeAIPerkSelection(laneGame *models.LaneGame) {
 	time.Sleep(500 * time.Millisecond)
 
 	c.Hub.mu.Lock()
-	defer c.Hub.mu.Unlock()
 
 	if laneGame.Status != models.LaneStatusPlaying {
+		c.Hub.mu.Unlock()
 		return
 	}
 
@@ -715,22 +785,24 @@ func (c *Client) executeAIPerkSelection(laneGame *models.LaneGame) {
 		result = engine.ExecutePerkSelection(perkID, targets[0], targets[1:]...)
 	}
 
-	// Send perk result
-	c.sendPerkResult(laneGame, result)
+	// Broadcast perk result to all players
+	c.broadcastPerkResultLocked(laneGame, result)
 
 	// Check if game ended
 	if result.GameWinner != 0 {
-		c.sendGameWon(laneGame, result.GameWinner)
+		c.broadcastGameWonLocked(laneGame, result.GameWinner)
+		c.Hub.mu.Unlock()
 		return
 	}
 
 	// Check if lane was won
 	if result.LaneWinner != 0 {
-		c.sendLaneWon(laneGame, result.LaneIndex, result.LaneWinner)
+		c.broadcastLaneWonLocked(laneGame, result.LaneIndex, result.LaneWinner)
 	}
 
-	// Send updated game state
-	c.sendLaneGameState(laneGame)
+	// Broadcast updated game state
+	c.broadcastLaneGameStateLocked(laneGame)
+	c.Hub.mu.Unlock()
 
 	// Continue with next turn (now Player 1's turn)
 	if laneGame.CurrentPlayer == models.Player1 {
@@ -785,23 +857,23 @@ func (c *Client) handleSelectPerk(payload map[string]interface{}) {
 		return
 	}
 
-	// Send perk result
-	c.sendPerkResult(laneGame, result)
+	// Broadcast perk result to all players
+	c.broadcastPerkResultLocked(laneGame, result)
 
 	// Check if game ended
 	if result.GameWinner != 0 {
-		c.sendGameWon(laneGame, result.GameWinner)
+		c.broadcastGameWonLocked(laneGame, result.GameWinner)
 		c.Hub.mu.Unlock()
 		return
 	}
 
 	// Check if lane was won
 	if result.LaneWinner != 0 {
-		c.sendLaneWon(laneGame, result.LaneIndex, result.LaneWinner)
+		c.broadcastLaneWonLocked(laneGame, result.LaneIndex, result.LaneWinner)
 	}
 
-	// Send updated game state
-	c.sendLaneGameState(laneGame)
+	// Broadcast updated game state to all players
+	c.broadcastLaneGameStateLocked(laneGame)
 	c.Hub.mu.Unlock()
 
 	// If AI game and now AI's turn, start AI turn
@@ -811,19 +883,19 @@ func (c *Client) handleSelectPerk(payload map[string]interface{}) {
 			c.Hub.mu.Lock()
 			engine := game.NewLaneEngine(laneGame)
 			autoResult := engine.ExecuteAutoPlacement()
-			c.sendAutoPlacement(laneGame, autoResult)
+			c.broadcastAutoPlacementLocked(laneGame, autoResult)
 
 			if autoResult.GameWinner != 0 {
-				c.sendGameWon(laneGame, autoResult.GameWinner)
+				c.broadcastGameWonLocked(laneGame, autoResult.GameWinner)
 				c.Hub.mu.Unlock()
 				return
 			}
 
 			if autoResult.LaneWinner != 0 {
-				c.sendLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
+				c.broadcastLaneWonLocked(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
 			}
 
-			c.sendLaneGameState(laneGame)
+			c.broadcastLaneGameStateLocked(laneGame)
 			c.Hub.mu.Unlock()
 
 			// AI perk selection
@@ -921,6 +993,71 @@ func (c *Client) sendGameWon(laneGame *models.LaneGame, winner models.PlayerSide
 	c.Send <- data
 }
 
+// broadcastLaneGameStateLocked sends lane game state to all players (caller holds Hub.mu lock)
+func (c *Client) broadcastLaneGameStateLocked(laneGame *models.LaneGame) {
+	msg := WSMessage{
+		Type: MsgLaneGameState,
+		Payload: map[string]interface{}{
+			"game": laneGame,
+		},
+	}
+	c.broadcastToLaneGameLocked(laneGame, msg)
+}
+
+// broadcastAutoPlacementLocked sends auto-placement notification to all players (caller holds Hub.mu lock)
+func (c *Client) broadcastAutoPlacementLocked(laneGame *models.LaneGame, result *game.TurnResult) {
+	msg := WSMessage{
+		Type: MsgAutoPlacement,
+		Payload: map[string]interface{}{
+			"gameId":    laneGame.ID,
+			"player":    laneGame.CurrentPlayer.String(),
+			"laneIndex": result.LaneIndex,
+			"success":   result.Success,
+		},
+	}
+	c.broadcastToLaneGameLocked(laneGame, msg)
+}
+
+// broadcastPerkResultLocked sends perk result to all players (caller holds Hub.mu lock)
+func (c *Client) broadcastPerkResultLocked(laneGame *models.LaneGame, result *game.TurnResult) {
+	msg := WSMessage{
+		Type: MsgPerkResult,
+		Payload: map[string]interface{}{
+			"gameId":    laneGame.ID,
+			"perkId":    result.PerkExecuted,
+			"laneIndex": result.LaneIndex,
+			"success":   result.Success,
+			"error":     result.Error,
+		},
+	}
+	c.broadcastToLaneGameLocked(laneGame, msg)
+}
+
+// broadcastLaneWonLocked sends lane won notification to all players (caller holds Hub.mu lock)
+func (c *Client) broadcastLaneWonLocked(laneGame *models.LaneGame, laneIndex int, winner models.PlayerSide) {
+	msg := WSMessage{
+		Type: MsgLaneWon,
+		Payload: map[string]interface{}{
+			"gameId":    laneGame.ID,
+			"laneIndex": laneIndex,
+			"winner":    winner.String(),
+		},
+	}
+	c.broadcastToLaneGameLocked(laneGame, msg)
+}
+
+// broadcastGameWonLocked sends game won notification to all players (caller holds Hub.mu lock)
+func (c *Client) broadcastGameWonLocked(laneGame *models.LaneGame, winner models.PlayerSide) {
+	msg := WSMessage{
+		Type: MsgGameWon,
+		Payload: map[string]interface{}{
+			"gameId": laneGame.ID,
+			"winner": winner.String(),
+		},
+	}
+	c.broadcastToLaneGameLocked(laneGame, msg)
+}
+
 // broadcastLaneGameState sends lane game state to all players in the game
 func (c *Client) broadcastLaneGameState(laneGame *models.LaneGame) {
 	c.Hub.mu.RLock()
@@ -937,4 +1074,271 @@ func (c *Client) broadcastLaneGameState(laneGame *models.LaneGame) {
 			client.sendLaneGameState(laneGame)
 		}
 	}
+}
+
+// broadcastToLaneGame sends a message to all human players in a lane game
+// Must be called WITHOUT holding Hub.mu lock
+func (c *Client) broadcastToLaneGame(laneGame *models.LaneGame, msg WSMessage) {
+	data, _ := json.Marshal(msg)
+
+	c.Hub.mu.RLock()
+	defer c.Hub.mu.RUnlock()
+
+	if laneGame.Player1 != nil && laneGame.Player1.ConnectionID != "" {
+		if client, ok := c.Hub.Clients[laneGame.Player1.ConnectionID]; ok {
+			client.Send <- data
+		}
+	}
+
+	if laneGame.Player2 != nil && laneGame.Player2.ConnectionID != "" {
+		if client, ok := c.Hub.Clients[laneGame.Player2.ConnectionID]; ok {
+			client.Send <- data
+		}
+	}
+}
+
+// broadcastToLaneGameLocked sends a message to all human players in a lane game
+// Must be called while already holding Hub.mu lock
+func (c *Client) broadcastToLaneGameLocked(laneGame *models.LaneGame, msg WSMessage) {
+	data, _ := json.Marshal(msg)
+
+	if laneGame.Player1 != nil && laneGame.Player1.ConnectionID != "" {
+		if client, ok := c.Hub.Clients[laneGame.Player1.ConnectionID]; ok {
+			client.Send <- data
+		}
+	}
+
+	if laneGame.Player2 != nil && laneGame.Player2.ConnectionID != "" {
+		if client, ok := c.Hub.Clients[laneGame.Player2.ConnectionID]; ok {
+			client.Send <- data
+		}
+	}
+}
+
+// ============================================================================
+// Multiplayer Room & Matchmaking Handlers
+// ============================================================================
+
+// handleCreateRoom creates a private room for a friend to join
+func (c *Client) handleCreateRoom(payload map[string]interface{}) {
+	heroType, _ := payload["heroType"].(string)
+	gameTypeStr, _ := payload["gameType"].(string)
+
+	gameType := matchmaking.GameTypeLaneGame
+	if gameTypeStr == "chess" {
+		gameType = matchmaking.GameTypeChess
+	}
+
+	room := c.Hub.RoomManager.CreateRoom(gameType, c.PlayerID, c.ID, heroType)
+
+	log.Printf("Room created: %s by player %s (type: %s)", room.Code, c.PlayerID, gameType)
+
+	msg := WSMessage{
+		Type: MsgRoomCreated,
+		Payload: map[string]interface{}{
+			"roomCode": room.Code,
+			"gameType": string(gameType),
+		},
+	}
+	data, _ := json.Marshal(msg)
+	c.Send <- data
+}
+
+// handleJoinRoom joins an existing room by code
+func (c *Client) handleJoinRoom(payload map[string]interface{}) {
+	roomCode, _ := payload["roomCode"].(string)
+	heroType, _ := payload["heroType"].(string)
+
+	room, err := c.Hub.RoomManager.JoinRoom(roomCode, c.PlayerID, c.ID, heroType)
+	if err != nil {
+		c.sendError(err.Error())
+		return
+	}
+
+	log.Printf("Room %s joined by player %s", roomCode, c.PlayerID)
+
+	if room.GameType == matchmaking.GameTypeLaneGame {
+		c.startLaneGameFromRoom(room)
+	} else {
+		c.startChessGameFromRoom(room)
+	}
+}
+
+// handleCancelMatchmaking cancels matchmaking or room waiting
+func (c *Client) handleCancelMatchmaking(payload map[string]interface{}) {
+	// Remove from matchmaking queue
+	c.Hub.Matchmaker.RemovePlayer(c.PlayerID)
+
+	// Cancel any room the player created
+	c.Hub.RoomManager.CancelRoom(c.ID)
+
+	msg := WSMessage{
+		Type: MsgMatchmakingCanceled,
+		Payload: map[string]interface{}{
+			"message": "Matchmaking canceled",
+		},
+	}
+	data, _ := json.Marshal(msg)
+	c.Send <- data
+
+	log.Printf("Player %s canceled matchmaking", c.PlayerID)
+}
+
+// handleFindMatch starts random matchmaking for a game type
+func (c *Client) handleFindMatch(payload map[string]interface{}) {
+	heroType, _ := payload["heroType"].(string)
+	gameTypeStr, _ := payload["gameType"].(string)
+
+	gameType := matchmaking.GameTypeLaneGame
+	if gameTypeStr == "chess" {
+		gameType = matchmaking.GameTypeChess
+	}
+
+	c.Hub.Matchmaker.AddPlayer(&matchmaking.QueuedPlayer{
+		ID:           c.PlayerID,
+		ConnectionID: c.ID,
+		HeroType:     heroType,
+		GameType:     gameType,
+		JoinedAt:     time.Now(),
+	})
+
+	// Send confirmation
+	msg := WSMessage{
+		Type: MsgMatchmakingStarted,
+		Payload: map[string]interface{}{
+			"gameType":    string(gameType),
+			"queueLength": c.Hub.Matchmaker.GetQueueLength(),
+		},
+	}
+	data, _ := json.Marshal(msg)
+	c.Send <- data
+
+	log.Printf("Player %s started matchmaking for %s", c.PlayerID, gameType)
+
+	// Check for match based on game type
+	if gameType == matchmaking.GameTypeLaneGame {
+		go c.checkForLaneMatch()
+	} else {
+		go c.checkForMatch()
+	}
+}
+
+// checkForLaneMatch looks for a lane game match in the queue
+func (c *Client) checkForLaneMatch() {
+	match := c.Hub.Matchmaker.FindMatch(c.PlayerID)
+	if match == nil {
+		return
+	}
+
+	c.startLaneGameWithPlayers(
+		match.Player1.ID, match.Player1.ConnectionID, match.Player1.HeroType,
+		match.Player2.ID, match.Player2.ConnectionID, match.Player2.HeroType,
+	)
+}
+
+// startLaneGameFromRoom creates a lane game from a matched room
+func (c *Client) startLaneGameFromRoom(room *matchmaking.Room) {
+	c.startLaneGameWithPlayers(
+		room.CreatorID, room.CreatorConnID, room.CreatorHero,
+		room.JoinerID, room.JoinerConnID, room.JoinerHero,
+	)
+}
+
+// startLaneGameWithPlayers creates and starts a multiplayer lane game
+func (c *Client) startLaneGameWithPlayers(p1ID, p1ConnID, p1Hero, p2ID, p2ConnID, p2Hero string) {
+	laneGame := models.NewLaneGame()
+	laneGame.IsAIGame = false
+	laneGame.Status = models.LaneStatusPlaying
+
+	laneGame.Player1 = &models.LanePlayer{
+		ID:           p1ID,
+		ConnectionID: p1ConnID,
+		HeroType:     models.HeroType(p1Hero),
+		Side:         models.Player1,
+	}
+
+	laneGame.Player2 = &models.LanePlayer{
+		ID:           p2ID,
+		ConnectionID: p2ConnID,
+		HeroType:     models.HeroType(p2Hero),
+		Side:         models.Player2,
+	}
+
+	c.Hub.mu.Lock()
+	c.Hub.LaneGames[laneGame.ID] = laneGame
+
+	// Update both client game IDs
+	if client1, ok := c.Hub.Clients[p1ConnID]; ok {
+		client1.mu.Lock()
+		client1.GameID = laneGame.ID
+		client1.mu.Unlock()
+	}
+	if client2, ok := c.Hub.Clients[p2ConnID]; ok {
+		client2.mu.Lock()
+		client2.GameID = laneGame.ID
+		client2.mu.Unlock()
+	}
+	c.Hub.mu.Unlock()
+
+	log.Printf("Multiplayer lane game created: %s (P1: %s, P2: %s)", laneGame.ID, p1ID, p2ID)
+
+	// Notify both players
+	c.Hub.mu.RLock()
+	if client1, ok := c.Hub.Clients[p1ConnID]; ok {
+		client1.sendLaneMatchFound(laneGame, models.Player1)
+	}
+	if client2, ok := c.Hub.Clients[p2ConnID]; ok {
+		client2.sendLaneMatchFound(laneGame, models.Player2)
+	}
+	c.Hub.mu.RUnlock()
+
+	// Start the game - execute first turn auto-placement
+	go c.executeLaneGameTurn(laneGame)
+}
+
+// startChessGameFromRoom creates a chess game from a matched room
+func (c *Client) startChessGameFromRoom(room *matchmaking.Room) {
+	game := models.NewGame()
+	game.Status = models.StatusPlaying
+
+	game.Player1 = &models.Player{
+		ID:             room.CreatorID,
+		ConnectionID:   room.CreatorConnID,
+		HeroType:       models.HeroType(room.CreatorHero),
+		Color:          models.White,
+		PerksRemaining: models.GetHeroPerks(models.HeroType(room.CreatorHero)),
+	}
+
+	game.Player2 = &models.Player{
+		ID:             room.JoinerID,
+		ConnectionID:   room.JoinerConnID,
+		HeroType:       models.HeroType(room.JoinerHero),
+		Color:          models.Black,
+		PerksRemaining: models.GetHeroPerks(models.HeroType(room.JoinerHero)),
+	}
+
+	c.Hub.mu.Lock()
+	c.Hub.Games[game.ID] = game
+
+	if client1, ok := c.Hub.Clients[room.CreatorConnID]; ok {
+		client1.mu.Lock()
+		client1.GameID = game.ID
+		client1.mu.Unlock()
+	}
+	if client2, ok := c.Hub.Clients[room.JoinerConnID]; ok {
+		client2.mu.Lock()
+		client2.GameID = game.ID
+		client2.mu.Unlock()
+	}
+	c.Hub.mu.Unlock()
+
+	// Notify both players
+	c.Hub.mu.RLock()
+	if client1, ok := c.Hub.Clients[room.CreatorConnID]; ok {
+		client1.sendMatchFound(game, models.White)
+	}
+	if client2, ok := c.Hub.Clients[room.JoinerConnID]; ok {
+		client2.sendMatchFound(game, models.Black)
+	}
+	c.Hub.mu.RUnlock()
 }
