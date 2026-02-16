@@ -11,7 +11,7 @@ import 'websocket_service.dart';
 const bool _testModePerks = true;
 
 /// Fixed perk pair index for testing. Change this value and restart to test a different pair.
-const int _testPerkPairIndex = 5;
+const int _testPerkPairIndex = 6;
 
 /// Slot 3 pool: React & Protect (15 perks, matching server Slot3Pool order)
 const List<int> _slot3Pool = [4, 22, 24, 25, 26, 27, 28, 29, 30, 46, 33, 35, 43, 49, 52];
