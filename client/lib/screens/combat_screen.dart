@@ -194,6 +194,9 @@ class _CombatScreenState extends State<CombatScreen> {
             // Perk targeting info bar (replaces full-screen overlay)
             if (_isSelectingLane && _selectedPerkId != null)
               _buildPerkTargetingBar(),
+            // Perk info panel with Go/Cancel (shown before targeting)
+            if (!_isSelectingLane && _selectedPerkId != null)
+              _buildPerkInfoPanel(),
             // Turn dialog for pass-and-play
             if (_initialized && _showTurnDialog)
               _buildTurnDialog(),
@@ -445,6 +448,157 @@ class _CombatScreenState extends State<CombatScreen> {
     );
   }
 
+  Widget _buildPerkInfoPanel() {
+    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = (screenWidth * 0.016).clamp(12.0, 18.0);
+    final iconSize = (screenWidth * 0.028).clamp(20.0, 30.0);
+    final horizontalPadding = (screenWidth * 0.025).clamp(14.0, 24.0);
+    final verticalPadding = (screenWidth * 0.012).clamp(10.0, 16.0);
+    final buttonFontSize = (fontSize * 0.95).clamp(11.0, 16.0);
+
+    final categoryColor = perkInfo?.categoryColor ?? Colors.amber;
+
+    return Positioned(
+      bottom: (screenWidth * 0.02).clamp(12.0, 24.0),
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade900.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: categoryColor,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: categoryColor.withValues(alpha: 0.3),
+              blurRadius: 12,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                // Category icon
+                if (perkInfo != null)
+                  Container(
+                    padding: EdgeInsets.all(iconSize * 0.3),
+                    decoration: BoxDecoration(
+                      color: categoryColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      perkInfo.categoryIcon,
+                      color: categoryColor,
+                      size: iconSize,
+                    ),
+                  ),
+                SizedBox(width: horizontalPadding * 0.5),
+                // Perk name and description
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        perkInfo?.name ?? 'Unknown',
+                        style: TextStyle(
+                          fontSize: fontSize * 1.1,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: verticalPadding * 0.2),
+                      Text(
+                        perkInfo?.description ?? '',
+                        style: TextStyle(
+                          fontSize: fontSize * 0.85,
+                          color: Colors.grey.shade300,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: verticalPadding * 0.8),
+            // Go and Cancel buttons
+            Row(
+              children: [
+                // Cancel button
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _onPerkInfoCancel,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: verticalPadding * 0.6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: buttonFontSize,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: horizontalPadding * 0.5),
+                // Go button
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: _onPerkInfoGo,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: verticalPadding * 0.6),
+                      decoration: BoxDecoration(
+                        color: categoryColor,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: categoryColor.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Go',
+                          style: TextStyle(
+                            fontSize: buttonFontSize,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _cancelLaneSelection() {
     setState(() {
       _isSelectingLane = false;
@@ -503,6 +657,8 @@ class _CombatScreenState extends State<CombatScreen> {
       return false;
     }
     if (_isSelectingLane) return false;
+    // Hide perk bar when info panel is showing
+    if (_selectedPerkId != null) return false;
     // Show during perk selection phase (human turn)
     if (gameState.currentPhase == TurnPhase.perkSelection) return true;
     // Show when AI just chose a perk (highlight display)
@@ -511,14 +667,35 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _onPerkSelected(int perkId) {
-    if (LaneValidator.perkRequiresTarget(perkId)) {
+    // Show perk info panel first; user must confirm with "Go"
+    setState(() {
+      _selectedPerkId = perkId;
+      _isSelectingLane = false;
+      _firstSelectedLane = null;
+    });
+  }
+
+  void _onPerkInfoGo() {
+    if (_selectedPerkId == null) return;
+    if (LaneValidator.perkRequiresTarget(_selectedPerkId!)) {
       setState(() {
-        _selectedPerkId = perkId;
         _isSelectingLane = true;
       });
     } else {
+      final perkId = _selectedPerkId!;
+      setState(() {
+        _selectedPerkId = null;
+      });
       _executePerk(perkId, -1);
     }
+  }
+
+  void _onPerkInfoCancel() {
+    setState(() {
+      _selectedPerkId = null;
+      _isSelectingLane = false;
+      _firstSelectedLane = null;
+    });
   }
 
   void _executePerk(int perkId, int targetLane, {int? secondLane}) {
