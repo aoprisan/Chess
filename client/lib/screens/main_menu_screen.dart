@@ -1,12 +1,165 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/material.dart' hide Hero;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/hero.dart';
 import '../services/auth_service.dart';
+import '../services/combat_service.dart';
+import '../services/websocket_service.dart';
+import 'combat_screen.dart';
 import 'hero_selection_screen.dart';
 import 'upgrade_account_screen.dart';
 import 'welcome_screen.dart';
 
-class MainMenuScreen extends StatelessWidget {
+class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
+
+  @override
+  State<MainMenuScreen> createState() => _MainMenuScreenState();
+}
+
+class _MainMenuScreenState extends State<MainMenuScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForActiveGame();
+    });
+  }
+
+  Future<void> _checkForActiveGame() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final token = authService.token;
+    if (token == null) return;
+
+    final wsService = WebSocketService();
+    try {
+      await wsService.connect(token: token);
+
+      // Listen for connect message with activeGameId
+      StreamSubscription<WSMessage>? sub;
+      sub = wsService.messages.listen((msg) {
+        if (msg.type == MessageType.connect) {
+          final activeGameId = msg.payload['activeGameId'] as String?;
+          sub?.cancel();
+
+          if (activeGameId != null && mounted) {
+            _showResumeGameDialog(wsService, activeGameId);
+          } else {
+            wsService.disconnect();
+          }
+        }
+      });
+
+      // Timeout after 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        sub?.cancel();
+        if (!mounted) {
+          wsService.disconnect();
+        }
+      });
+    } catch (_) {
+      // Connection failed, ignore silently
+    }
+  }
+
+  void _showResumeGameDialog(WebSocketService wsService, String gameId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 280,
+          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5E6D3),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF8D6E63), width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.sports_esports, size: 48, color: Color(0xFF5D4037)),
+              const SizedBox(height: 16),
+              const Text(
+                'Game In Progress',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'You have an active online game. Resume?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF8D6E63),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _StyledButton(
+                text: 'Resume Game',
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _resumeGame(wsService, gameId);
+                },
+              ),
+              const SizedBox(height: 12),
+              _StyledButton(
+                text: 'Dismiss',
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  wsService.disconnect();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _resumeGame(WebSocketService wsService, String gameId) {
+    final combatService = CombatService();
+    combatService.initServerDrivenGame(wsService);
+
+    // Listen for reconnect response
+    StreamSubscription<WSMessage>? sub;
+    sub = wsService.messages.listen((msg) {
+      if (msg.type == MessageType.reconnect) {
+        sub?.cancel();
+        if (!mounted) return;
+
+        final sideStr = msg.payload['side'] as String;
+        final myHero = Hero.allHeroes.first; // Fallback
+        final opponentHero = Hero.allHeroes.last;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CombatScreen.online(
+              myHero: myHero,
+              opponentHero: opponentHero,
+              combatService: combatService,
+              wsService: wsService,
+              mySide: sideStr,
+            ),
+          ),
+        );
+      }
+    });
+
+    // Send reconnect request
+    wsService.reconnectToGame(gameId);
+
+    // Store game ID for fallback
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('lastGameId', gameId);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

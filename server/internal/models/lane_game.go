@@ -381,6 +381,7 @@ type LanePlayer struct {
 	ConnectionID string     `json:"connectionId"`
 	HeroType     HeroType   `json:"heroType"`
 	Side         PlayerSide `json:"side"`
+	Username     string     `json:"username,omitempty"`
 }
 
 // PerkSlot represents a perk option offered to a player
@@ -447,6 +448,10 @@ type LaneGame struct {
 	// AI settings
 	IsAIGame     bool   `json:"isAiGame"`
 	AIDifficulty string `json:"aiDifficulty,omitempty"`
+
+	// Disconnect tracking (for multiplayer reconnection)
+	DisconnectedPlayerID string    `json:"disconnectedPlayerId,omitempty"`
+	DisconnectTime       time.Time `json:"disconnectTime,omitempty"`
 
 	// RNG for deterministic games
 	rng *rand.Rand
@@ -695,6 +700,17 @@ func (g *LaneGame) GetPlayer(side PlayerSide) *LanePlayer {
 		return g.Player1
 	}
 	return g.Player2
+}
+
+// GetPlayerByID returns the player matching a player ID
+func (g *LaneGame) GetPlayerByID(playerID string) *LanePlayer {
+	if g.Player1 != nil && g.Player1.ID == playerID {
+		return g.Player1
+	}
+	if g.Player2 != nil && g.Player2.ID == playerID {
+		return g.Player2
+	}
+	return nil
 }
 
 // GetPlayerByConnectionID returns the player matching a connection ID

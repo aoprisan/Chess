@@ -19,6 +19,12 @@ enum MessageType {
   laneWon,
   gameWon,
   laneMatchFound,
+  // Multiplayer message types
+  queueStatus,
+  opponentDisconnected,
+  gameResult,
+  turnTimer,
+  reconnect,
 }
 
 /// WebSocket message wrapper
@@ -128,6 +134,16 @@ class WebSocketService {
   /// Pass on perk selection (equivalent to selectPerk with perkId 0)
   void passPerk(String gameId) {
     selectPerk(gameId, 0);
+  }
+
+  /// Request to reconnect to an in-progress game
+  void reconnectToGame(String gameId) {
+    send(WSMessage(
+      type: MessageType.reconnect,
+      payload: {
+        'gameId': gameId,
+      },
+    ));
   }
 
   void dispose() {

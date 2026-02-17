@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/hero.dart';
 import '../models/combat_state.dart';
 import '../services/combat_service.dart';
+import '../services/websocket_service.dart';
 import '../widgets/perk_card.dart';
 import '../widgets/perk_selection_panel.dart';
 import '../widgets/lane_selector.dart';
@@ -16,6 +17,12 @@ class CombatScreen extends StatefulWidget {
   final String player1AIDifficulty;
   final String player2AIDifficulty;
 
+  // Online multiplayer fields
+  final bool isOnline;
+  final CombatService? onlineCombatService;
+  final WebSocketService? onlineWsService;
+  final String? mySide;
+
   const CombatScreen({
     super.key,
     required this.player1Hero,
@@ -24,7 +31,30 @@ class CombatScreen extends StatefulWidget {
     this.player2IsAI = false,
     this.player1AIDifficulty = 'medium',
     this.player2AIDifficulty = 'medium',
+    this.isOnline = false,
+    this.onlineCombatService,
+    this.onlineWsService,
+    this.mySide,
   });
+
+  /// Named constructor for online multiplayer games
+  CombatScreen.online({
+    super.key,
+    required Hero myHero,
+    required Hero opponentHero,
+    required CombatService combatService,
+    required WebSocketService wsService,
+    required String mySide,
+  })  : player1Hero = mySide == 'player1' ? myHero : opponentHero,
+        player2Hero = mySide == 'player1' ? opponentHero : myHero,
+        player1IsAI = false,
+        player2IsAI = false,
+        player1AIDifficulty = 'medium',
+        player2AIDifficulty = 'medium',
+        isOnline = true,
+        onlineCombatService = combatService,
+        onlineWsService = wsService,
+        mySide = mySide;
 
   @override
   State<CombatScreen> createState() => _CombatScreenState();
@@ -55,7 +85,11 @@ class _CombatScreenState extends State<CombatScreen> {
   @override
   void initState() {
     super.initState();
-    _combatService = CombatService();
+    if (widget.isOnline && widget.onlineCombatService != null) {
+      _combatService = widget.onlineCombatService!;
+    } else {
+      _combatService = CombatService();
+    }
     _combatService.addListener(_onServiceChanged);
     // Initialize game after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,7 +105,10 @@ class _CombatScreenState extends State<CombatScreen> {
       if (gameState != null && gameState.status == CombatStatus.playing) {
         // Detect turn change for pass-and-play dialog
         if (_previousPlayer != gameState.currentPlayer) {
-          if (_isCurrentPlayerAI) {
+          if (widget.isOnline) {
+            // Skip turn dialog for online multiplayer
+            _showTurnDialog = false;
+          } else if (_isCurrentPlayerAI) {
             // Show dialog briefly for AI, then auto-dismiss
             _showTurnDialog = true;
             Future.delayed(const Duration(milliseconds: 800), () {
@@ -97,6 +134,16 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _initGame() {
+    if (widget.isOnline) {
+      // Online mode: service is already initialized and listening to WebSocket
+      _showTurnDialog = false;
+      _previousPlayer = _combatService.mySide;
+      setState(() {
+        _initialized = true;
+      });
+      return;
+    }
+
     _combatService.initGame(
       'game_${DateTime.now().millisecondsSinceEpoch}',
       player1Hero: widget.player1Hero,
@@ -113,6 +160,7 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _maybeAutoPlace() {
+    if (widget.isOnline) return; // Server handles auto-placement for online games
     if (_showTurnDialog) return;
     final gameState = _combatService.gameState;
     if (gameState == null) return;
@@ -174,7 +222,13 @@ class _CombatScreenState extends State<CombatScreen> {
   @override
   void dispose() {
     _combatService.removeListener(_onServiceChanged);
-    _combatService.dispose();
+    if (!widget.isOnline) {
+      _combatService.dispose();
+    } else {
+      // For online mode, disconnect from server
+      widget.onlineWsService?.disconnect();
+      _combatService.disconnectFromServer();
+    }
     super.dispose();
   }
 
@@ -204,8 +258,14 @@ class _CombatScreenState extends State<CombatScreen> {
             // Perk targeting info bar (replaces full-screen overlay)
             if (_isSelectingLane && _selectedPerkId != null)
               _buildPerkTargetingBar(),
-            // Turn dialog for pass-and-play
-            if (_initialized && _showTurnDialog)
+            // Opponent disconnected overlay (online only)
+            if (widget.isOnline && _combatService.opponentDisconnected)
+              _buildOpponentDisconnectedOverlay(),
+            // Turn timer (online only)
+            if (widget.isOnline && _combatService.turnDeadlineMs != null && !_combatService.opponentDisconnected)
+              _buildTurnTimerWidget(),
+            // Turn dialog for pass-and-play (not shown in online mode)
+            if (_initialized && _showTurnDialog && !widget.isOnline)
               _buildTurnDialog(),
           ],
         ),
@@ -330,6 +390,109 @@ class _CombatScreenState extends State<CombatScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOpponentDisconnectedOverlay() {
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.6),
+        child: Center(
+          child: Container(
+            width: 280,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off, color: Colors.orange, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'Opponent Disconnected',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Waiting for reconnect...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(color: Colors.orange),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTurnTimerWidget() {
+    final deadline = _combatService.turnDeadlineMs;
+    if (deadline == null) return const SizedBox.shrink();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final remaining = ((deadline - now) / 1000).ceil().clamp(0, 60);
+    final isMyTurn = _combatService.isMyTurn;
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: remaining <= 10
+              ? Colors.red.shade900.withValues(alpha: 0.9)
+              : Colors.grey.shade900.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: remaining <= 10 ? Colors.red : Colors.white24,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer,
+              size: 16,
+              color: remaining <= 10 ? Colors.red.shade300 : Colors.white70,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${remaining}s',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: remaining <= 10 ? Colors.red.shade300 : Colors.white,
+              ),
+            ),
+            if (isMyTurn) ...[
+              const SizedBox(width: 4),
+              Text(
+                'Your turn',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -684,8 +847,18 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _executePerk(int perkId, int targetLane, {int? secondLane}) {
-    // For local game, we execute locally
-    // In server-driven mode, this would send to server
+    // In server-driven mode, send perk selection to server
+    if (_combatService.isServerDriven) {
+      _combatService.selectPerk(perkId, targetLane: targetLane >= 0 ? targetLane : null);
+      setState(() {
+        _selectedPerkId = null;
+        _isSelectingLane = false;
+        _isShowingPerkConfirmation = false;
+        _firstSelectedLane = null;
+      });
+      return;
+    }
+
     final gameState = _combatService.gameState;
     if (gameState == null) return;
 
@@ -848,6 +1021,10 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 
   void _onPass() {
+    if (_combatService.isServerDriven) {
+      _combatService.passPerkSelection();
+      return;
+    }
     _combatService.skipTurn();
   }
 

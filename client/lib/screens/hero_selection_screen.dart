@@ -1,5 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart' hide Hero;
+import 'package:provider/provider.dart';
 import '../models/hero.dart';
+import '../services/auth_service.dart';
+import '../services/combat_service.dart';
+import '../services/websocket_service.dart';
 import 'combat_screen.dart';
 
 enum GameMode { solo, localMultiplayer, online }
@@ -27,9 +32,21 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   String _player1AIDifficulty = 'medium';
   String _player2AIDifficulty = 'medium';
 
+  // Online matchmaking state
+  bool _isSearching = false;
+  StreamSubscription<WSMessage>? _onlineMatchSub;
+  WebSocketService? _onlineWsService;
+  CombatService? _onlineCombatService;
+
   Hero? get _selectedHero => _currentPlayer == 1 ? _player1Hero : _player2Hero;
 
   bool get _needsTwoPlayers => widget.mode != GameMode.online;
+
+  @override
+  void dispose() {
+    _onlineMatchSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +116,62 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
               },
             ),
           ),
+          // Searching for opponent overlay
+          if (_isSearching)
+            GestureDetector(
+              onTap: () {},
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.7),
+                child: Center(
+                  child: Container(
+                    width: 280,
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5E6D3),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF8D6E63), width: 3),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          color: Color(0xFF5D4037),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Searching for opponent...',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF5D4037),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        GestureDetector(
+                          onTap: _cancelSearch,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade400,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -493,6 +566,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   void _startGame() {
+    if (widget.mode == GameMode.online) {
+      _startOnlineGame();
+      return;
+    }
+
     final p1AI = widget.mode == GameMode.solo ? false : _player1IsAI;
     final p2AI = widget.mode == GameMode.solo ? true : _player2IsAI;
 
@@ -514,6 +592,83 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
         ),
       ),
     );
+  }
+
+  void _startOnlineGame() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final token = authService.token;
+    final userId = authService.currentUser?.userId;
+    if (token == null || userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to play online')),
+      );
+      return;
+    }
+
+    // Show searching overlay
+    setState(() => _isSearching = true);
+
+    final wsService = WebSocketService();
+    final combatService = CombatService();
+
+    try {
+      await wsService.connect(token: token);
+      combatService.initServerDrivenGame(wsService);
+
+      // Listen for match found
+      StreamSubscription<WSMessage>? matchSub;
+      matchSub = wsService.messages.listen((msg) {
+        if (msg.type == MessageType.laneMatchFound) {
+          matchSub?.cancel();
+          if (!mounted) return;
+          setState(() => _isSearching = false);
+
+          // Determine opponent hero for combat screen display
+          final opponentHeroType = msg.payload['opponentHero'] as String? ?? 'yeti';
+          final opponentHero = Hero.allHeroes.firstWhere(
+            (h) => h.type.name == opponentHeroType,
+            orElse: () => Hero.allHeroes.first,
+          );
+
+          final mySide = msg.payload['side'] as String;
+          final myHero = _player1Hero!;
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CombatScreen.online(
+                myHero: myHero,
+                opponentHero: opponentHero,
+                combatService: combatService,
+                wsService: wsService,
+                mySide: mySide == 'player1' ? 'player1' : 'player2',
+              ),
+            ),
+          );
+        }
+      });
+
+      _onlineMatchSub = matchSub;
+      _onlineWsService = wsService;
+      _onlineCombatService = combatService;
+
+      // Send join request
+      combatService.joinLaneGame(userId, _player1Hero!.type.name, false, null);
+    } catch (e) {
+      setState(() => _isSearching = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _cancelSearch() {
+    _onlineMatchSub?.cancel();
+    _onlineWsService?.disconnect();
+    _onlineCombatService?.disconnectFromServer();
+    setState(() => _isSearching = false);
   }
 }
 

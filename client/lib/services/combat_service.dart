@@ -57,6 +57,15 @@ class CombatService extends ChangeNotifier {
   String? _lastError;
   bool _isServerDriven = false;
 
+  // Online multiplayer state
+  bool _isInQueue = false;
+  String? _opponentUsername;
+  String? _opponentHero;
+  bool _opponentDisconnected = false;
+  int? _turnDeadlineMs;
+  int? _ratingChange;
+  int? _newRating;
+
   bool _isAutoPlacing = false;
 
   // AI flags for local game mode
@@ -79,6 +88,13 @@ class CombatService extends ChangeNotifier {
   bool get isServerDriven => _isServerDriven;
   bool get isMyTurn => _gameState?.currentPlayer == _mySide;
   int? get lastAIPerkId => _lastAIPerkId;
+  bool get isInQueue => _isInQueue;
+  String? get opponentUsername => _opponentUsername;
+  String? get opponentHero => _opponentHero;
+  bool get opponentDisconnected => _opponentDisconnected;
+  int? get turnDeadlineMs => _turnDeadlineMs;
+  int? get ratingChange => _ratingChange;
+  int? get newRating => _newRating;
 
   /// Whether the current player is AI-controlled
   bool get isCurrentPlayerAI {
@@ -2390,6 +2406,21 @@ class CombatService extends ChangeNotifier {
       case MessageType.error:
         _handleError(message.payload);
         break;
+      case MessageType.queueStatus:
+        _handleQueueStatus(message.payload);
+        break;
+      case MessageType.opponentDisconnected:
+        _handleOpponentDisconnected(message.payload);
+        break;
+      case MessageType.turnTimer:
+        _handleTurnTimer(message.payload);
+        break;
+      case MessageType.gameResult:
+        _handleGameResult(message.payload);
+        break;
+      case MessageType.reconnect:
+        _handleReconnect(message.payload);
+        break;
       default:
         break;
     }
@@ -2399,6 +2430,9 @@ class CombatService extends ChangeNotifier {
     _gameId = payload['gameId'] as String;
     final sideStr = payload['side'] as String;
     _mySide = sideStr == 'player1' ? PlayerSide.player1 : PlayerSide.player2;
+    _opponentUsername = payload['opponentUsername'] as String?;
+    _opponentHero = payload['opponentHero'] as String?;
+    _isInQueue = false;
     notifyListeners();
   }
 
@@ -2446,6 +2480,48 @@ class CombatService extends ChangeNotifier {
 
   void _handleError(Map<String, dynamic> payload) {
     _lastError = payload['message'] as String?;
+    notifyListeners();
+  }
+
+  void _handleQueueStatus(Map<String, dynamic> payload) {
+    final status = payload['status'] as String?;
+    if (status == 'queued') {
+      _isInQueue = true;
+    } else if (status == 'reconnected') {
+      _opponentDisconnected = false;
+    }
+    notifyListeners();
+  }
+
+  void _handleOpponentDisconnected(Map<String, dynamic> payload) {
+    _opponentDisconnected = true;
+    _turnDeadlineMs = null; // Pause turn timer during disconnect
+    notifyListeners();
+  }
+
+  void _handleTurnTimer(Map<String, dynamic> payload) {
+    _turnDeadlineMs = (payload['deadline'] as num?)?.toInt();
+    notifyListeners();
+  }
+
+  void _handleGameResult(Map<String, dynamic> payload) {
+    final mySideStr = _mySide == PlayerSide.player1 ? 'player1' : 'player2';
+    _ratingChange = payload['${mySideStr}RatingChange'] as int?;
+    _newRating = payload['${mySideStr}NewRating'] as int?;
+    notifyListeners();
+  }
+
+  void _handleReconnect(Map<String, dynamic> payload) {
+    _gameId = payload['gameId'] as String;
+    final sideStr = payload['side'] as String;
+    _mySide = sideStr == 'player1' ? PlayerSide.player1 : PlayerSide.player2;
+    _opponentDisconnected = false;
+
+    // Restore game state from payload
+    final gameData = payload['game'] as Map<String, dynamic>?;
+    if (gameData != null) {
+      _updateGameStateFromServer(gameData);
+    }
     notifyListeners();
   }
 
@@ -2596,6 +2672,13 @@ class CombatService extends ChangeNotifier {
     _currentPerkSlots = [];
     _lastAutoPlacedLane = null;
     _lastError = null;
+    _isInQueue = false;
+    _opponentUsername = null;
+    _opponentHero = null;
+    _opponentDisconnected = false;
+    _turnDeadlineMs = null;
+    _ratingChange = null;
+    _newRating = null;
     notifyListeners();
   }
 

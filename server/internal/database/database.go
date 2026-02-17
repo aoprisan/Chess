@@ -58,6 +58,22 @@ func (db *DB) migrate() error {
 			rating INTEGER DEFAULT 1200
 		)`,
 
+		// Games table
+		`CREATE TABLE IF NOT EXISTS games (
+			id TEXT PRIMARY KEY,
+			player1_id TEXT NOT NULL,
+			player2_id TEXT NOT NULL,
+			player1_hero TEXT NOT NULL,
+			player2_hero TEXT NOT NULL,
+			winner_id TEXT,
+			status TEXT DEFAULT 'playing',
+			player1_lanes_won INTEGER DEFAULT 0,
+			player2_lanes_won INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			finished_at DATETIME,
+			FOREIGN KEY (player1_id) REFERENCES users(id),
+			FOREIGN KEY (player2_id) REFERENCES users(id)
+		)`,
 	}
 
 	for _, migration := range migrations {
@@ -265,4 +281,35 @@ func (db *DB) GetLeaderboard(limit int) ([]*User, error) {
 		users = append(users, user)
 	}
 	return users, nil
+}
+
+// CreateGame records a new game
+func (db *DB) CreateGame(gameID, player1ID, player2ID, player1Hero, player2Hero string) error {
+	query := `INSERT INTO games (id, player1_id, player2_id, player1_hero, player2_hero, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := db.Exec(query, gameID, player1ID, player2ID, player1Hero, player2Hero, time.Now())
+	return err
+}
+
+// FinishGame records game result
+func (db *DB) FinishGame(gameID, winnerID string, p1LanesWon, p2LanesWon int) error {
+	query := `UPDATE games SET winner_id = ?, status = 'finished', player1_lanes_won = ?, player2_lanes_won = ?, finished_at = ? WHERE id = ?`
+	_, err := db.Exec(query, winnerID, p1LanesWon, p2LanesWon, time.Now(), gameID)
+	return err
+}
+
+// UpdateUserRating updates a user's ELO rating
+func (db *DB) UpdateUserRating(userID string, newRating int) error {
+	query := `UPDATE users SET rating = ?, updated_at = ? WHERE id = ?`
+	_, err := db.Exec(query, newRating, time.Now(), userID)
+	return err
+}
+
+// GetUserRating returns a user's current rating
+func (db *DB) GetUserRating(userID string) (int, error) {
+	var rating int
+	err := db.QueryRow(`SELECT rating FROM users WHERE id = ?`, userID).Scan(&rating)
+	if err == sql.ErrNoRows {
+		return 1200, nil
+	}
+	return rating, err
 }
