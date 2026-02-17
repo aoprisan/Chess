@@ -561,8 +561,8 @@ func (c *Client) handleSelectPerk(payload map[string]interface{}) {
 		}
 	} else {
 		// Multiplayer game: use Hub broadcasts
-		c.Hub.cancelTurnTimer(laneGame.ID)
 		c.Hub.mu.Unlock()
+		c.Hub.cancelTurnTimer(laneGame.ID)
 
 		c.Hub.broadcastPerkResult(laneGame, result)
 
@@ -778,6 +778,9 @@ func (h *Hub) createMultiplayerGame(entry1, entry2 *QueueEntry) {
 	}
 	p2Data, _ := json.Marshal(p2Msg)
 	entry2.Client.Send <- p2Data
+
+	log.Printf("Game %s: sending side=player1 to %s (conn=%s), side=player2 to %s (conn=%s)",
+		laneGame.ID, entry1.Username, entry1.Client.ID, entry2.Username, entry2.Client.ID)
 
 	h.mu.Unlock()
 

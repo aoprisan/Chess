@@ -1046,7 +1046,9 @@ class _CombatScreenState extends State<CombatScreen> {
                 SizedBox(height: screenHeight * 0.005),
                 // Turn indicator
                 _TurnIndicator(
-                  playerName: service.currentPlayerName,
+                  playerName: widget.isOnline
+                      ? (_combatService.isMyTurn ? 'Your' : "Opponent's")
+                      : service.currentPlayerName,
                   isPlayer1: gameState.currentPlayer == PlayerSide.player1,
                   screenWidth: screenWidth,
                 ),
@@ -1088,7 +1090,9 @@ class _CombatScreenState extends State<CombatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: _PerkSelectionArea(
                       perkSlots: _combatService.currentPerkSlots,
-                      isMyTurn: _combatService.lastAIPerkId == null,
+                      isMyTurn: widget.isOnline
+                          ? _combatService.isMyTurn
+                          : (_combatService.lastAIPerkId == null),
                       onPerkSelected: _onPerkSelected,
                       onPass: _onPass,
                       screenWidth: screenWidth,
