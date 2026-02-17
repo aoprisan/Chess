@@ -12,7 +12,6 @@ import (
 	"github.com/kiddiechess/server/internal/auth"
 	"github.com/kiddiechess/server/internal/database"
 	"github.com/kiddiechess/server/internal/handlers"
-	"github.com/kiddiechess/server/internal/matchmaking"
 )
 
 func main() {
@@ -48,12 +47,8 @@ func main() {
 	}
 	authSvc := auth.NewAuthService(jwtSecret)
 
-	// Initialize matchmaking service
-	mm := matchmaking.NewMatchmaker()
-	go mm.Run()
-
 	// Initialize WebSocket hub with database
-	hub := handlers.NewHub(mm, db)
+	hub := handlers.NewHub(db)
 	go hub.Run()
 
 	// WebSocket endpoint

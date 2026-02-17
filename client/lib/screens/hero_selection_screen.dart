@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart' hide Hero;
-import 'package:provider/provider.dart';
 import '../models/hero.dart';
-import '../services/game_service.dart';
 import 'combat_screen.dart';
 
 enum GameMode { solo, localMultiplayer, online }
@@ -22,24 +20,16 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   int _currentPlayer = 1; // 1 or 2
   Hero? _player1Hero;
   Hero? _player2Hero;
+
+  // AI mode settings per player
   bool _player1IsAI = false;
   bool _player2IsAI = false;
-  String _difficulty = 'medium';
+  String _player1AIDifficulty = 'medium';
+  String _player2AIDifficulty = 'medium';
 
   Hero? get _selectedHero => _currentPlayer == 1 ? _player1Hero : _player2Hero;
 
-  bool get _anyAI => _player1IsAI || _player2IsAI;
-  bool get _currentPlayerIsAI => _currentPlayer == 1 ? _player1IsAI : _player2IsAI;
-
   bool get _needsTwoPlayers => widget.mode != GameMode.online;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.mode == GameMode.solo) {
-      _player2IsAI = true;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +217,12 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     final heroNameSize = (screenWidth * 0.022).clamp(16.0, 28.0);
     final perkFontSize = (screenWidth * 0.013).clamp(11.0, 15.0);
 
+    final isAI = _currentPlayer == 1 ? _player1IsAI : _player2IsAI;
+    final difficulty = _currentPlayer == 1 ? _player1AIDifficulty : _player2AIDifficulty;
+    // In solo mode, Player 2 is always AI — show difficulty only (no toggle)
+    final isSoloP2 = widget.mode == GameMode.solo && _currentPlayer == 2;
+    final showAIToggle = widget.mode == GameMode.localMultiplayer;
+
     return Column(
       children: [
         // Hero details container
@@ -248,83 +244,93 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
                       ),
                     ),
                   )
-                : Row(
-                    children: [
-                      // Large hero image
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.all(padding),
-                                child: Image.asset(
-                                  _selectedHero!.imagePath,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.person, size: 60),
-                                ),
-                              ),
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.all(padding),
+                            child: Image.asset(
+                              _selectedHero!.imagePath,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.person, size: 60),
                             ),
-                            Padding(
-                              padding: EdgeInsets.only(bottom: padding),
-                              child: Text(
-                                _selectedHero!.name,
-                                style: TextStyle(
-                                  fontSize: heroNameSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF5D4037),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Perks list
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: EdgeInsets.all(padding * 0.75),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Perks',
-                                style: TextStyle(
-                                  fontSize: perkFontSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF5D4037),
-                                ),
-                              ),
-                              SizedBox(height: padding * 0.5),
-                              // All perks list
-                              ...Perk.values.map((perk) {
-                                final hasPerk = _selectedHero!.perks.contains(perk);
-                                return _PerkRow(
-                                  perkName: _getPerkDisplayName(perk),
-                                  isActive: hasPerk,
-                                  fontSize: perkFontSize * 0.85,
-                                );
-                              }),
-                              const Spacer(),
-                              // AI Mode section (solo only)
-                              if (widget.mode == GameMode.solo) ...[
-                                _buildAIModeCheckbox(screenWidth),
-                                SizedBox(height: padding * 0.5),
-                                Opacity(
-                                  opacity: _anyAI ? 1.0 : 0.5,
-                                  child: IgnorePointer(
-                                    ignoring: !_anyAI,
-                                    child: _buildDifficultySelector(screenWidth),
-                                  ),
-                                ),
-                              ],
-                            ],
                           ),
                         ),
-                      ),
-                    ],
+                        Padding(
+                          padding: EdgeInsets.only(bottom: padding * 0.5),
+                          child: Text(
+                            _selectedHero!.name,
+                            style: TextStyle(
+                              fontSize: heroNameSize,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF5D4037),
+                            ),
+                          ),
+                        ),
+                        // AI Mode toggle (local multiplayer only)
+                        if (showAIToggle)
+                          Padding(
+                            padding: EdgeInsets.only(bottom: padding * 0.3),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (_currentPlayer == 1) {
+                                    _player1IsAI = !_player1IsAI;
+                                    if (_player1IsAI) _player1AIDifficulty = 'medium';
+                                  } else {
+                                    _player2IsAI = !_player2IsAI;
+                                    if (_player2IsAI) _player2AIDifficulty = 'medium';
+                                  }
+                                });
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: isAI ? const Color(0xFF4CAF50) : Colors.transparent,
+                                      border: Border.all(
+                                        color: isAI ? const Color(0xFF4CAF50) : const Color(0xFF8D6E63),
+                                        width: 2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: isAI
+                                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'AI Mode',
+                                    style: TextStyle(
+                                      fontSize: perkFontSize,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF5D4037),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Difficulty selector (visible when AI is on, or in solo P2)
+                        if (isAI || isSoloP2)
+                          Padding(
+                            padding: EdgeInsets.only(bottom: padding),
+                            child: _buildDifficultySelector(
+                              difficulty: isSoloP2 ? _player2AIDifficulty : difficulty,
+                              enabled: true,
+                              fontSize: perkFontSize,
+                            ),
+                          )
+                        else
+                          SizedBox(height: padding * 0.5),
+                      ],
+                    ),
                   ),
           ),
         ),
@@ -332,86 +338,63 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
     );
   }
 
-  Widget _buildAIModeCheckbox(double screenWidth) {
-    final checkboxSize = (screenWidth * 0.025).clamp(20.0, 32.0);
-    final fontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
+  Widget _buildDifficultySelector({
+    required String difficulty,
+    required bool enabled,
+    required double fontSize,
+  }) {
+    const difficulties = ['easy', 'medium', 'hard'];
+    const labels = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'};
+    const colors = {
+      'easy': Color(0xFF4CAF50),
+      'medium': Color(0xFFFF9800),
+      'hard': Color(0xFFFF9800),
+    };
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_currentPlayer == 1) {
-            _player1IsAI = !_player1IsAI;
-          } else {
-            _player2IsAI = !_player2IsAI;
-          }
-        });
-      },
-      child: Row(
-        children: [
-          Container(
-            width: checkboxSize,
-            height: checkboxSize,
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(
-                  _currentPlayerIsAI
-                      ? 'assets/images/ui/checkbox-active-bg.png'
-                      : 'assets/images/ui/checkbox-bg.png',
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: difficulties.map((d) {
+        final isSelected = difficulty == d;
+        final color = colors[d]!;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: GestureDetector(
+            onTap: enabled
+                ? () {
+                    setState(() {
+                      if (_currentPlayer == 1) {
+                        _player1AIDifficulty = d;
+                      } else {
+                        _player2AIDifficulty = d;
+                      }
+                    });
+                  }
+                : null,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: fontSize * 0.8,
+                vertical: fontSize * 0.3,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected ? color : Colors.transparent,
+                border: Border.all(
+                  color: isSelected ? color : const Color(0xFF8D6E63).withValues(alpha: 0.4),
+                  width: 1.5,
                 ),
-                fit: BoxFit.contain,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                labels[d]!,
+                style: TextStyle(
+                  fontSize: fontSize * 0.9,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : const Color(0xFF8D6E63),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            'Player $_currentPlayer AI',
-            style: TextStyle(
-              fontSize: fontSize,
-              color: const Color(0xFF5D4037),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDifficultySelector(double screenWidth) {
-    final height = (screenWidth * 0.038).clamp(30.0, 48.0);
-    final fontSize = (screenWidth * 0.012).clamp(10.0, 14.0);
-
-    return Container(
-      height: height,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/ui/ai-mode-group-buttons-bg.png'),
-          fit: BoxFit.fill,
-        ),
-      ),
-      child: Row(
-        children: [
-          _DifficultyButton(
-            label: 'Easy',
-            isSelected: _anyAI && _difficulty == 'easy',
-            backgroundAsset: 'assets/images/ui/eazy-level-bg.png',
-            fontSize: fontSize,
-            onTap: () => setState(() => _difficulty = 'easy'),
-          ),
-          _DifficultyButton(
-            label: 'Medium',
-            isSelected: _anyAI && _difficulty == 'medium',
-            backgroundAsset: 'assets/images/ui/medium-level-bg.png',
-            fontSize: fontSize,
-            onTap: () => setState(() => _difficulty = 'medium'),
-          ),
-          _DifficultyButton(
-            label: 'Hard',
-            isSelected: _anyAI && _difficulty == 'hard',
-            backgroundAsset: 'assets/images/ui/hard-level-bg.png',
-            fontSize: fontSize,
-            onTap: () => setState(() => _difficulty = 'hard'),
-          ),
-        ],
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -510,22 +493,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   }
 
   void _startGame() {
-    final gameService = context.read<GameService>();
-
-    // Set Player 1's hero
-    gameService.selectHero(_player1Hero!);
-
-    // For local multiplayer, force both AI flags off
-    final p1AI = widget.mode == GameMode.localMultiplayer ? false : _player1IsAI;
-    final p2AI = widget.mode == GameMode.localMultiplayer ? false : _player2IsAI;
-
-    // Set AI mode and difficulty
-    if (p1AI || p2AI) {
-      gameService.setAIMode(true);
-      gameService.setAIDifficulty(_getDifficulty());
-    } else {
-      gameService.setAIMode(false);
-    }
+    final p1AI = widget.mode == GameMode.solo ? false : _player1IsAI;
+    final p2AI = widget.mode == GameMode.solo ? true : _player2IsAI;
 
     // For AI mode, use the same hero for player 2 if not selected
     final player2 = _player2Hero ?? Hero.allHeroes.firstWhere(
@@ -540,37 +509,11 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
           player2Hero: player2,
           player1IsAI: p1AI,
           player2IsAI: p2AI,
+          player1AIDifficulty: _player1AIDifficulty,
+          player2AIDifficulty: _player2AIDifficulty,
         ),
       ),
     );
-  }
-
-  AIDifficulty _getDifficulty() {
-    switch (_difficulty) {
-      case 'easy':
-        return AIDifficulty.easy;
-      case 'hard':
-        return AIDifficulty.hard;
-      default:
-        return AIDifficulty.medium;
-    }
-  }
-
-  String _getPerkDisplayName(Perk perk) {
-    switch (perk) {
-      case Perk.anotherMove:
-        return 'Another move';
-      case Perk.removeEnemy:
-        return 'Remove enemy';
-      case Perk.placeAnother:
-        return 'Place another';
-      case Perk.scatterAround:
-        return 'Scatter around';
-      case Perk.freeze:
-        return 'Freeze';
-      case Perk.cancelMove:
-        return 'Cancel move';
-    }
   }
 }
 
@@ -653,97 +596,6 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PerkRow extends StatelessWidget {
-  final String perkName;
-  final bool isActive;
-  final double fontSize;
-
-  const _PerkRow({
-    required this.perkName,
-    required this.isActive,
-    this.fontSize = 12,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      padding: EdgeInsets.symmetric(horizontal: fontSize * 0.8, vertical: fontSize * 0.4),
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/ui/perk-bg.png'),
-          fit: BoxFit.fill,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Text(
-              perkName,
-              style: TextStyle(
-                fontSize: fontSize,
-                color: isActive ? const Color(0xFF5D4037) : const Color(0xFFB0A090),
-              ),
-            ),
-          ),
-          if (isActive)
-            Image.asset(
-              'assets/images/ui/active-perk-icon.png',
-              width: fontSize,
-              height: fontSize,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DifficultyButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final String backgroundAsset;
-  final double fontSize;
-  final VoidCallback onTap;
-
-  const _DifficultyButton({
-    required this.label,
-    required this.isSelected,
-    required this.backgroundAsset,
-    this.fontSize = 11,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          decoration: isSelected
-              ? BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(backgroundAsset),
-                    fit: BoxFit.fill,
-                  ),
-                )
-              : null,
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: const Color(0xFF5D4037),
-              ),
-            ),
           ),
         ),
       ),

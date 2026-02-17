@@ -8,14 +8,7 @@ import 'server_config.dart';
 enum MessageType {
   connect,
   disconnect,
-  joinGame,
-  leaveGame,
-  makeMove,
-  usePerk,
-  gameState,
   error,
-  matchFound,
-  opponentDisconnected,
   // V2 Lane Game message types
   joinLaneGame,
   laneGameState,
@@ -99,45 +92,6 @@ class WebSocketService {
       throw Exception('Not connected to server');
     }
     _channel!.sink.add(jsonEncode(message.toJson()));
-  }
-
-  /// Request to join matchmaking queue
-  void joinMatchmaking(String playerId, String heroType, bool vsAI, String? aiDifficulty) {
-    send(WSMessage(
-      type: MessageType.joinGame,
-      payload: {
-        'playerId': playerId,
-        'heroType': heroType,
-        'vsAI': vsAI,
-        'aiDifficulty': aiDifficulty,
-      },
-    ));
-  }
-
-  /// Send a move to the server
-  void makeMove(String gameId, int fromRow, int fromCol, int toRow, int toCol) {
-    send(WSMessage(
-      type: MessageType.makeMove,
-      payload: {
-        'gameId': gameId,
-        'fromRow': fromRow,
-        'fromCol': fromCol,
-        'toRow': toRow,
-        'toCol': toCol,
-      },
-    ));
-  }
-
-  /// Use a perk
-  void usePerk(String gameId, String perk, Map<String, dynamic>? perkData) {
-    send(WSMessage(
-      type: MessageType.usePerk,
-      payload: {
-        'gameId': gameId,
-        'perk': perk,
-        'data': perkData,
-      },
-    ));
   }
 
   // ============================================================================

@@ -7,6 +7,18 @@ import (
 	"github.com/google/uuid"
 )
 
+// HeroType represents hero types
+type HeroType string
+
+const (
+	HeroSloth   HeroType = "sloth"
+	HeroPanda   HeroType = "panda"
+	HeroUnicorn HeroType = "unicorn"
+	HeroSnowman HeroType = "snowman"
+	HeroGnom    HeroType = "gnom"
+	HeroYeti    HeroType = "yeti"
+)
+
 // PlayerSide represents which player (1 or 2)
 type PlayerSide int
 

@@ -62,6 +62,8 @@ class CombatService extends ChangeNotifier {
   // AI flags for local game mode
   bool _player1IsAI = false;
   bool _player2IsAI = false;
+  String _player1AIDifficulty = 'medium';
+  String _player2AIDifficulty = 'medium';
 
   // AI perk highlight: stores the perk ID the AI chose during its turn
   int? _lastAIPerkId;
@@ -88,9 +90,12 @@ class CombatService extends ChangeNotifier {
 
   /// Initialize a new combat game
   void initGame(String gameId, {Hero? player1Hero, Hero? player2Hero,
-      bool player1IsAI = false, bool player2IsAI = false}) {
+      bool player1IsAI = false, bool player2IsAI = false,
+      String player1AIDifficulty = 'medium', String player2AIDifficulty = 'medium'}) {
     _player1IsAI = player1IsAI;
     _player2IsAI = player2IsAI;
+    _player1AIDifficulty = player1AIDifficulty;
+    _player2AIDifficulty = player2AIDifficulty;
     _gameState = CombatGameState.initial(
       gameId,
       player1Hero: player1Hero,
@@ -115,6 +120,38 @@ class CombatService extends ChangeNotifier {
         ? PlayerSide.player2
         : PlayerSide.player1;
 
+    final difficulty = player == PlayerSide.player1
+        ? _player1AIDifficulty
+        : _player2AIDifficulty;
+    final rng = Random();
+
+    // Easy difficulty: 30% chance to pass, 25% chance to pick a random perk
+    if (difficulty == 'easy') {
+      if (rng.nextDouble() < 0.30) return (0, -1, null);
+      if (rng.nextDouble() < 0.25) {
+        final usable = _currentPerkSlots.where((s) => s.perkId > 0).toList();
+        if (usable.isNotEmpty) {
+          final slot = usable[rng.nextInt(usable.length)];
+          final perkDef = PerkDefinitions.getPerk(slot.perkId);
+          if (perkDef != null) {
+            if (slot.perkId == 33 || slot.perkId == 34) {
+              final result = _scoreDualLanePerk(slot.perkId, player, opponent);
+              if (result.$2 >= 0) return (slot.perkId, result.$2, result.$3);
+            } else if (!perkDef.requiresTarget) {
+              return (slot.perkId, -1, null);
+            } else {
+              final validLanes = LaneValidator.getValidLanesForPerk(
+                  slot.perkId, _gameState!, player);
+              if (validLanes.isNotEmpty) {
+                return (slot.perkId, validLanes[rng.nextInt(validLanes.length)], null);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Medium and Hard: scoring-based (current behavior)
     int bestPerkId = 0;
     int bestTarget = -1;
     int? bestSecondTarget;

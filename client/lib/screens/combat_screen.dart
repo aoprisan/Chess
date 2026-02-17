@@ -13,6 +13,8 @@ class CombatScreen extends StatefulWidget {
   final Hero player2Hero;
   final bool player1IsAI;
   final bool player2IsAI;
+  final String player1AIDifficulty;
+  final String player2AIDifficulty;
 
   const CombatScreen({
     super.key,
@@ -20,6 +22,8 @@ class CombatScreen extends StatefulWidget {
     required this.player2Hero,
     this.player1IsAI = false,
     this.player2IsAI = false,
+    this.player1AIDifficulty = 'medium',
+    this.player2AIDifficulty = 'medium',
   });
 
   @override
@@ -99,6 +103,8 @@ class _CombatScreenState extends State<CombatScreen> {
       player2Hero: widget.player2Hero,
       player1IsAI: widget.player1IsAI,
       player2IsAI: widget.player2IsAI,
+      player1AIDifficulty: widget.player1AIDifficulty,
+      player2AIDifficulty: widget.player2AIDifficulty,
     );
     _previousPlayer = PlayerSide.player1;
     setState(() {

@@ -4,17 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Kiddie Chess is a kid-friendly game with cute characters and special abilities (perks). The project has two game modes:
-
-- **V1 (Chess Mode)**: Traditional chess with hero characters and perks
-- **V2 (Lane Combat Mode)**: A lane-based combat game with a 32-perk system (see `GAME_RULES_V2_COMPLETE.md` for full rules)
-
-The V2 lane combat system is the primary development focus. It uses a client-server architecture with real-time WebSocket communication.
+Kiddie Chess is a kid-friendly lane-based combat game with cute characters (heroes) and a 32-perk system. See `GAME_RULES_V2_COMPLETE.md` for full rules. Uses a client-server architecture with real-time WebSocket communication.
 
 ## Tech Stack
 
-- **Client**: Flutter (v3.2.0+) with Flame game engine, Provider for state management
-- **Server**: Go (v1.21) with gorilla/websocket
+- **Client**: Flutter (v3.2.0+) with Provider for state management
+- **Server**: Go (v1.24) with gorilla/websocket, JWT authentication
 - **Database**: SQLite with WAL mode
 - **Simulation**: Python 3.x for perk balance testing (reference-only, do not modify)
 
@@ -41,6 +36,13 @@ flutter run -d macos     # Run on macOS
 ./scripts/build-and-run.sh  # Builds Flutter web + starts Go server with air hot reload
 ```
 
+### Mobile Builds
+```bash
+./scripts/build-android.sh   # Build Android APK
+./scripts/build-ios.sh       # Build iOS
+./scripts/install-android.sh # Install APK to device
+```
+
 ### Testing
 ```bash
 # Run all tests
@@ -65,45 +67,28 @@ python run_simulation.py -n 1000  # Run AI matchup simulation
 
 ### Client (`client/lib/`)
 
-**V1 Chess Mode:**
-- **models/**: `hero.dart` (6 heroes with perks), `game_state.dart` (board state, moves)
-- **services/**: `game_service.dart` (local state via Provider/ChangeNotifier), `websocket_service.dart` (server communication)
-- **game/**: `chess_game.dart` (Flame-based 2D rendering, tap detection, move highlighting)
-- **screens/**: Main menu, hero selection, game screen
-
-**V2 Lane Combat Mode:**
-- **models/**: `combat_state.dart` (lane-based game state, perk tracking)
-- **services/**: `combat_service.dart` (combat game logic, perk execution)
-- **screens/**: `combat_screen.dart` (lane combat UI)
-- **widgets/**: `perk_selection_panel.dart` (perk selection UI)
+- **models/**: `combat_state.dart` (lane-based game state, perk tracking), `hero.dart` (6 heroes)
+- **services/**: `combat_service.dart` (combat game logic, perk execution), `auth_service.dart` (JWT authentication), `websocket_service.dart` (server communication), `server_config.dart`
+- **screens/**: `combat_screen.dart` (lane combat UI), `hero_selection_screen.dart`, `login_screen.dart`, `main_menu_screen.dart`, `welcome_screen.dart`, `upgrade_account_screen.dart`
+- **widgets/**: `perk_selection_panel.dart` (perk selection UI), `perk_card.dart`, `lane_selector.dart`, `lane_effect_indicator.dart`
 
 ### Server (`server/internal/`)
 
-**V1 Chess Mode:**
-- **handlers/websocket.go**: Hub pattern for connection management, message routing (joinGame, makeMove, usePerk)
-- **game/engine.go**: AI with 3 difficulty levels (Easy=random, Medium=prefers captures, Hard=evaluation function)
-- **matchmaking/matchmaker.go**: Queue-based player matching with 5-minute stale timeout
-- **database/database.go**: SQLite with users, games, game_moves tables
-
-**V2 Lane Combat Mode:**
-- **game/lane_engine.go**: Lane-based combat engine
-- **models/lane_game.go**: Lane game state and models
+- **auth/**: `auth.go` — JWT + bcrypt authentication
+- **handlers/**: `websocket.go` — Hub pattern for connection management and message routing
+- **game/**: `lane_engine.go` (lane-based combat engine), `lane_ai.go` (AI opponent logic)
+- **models/**: `lane_game.go` (lane game state and models)
 - **perks/**: Perk system implementation
   - `executor.go`: Perk execution logic
   - `perks.go`: Perk definitions
   - `targeting.go`: Perk targeting system
+- **database/**: `database.go` — SQLite with users table
 
 ### Python Simulation (`templates/sim/`) -- REFERENCE ONLY, DO NOT MODIFY
 **The Python simulation code is strictly reference-only. Do not modify, refactor, or add code to `templates/sim/`.** It exists solely as a reference implementation for understanding perk logic and for offline balance testing. All active development happens in the Go server and Flutter client.
 
-A comprehensive simulation engine for perk balance testing:
 - **src/game/**: Game engine, state, rules, configuration
-- **src/perks/**: Perk implementations by category
-  - `immediate.py`: Instant-effect perks
-  - `triggers.py`: Triggered/reactive perks
-  - `deferred.py`: Delayed-effect perks
-  - `duration.py`: Duration-based perks
-  - `base.py`: `PerkType` enum and base classes
+- **src/perks/**: Perk implementations by category (`immediate.py`, `triggers.py`, `deferred.py`, `duration.py`, `base.py`)
 - **src/ai/**: AI strategies and heuristics
 - **src/simulation/**: Match simulation runner and analysis
 - **tests/**: Comprehensive perk and mechanics tests
@@ -113,20 +98,21 @@ Messages follow `{"type": "messageType", "payload": {...}}` format. Key types: `
 
 ## Adding Features
 
-### New V2 Perks
+### New Perks
 1. Implement in Go server in `server/internal/perks/`
 2. Update client perk UI in `client/lib/widgets/perk_selection_panel.dart`
 3. Refer to `templates/sim/` for logic reference (but do not modify the Python code)
 
-### New V1 Perks
-1. Add to `Perk` enum in `client/lib/models/hero.dart`
-2. Add logic in `server/internal/handlers/websocket.go`
-3. Update hero perk assignments in both client and server
-
 ### New Heroes
 1. Add to `Hero.allHeroes` in `client/lib/models/hero.dart`
 2. Add image to `client/assets/images/characters/`
-3. Update `GetHeroPerks()` in `server/internal/models/game.go`
+
+## Key Documentation
+
+- `GAME_RULES_V2_COMPLETE.md` — Complete lane combat rules and 32-perk system
+- `GAME_OVERVIEW.md` — Game overview and design goals
+- `GAMEPLAY_DESIGN.md` — Gameplay design details
+- `PERK_FLOW_DIAGRAM.md` — Perk execution flow diagrams
 
 ## Environment Variables
 
