@@ -167,16 +167,16 @@ if [ "$ENV" = "dev" ]; then
     echo -e "  ./scripts/install-android.sh"
 
 else
-    # Prod: debug APK + release AAB (all ABIs)
-    echo -e "${YELLOW}[3/${TOTAL_STEPS}] Building debug APK...${NC}"
-    "$FLUTTER_CMD" build apk --debug --dart-define=SERVER_URL="$SERVER_URL"
+    # Prod: release APK + release AAB (all ABIs)
+    echo -e "${YELLOW}[3/${TOTAL_STEPS}] Building release APK...${NC}"
+    "$FLUTTER_CMD" build apk --release --dart-define=SERVER_URL="$SERVER_URL"
 
-    APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
+    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
     if [ -f "$APK_PATH" ]; then
         APK_SIZE=$(du -sh "$APK_PATH" | cut -f1)
-        echo -e "${GREEN}✓ Debug APK built (${APK_SIZE})${NC}"
+        echo -e "${GREEN}✓ Release APK built (${APK_SIZE})${NC}"
     else
-        echo -e "${RED}✗ Debug APK build failed${NC}"
+        echo -e "${RED}✗ Release APK build failed${NC}"
         exit 1
     fi
     echo ""
@@ -205,10 +205,10 @@ else
     echo -e "Server URL:  ${GREEN}${SERVER_URL}${NC}"
     echo ""
     echo -e "Outputs:"
-    echo -e "  Debug APK:   ${GREEN}${APK_PATH}${NC} (${APK_SIZE})"
+    echo -e "  Release APK: ${GREEN}${APK_PATH}${NC} (${APK_SIZE})"
     echo -e "  Release AAB: ${GREEN}${AAB_PATH}${NC} (${AAB_SIZE})"
     echo ""
-    echo -e "${BLUE}To install debug APK on emulator:${NC}"
+    echo -e "${BLUE}To install release APK on device:${NC}"
     echo -e "  ./scripts/install-android.sh"
     echo ""
     echo -e "${BLUE}To upload AAB to Play Store:${NC}"
