@@ -37,14 +37,21 @@ if [ ! -x "$ADB" ]; then
     exit 1
 fi
 
-APK_PATH="$PROJECT_ROOT/client/build/app/outputs/flutter-apk/app-debug.apk"
+RELEASE_APK="$PROJECT_ROOT/client/build/app/outputs/flutter-apk/app-release.apk"
+DEBUG_APK="$PROJECT_ROOT/client/build/app/outputs/flutter-apk/app-debug.apk"
 
-if [ ! -f "$APK_PATH" ]; then
-    echo -e "${RED}Debug APK not found at:${NC}"
-    echo "  $APK_PATH"
+if [ -f "$RELEASE_APK" ]; then
+    APK_PATH="$RELEASE_APK"
+elif [ -f "$DEBUG_APK" ]; then
+    APK_PATH="$DEBUG_APK"
+else
+    echo -e "${RED}No APK found. Expected one of:${NC}"
+    echo "  $RELEASE_APK"
+    echo "  $DEBUG_APK"
     echo ""
     echo "Build it first with:"
-    echo "  ./scripts/build-android.sh dev"
+    echo "  ./scripts/build-android.sh dev   (debug APK)"
+    echo "  ./scripts/build-android.sh prod  (release APK + AAB)"
     exit 1
 fi
 

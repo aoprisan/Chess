@@ -2,7 +2,7 @@
 
 # Build Script for Kiddie Chess - Android
 # dev  → debug APK (arm64-only, for emulator)
-# prod → release AAB (all ABIs, for Play Store)
+# prod → debug APK (for emulator) + release APK + release AAB (for Play Store)
 
 set -e
 
@@ -58,7 +58,7 @@ ENV="${1:-dev}"
 if [ "$ENV" != "dev" ] && [ "$ENV" != "prod" ]; then
     echo -e "${RED}Usage: $0 [dev|prod]${NC}"
     echo "  dev  - Build debug APK for emulator (arm64-only)"
-    echo "  prod - Build release AAB for Play Store (all ABIs)"
+    echo "  prod - Build debug APK + release APK + release AAB (all ABIs)"
     exit 1
 fi
 
@@ -95,7 +95,7 @@ fi
 if [ "$ENV" = "dev" ]; then
     TOTAL_STEPS=3
 else
-    TOTAL_STEPS=4
+    TOTAL_STEPS=5
 fi
 
 echo -e "${YELLOW}[1/${TOTAL_STEPS}] Checking Android platform...${NC}"
@@ -167,8 +167,8 @@ if [ "$ENV" = "dev" ]; then
     echo -e "  ./scripts/install-android.sh"
 
 else
-    # Prod: debug APK + release AAB (all ABIs)
-    echo -e "${YELLOW}[3/${TOTAL_STEPS}] Building debug APK...${NC}"
+    # Prod: debug APK (for emulator) + release AAB (for Play Store)
+    echo -e "${YELLOW}[3/${TOTAL_STEPS}] Building debug APK (for emulator)...${NC}"
     "$FLUTTER_CMD" build apk --debug --dart-define=SERVER_URL="$SERVER_URL"
 
     APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
@@ -181,7 +181,20 @@ else
     fi
     echo ""
 
-    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Building release AAB...${NC}"
+    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Building release APK...${NC}"
+    "$FLUTTER_CMD" build apk --release --dart-define=SERVER_URL="$SERVER_URL"
+
+    RELEASE_APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+    if [ -f "$RELEASE_APK_PATH" ]; then
+        RELEASE_APK_SIZE=$(du -sh "$RELEASE_APK_PATH" | cut -f1)
+        echo -e "${GREEN}✓ Release APK built (${RELEASE_APK_SIZE})${NC}"
+    else
+        echo -e "${RED}✗ Release APK build failed${NC}"
+        exit 1
+    fi
+    echo ""
+
+    echo -e "${YELLOW}[5/${TOTAL_STEPS}] Building release AAB...${NC}"
     "$FLUTTER_CMD" build appbundle --dart-define=SERVER_URL="$SERVER_URL"
 
     AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
@@ -206,6 +219,7 @@ else
     echo ""
     echo -e "Outputs:"
     echo -e "  Debug APK:   ${GREEN}${APK_PATH}${NC} (${APK_SIZE})"
+    echo -e "  Release APK: ${GREEN}${RELEASE_APK_PATH}${NC} (${RELEASE_APK_SIZE})"
     echo -e "  Release AAB: ${GREEN}${AAB_PATH}${NC} (${AAB_SIZE})"
     echo ""
     echo -e "${BLUE}To install debug APK on emulator:${NC}"
