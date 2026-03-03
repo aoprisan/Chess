@@ -12,6 +12,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+APP_NAME="kiddie-chess"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
@@ -143,12 +145,12 @@ echo -e "Environment: ${GREEN}${ENV}${NC}"
 echo -e "Server URL:  ${GREEN}${SERVER_URL}${NC}"
 echo ""
 echo -e "Outputs:"
-echo -e "  Simulator: ${GREEN}${SIM_APP_PATH}${NC} (${SIM_SIZE})"
-echo -e "  Release:   ${GREEN}${RELEASE_PATH}${NC} (${RELEASE_SIZE})"
+echo -e "  Simulator: ${GREEN}client/${SIM_APP_PATH}${NC} (${SIM_SIZE})"
+echo -e "  Release:   ${GREEN}client/${RELEASE_PATH}${NC} (${RELEASE_SIZE})"
 echo ""
 echo -e "${BLUE}To run on simulator:${NC}"
 echo -e "  open -a Simulator"
-echo -e "  xcrun simctl install booted ${SIM_APP_PATH}"
+echo -e "  xcrun simctl install booted client/${SIM_APP_PATH}"
 echo -e "  xcrun simctl launch booted com.example.client"
 echo ""
 echo -e "${BLUE}To archive for App Store:${NC}"

@@ -13,6 +13,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+APP_NAME="kiddie-chess"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
@@ -142,6 +144,7 @@ if [ "$ENV" = "dev" ]; then
 
     APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
     if [ -f "$APK_PATH" ]; then
+        cp "$APK_PATH" "build/app/outputs/flutter-apk/${APP_NAME}-debug.apk"
         APK_SIZE=$(du -sh "$APK_PATH" | cut -f1)
         echo -e "${GREEN}✓ Debug APK built (${APK_SIZE})${NC}"
     else
@@ -161,7 +164,7 @@ if [ "$ENV" = "dev" ]; then
     echo -e "Server URL:  ${GREEN}${SERVER_URL}${NC}"
     echo ""
     echo -e "Output:"
-    echo -e "  Debug APK: ${GREEN}${APK_PATH}${NC} (${APK_SIZE})"
+    echo -e "  Debug APK: ${GREEN}client/build/app/outputs/flutter-apk/${APP_NAME}-debug.apk${NC} (${APK_SIZE})"
     echo ""
     echo -e "${BLUE}To install debug APK on emulator:${NC}"
     echo -e "  ./scripts/install-android.sh"
@@ -173,6 +176,7 @@ else
 
     APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
     if [ -f "$APK_PATH" ]; then
+        cp "$APK_PATH" "build/app/outputs/flutter-apk/${APP_NAME}-debug.apk"
         APK_SIZE=$(du -sh "$APK_PATH" | cut -f1)
         echo -e "${GREEN}✓ Debug APK built (${APK_SIZE})${NC}"
     else
@@ -186,6 +190,7 @@ else
 
     RELEASE_APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
     if [ -f "$RELEASE_APK_PATH" ]; then
+        cp "$RELEASE_APK_PATH" "build/app/outputs/flutter-apk/${APP_NAME}-release.apk"
         RELEASE_APK_SIZE=$(du -sh "$RELEASE_APK_PATH" | cut -f1)
         echo -e "${GREEN}✓ Release APK built (${RELEASE_APK_SIZE})${NC}"
     else
@@ -199,6 +204,7 @@ else
 
     AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
     if [ -f "$AAB_PATH" ]; then
+        cp "$AAB_PATH" "build/app/outputs/bundle/release/${APP_NAME}-release.aab"
         AAB_SIZE=$(du -sh "$AAB_PATH" | cut -f1)
         echo -e "${GREEN}✓ Release AAB built (${AAB_SIZE})${NC}"
     else
@@ -218,15 +224,15 @@ else
     echo -e "Server URL:  ${GREEN}${SERVER_URL}${NC}"
     echo ""
     echo -e "Outputs:"
-    echo -e "  Debug APK:   ${GREEN}${APK_PATH}${NC} (${APK_SIZE})"
-    echo -e "  Release APK: ${GREEN}${RELEASE_APK_PATH}${NC} (${RELEASE_APK_SIZE})"
-    echo -e "  Release AAB: ${GREEN}${AAB_PATH}${NC} (${AAB_SIZE})"
+    echo -e "  Debug APK:   ${GREEN}client/build/app/outputs/flutter-apk/${APP_NAME}-debug.apk${NC} (${APK_SIZE})"
+    echo -e "  Release APK: ${GREEN}client/build/app/outputs/flutter-apk/${APP_NAME}-release.apk${NC} (${RELEASE_APK_SIZE})"
+    echo -e "  Release AAB: ${GREEN}client/build/app/outputs/bundle/release/${APP_NAME}-release.aab${NC} (${AAB_SIZE})"
     echo ""
     echo -e "${BLUE}To install debug APK on emulator:${NC}"
     echo -e "  ./scripts/install-android.sh"
     echo ""
     echo -e "${BLUE}To upload AAB to Play Store:${NC}"
-    echo -e "  Upload ${AAB_PATH} via Google Play Console"
+    echo -e "  Upload client/build/app/outputs/bundle/release/${APP_NAME}-release.aab via Google Play Console"
 fi
 
 echo ""
