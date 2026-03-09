@@ -9,7 +9,7 @@ import (
 
 // TestModePerks enables deterministic perk pairing for testing.
 // Set to false for production random perk selection.
-const TestModePerks = true
+const TestModePerks = false
 
 // TestPerkPairIndex is the fixed perk pair index used in test mode.
 // Change this value and restart to test a different pair.
