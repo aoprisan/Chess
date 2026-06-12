@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037, with golden yellow stars.
+
+PROMPT
+A cute hand-drawn wooden circular badge with three golden stars across the
+top, for a children's game world map completed-level marker. Isolated on a
+plain solid white background, no text. Square 1:1.

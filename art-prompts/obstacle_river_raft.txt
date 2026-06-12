@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037, with soft blue water.
+
+PROMPT
+A cute cartoon wooden raft made of tied logs with a small flag, floating on a
+doodle stream with wavy water lines, for a children's game world map obstacle.
+Isolated on a plain solid white background, no text. Landscape 4:3.

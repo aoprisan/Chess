@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A single cute cartoon padlock doodle made of wood with a brass clasp, slightly
+tilted, for a children's game world map locked level marker. Isolated on a
+plain solid white background, no text. Square 1:1.

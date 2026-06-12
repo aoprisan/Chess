@@ -1,0 +1,10 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A cute cartoon fallen tree log lying across a dirt path, with a smiling
+knot-hole face and a tiny mushroom growing on top, for a children's game world
+map obstacle. Isolated on a plain solid white background, no text.
+Landscape 4:3.

@@ -23,6 +23,13 @@ class CombatScreen extends StatefulWidget {
   final WebSocketService? onlineWsService;
   final String? mySide;
 
+  /// Called once when the game finishes, with the final game state.
+  /// Used by adventure mode to record fight results.
+  final void Function(CombatGameState finalState)? onGameEnd;
+
+  /// Label for the button shown when the game is over.
+  final String exitButtonLabel;
+
   const CombatScreen({
     super.key,
     required this.player1Hero,
@@ -35,6 +42,8 @@ class CombatScreen extends StatefulWidget {
     this.onlineCombatService,
     this.onlineWsService,
     this.mySide,
+    this.onGameEnd,
+    this.exitButtonLabel = 'Back to Menu',
   });
 
   /// Named constructor for online multiplayer games
@@ -54,7 +63,9 @@ class CombatScreen extends StatefulWidget {
         isOnline = true,
         onlineCombatService = combatService,
         onlineWsService = wsService,
-        mySide = mySide;
+        mySide = mySide,
+        onGameEnd = null,
+        exitButtonLabel = 'Back to Menu';
 
   @override
   State<CombatScreen> createState() => _CombatScreenState();
@@ -82,6 +93,9 @@ class _CombatScreenState extends State<CombatScreen> {
   // AI turn automation
   bool _aiPerkInProgress = false;
 
+  // Whether onGameEnd has already been reported
+  bool _gameEndReported = false;
+
   @override
   void initState() {
     super.initState();
@@ -102,6 +116,12 @@ class _CombatScreenState extends State<CombatScreen> {
   void _onServiceChanged() {
     if (mounted) {
       final gameState = _combatService.gameState;
+      if (gameState != null &&
+          gameState.status == CombatStatus.finished &&
+          !_gameEndReported) {
+        _gameEndReported = true;
+        widget.onGameEnd?.call(gameState);
+      }
       if (gameState != null && gameState.status == CombatStatus.playing) {
         // Detect turn change for pass-and-play dialog
         if (_previousPlayer != gameState.currentPlayer) {
@@ -1108,6 +1128,7 @@ class _CombatScreenState extends State<CombatScreen> {
                     player1Name: widget.player1Hero.name,
                     player2Name: widget.player2Hero.name,
                     screenWidth: screenWidth,
+                    exitLabel: widget.exitButtonLabel,
                   )
                 else if (gameState.currentPhase == TurnPhase.autoPlacement)
                   _AutoPlacingIndicator(screenWidth: screenWidth),
@@ -2331,6 +2352,7 @@ class _SkipTurnButton extends StatelessWidget {
   final String player1Name;
   final String player2Name;
   final double screenWidth;
+  final String exitLabel;
 
   const _SkipTurnButton({
     required this.onPressed,
@@ -2339,6 +2361,7 @@ class _SkipTurnButton extends StatelessWidget {
     required this.player1Name,
     required this.player2Name,
     required this.screenWidth,
+    this.exitLabel = 'Back to Menu',
   });
 
   @override
@@ -2389,7 +2412,7 @@ class _SkipTurnButton extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  'Back to Menu',
+                  exitLabel,
                   style: TextStyle(
                     fontSize: fontSize,
                     fontWeight: FontWeight.bold,

@@ -1,0 +1,11 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Accents from a warm earthy palette: cream #F5E6D3,
+warm brown #8D6E63, dark cocoa #5D4037.
+
+PROMPT
+A cute full-body cartoon panda character standing upright on two legs, for a
+children's game world map. Big friendly grin, round belly, classic black and
+white fur with warm-toned shading, holding a bamboo walking stick.
+Front-facing standing pose, full body visible, isolated on a plain solid white
+background, no shadow, no text. Square 1:1.

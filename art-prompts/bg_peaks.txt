@@ -1,0 +1,14 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037, with icy blue and white accents.
+
+PROMPT
+A tall vertical game world map background of snowy mountain peaks. Soft rounded
+snow drifts, pine trees dusted with snow, sparkling ice, a cozy wooden
+signpost, and near the very top a small open summit plateau — the final
+destination. Keep the middle of the image open and uncluttered — smooth snow
+with only small subtle details — because game paths and markers will be drawn
+on top; put the larger decorations near the left and right edges. The bottom
+edge transitions from forest. Top-down three-quarter view, no path, no
+characters, no text. Portrait orientation 9:16.

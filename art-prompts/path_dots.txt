@@ -1,0 +1,10 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A set of 6 small hand-drawn path marker doodles for a children's game world
+map, arranged in a grid: a paw print, a round pebble dot, a tiny daisy, a
+small leaf, a snowflake, and a star. Each doodle separated with clear spacing,
+isolated on a plain solid white background, no text. Square 1:1.

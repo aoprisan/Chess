@@ -5,9 +5,10 @@ import '../models/hero.dart';
 import '../services/auth_service.dart';
 import '../services/combat_service.dart';
 import '../services/websocket_service.dart';
+import 'adventure_map_screen.dart';
 import 'combat_screen.dart';
 
-enum GameMode { solo, localMultiplayer, online }
+enum GameMode { solo, localMultiplayer, online, adventure }
 
 class HeroSelectionScreen extends StatefulWidget {
   final GameMode mode;
@@ -40,7 +41,8 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
 
   Hero? get _selectedHero => _currentPlayer == 1 ? _player1Hero : _player2Hero;
 
-  bool get _needsTwoPlayers => widget.mode != GameMode.online;
+  bool get _needsTwoPlayers =>
+      widget.mode != GameMode.online && widget.mode != GameMode.adventure;
 
   @override
   void dispose() {
@@ -568,6 +570,18 @@ class _HeroSelectionScreenState extends State<HeroSelectionScreen> {
   void _startGame() {
     if (widget.mode == GameMode.online) {
       _startOnlineGame();
+      return;
+    }
+
+    if (widget.mode == GameMode.adventure) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AdventureMapScreen(
+            newJourneyHero: _player1Hero!.type,
+          ),
+        ),
+      );
       return;
     }
 

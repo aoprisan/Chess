@@ -1,0 +1,10 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A cute full-body cartoon sloth character standing upright on two legs, for a
+children's game world map. Sleepy happy smile, half-closed eyes, shaggy
+tan-brown fur, tiny backpack. Front-facing standing pose, full body visible,
+isolated on a plain solid white background, no shadow, no text. Square 1:1.

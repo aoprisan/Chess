@@ -44,4 +44,6 @@ flutter:
     - assets/images/characters/
     - assets/images/ui/
     - assets/images/ui/combat/
+    - assets/images/adventure/
     - assets/audio/
+    - assets/maps/

@@ -1,0 +1,10 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A blank rounded-rectangle parchment panel with hand-drawn doodle borders,
+wooden corner pegs, and a small rope bow at the top, used as a dialog frame in
+a children's game. The center is empty cream parchment ready for text.
+Isolated on a plain solid white background, no text. Portrait 3:4.

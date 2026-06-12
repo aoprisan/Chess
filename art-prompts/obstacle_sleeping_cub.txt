@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037.
+
+PROMPT
+A cute cartoon bear cub curled up asleep in the middle of a path, with a tiny
+"zzz" bubble, for a children's game world map obstacle. Isolated on a plain
+solid white background, no other text besides the zzz. Square 1:1.

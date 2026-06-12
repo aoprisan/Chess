@@ -3,9 +3,11 @@ import 'package:flutter/material.dart' hide Hero;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/hero.dart';
+import '../services/adventure_service.dart';
 import '../services/auth_service.dart';
 import '../services/combat_service.dart';
 import '../services/websocket_service.dart';
+import 'adventure_map_screen.dart';
 import 'combat_screen.dart';
 import 'hero_selection_screen.dart';
 import 'upgrade_account_screen.dart';
@@ -202,6 +204,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onPressed: () => _navigateToHeroSelection(context, mode: GameMode.solo),
                   ),
                   const SizedBox(height: 16),
+                  // Adventure button
+                  _StyledButton(
+                    text: 'Adventure',
+                    onPressed: () => _startAdventure(context),
+                  ),
+                  const SizedBox(height: 16),
                   // Play with Friend button
                   _StyledButton(
                     text: 'Play with Friend',
@@ -214,6 +222,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _startAdventure(BuildContext context) async {
+    // Resume a saved journey directly; otherwise pick a hero first
+    final hasSaved = await AdventureService.hasSavedJourney();
+    if (!context.mounted) return;
+    if (hasSaved) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AdventureMapScreen()),
+      );
+    } else {
+      _navigateToHeroSelection(context, mode: GameMode.adventure);
+    }
   }
 
   void _navigateToHeroSelection(BuildContext context, {required GameMode mode}) {

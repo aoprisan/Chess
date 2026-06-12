@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm golden yellow with a soft outer glow.
+
+PROMPT
+A simple hand-drawn dashed circle ring marker, like a crayon doodle, used to
+highlight the current level on a children's game world map. Thick playful
+dashed outline. Isolated on a plain solid white background, no text.
+Square 1:1.

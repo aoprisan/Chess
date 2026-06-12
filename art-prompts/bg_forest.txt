@@ -1,0 +1,14 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037, with deep green and amber accents.
+
+PROMPT
+A tall vertical game world map background of a friendly forest. Big round
+doodle trees with smiling knot-hole faces, oversized spotted mushrooms, glowing
+fireflies, mossy stones. Keep the middle of the image open and uncluttered — a
+soft forest-floor clearing with only small subtle details — because game paths
+and markers will be drawn on top; put the trees and larger decorations near the
+left and right edges. The bottom edge transitions from sunny meadow grass; the
+top edge begins to show light frost. Top-down three-quarter view, no path, no
+characters, no text. Portrait orientation 9:16.

@@ -1,0 +1,13 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. Warm earthy palette: cream #F5E6D3, warm brown #8D6E63,
+dark cocoa #5D4037, with golden yellow stars.
+
+PROMPT
+Two cute cartoon wooden treasure chests side by side: one closed, one open and
+overflowing with golden stars, for a children's game world map. Clear spacing
+between the two chests, isolated on a plain solid white background, no text.
+Landscape 4:3.
+
+NOTE (not part of the prompt): crop the result into two files —
+prop_chest_closed.png and prop_chest_open.png.

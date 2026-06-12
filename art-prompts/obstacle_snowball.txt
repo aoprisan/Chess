@@ -1,0 +1,9 @@
+STYLE
+Cute hand-drawn doodle cartoon style for a children's game. Thick playful
+outlines, soft shading. White and icy blue with accents from a warm earthy
+palette: cream #F5E6D3, warm brown #8D6E63, dark cocoa #5D4037.
+
+PROMPT
+A cute giant cartoon snowball boulder with a surprised doodle face, sitting in
+the middle of a snowy path, for a children's game world map obstacle. Isolated
+on a plain solid white background, no text. Square 1:1.
