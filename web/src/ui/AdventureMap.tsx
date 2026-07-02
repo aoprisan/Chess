@@ -1,10 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { AdventureMapDef, AdventureNode, Biome } from '../adventure/map';
+import { AdventureMapDef, AdventureNode, Biome, ObstacleType } from '../adventure/map';
 import { AdventureController, clearSavedJourney } from '../adventure/progress';
 import { HeroType } from '../game/hero';
 import { Combat, CombatResult } from './Combat';
-import { biomeBg, obstacleArt, OBSTACLE_LABEL, heroImage, ui } from './assets';
+import { biomeBg, obstacleArt, OBSTACLE_INFO, heroImage, ui } from './assets';
+import { Icon } from './Icons';
 
+// Mirrors client/lib/screens/adventure_map_screen.dart:
+// mapHeight = viewport * 3.6, three biome panels, dashed trails,
+// pulse rings on reachable nodes, cream chips, cream dialogs.
 const MAP_HEIGHT_FACTOR = 3.6;
 
 type Popup =
@@ -13,16 +17,18 @@ type Popup =
   | { kind: 'treasure'; node: AdventureNode }
   | { kind: 'encounter'; node: AdventureNode }
   | { kind: 'fight'; node: AdventureNode }
-  | { kind: 'result'; message: string };
+  | { kind: 'startOver' };
 
 export function AdventureMap({
   map,
   newJourneyHero,
   onExit,
+  onNewJourney,
 }: {
   map: AdventureMapDef;
   newJourneyHero?: HeroType;
   onExit: () => void;
+  onNewJourney: () => void;
 }) {
   const ctrlRef = useRef<AdventureController | null>(null);
   if (ctrlRef.current === null) {
@@ -37,6 +43,7 @@ export function AdventureMap({
   const [popup, setPopup] = useState<Popup>(null);
   const [toast, setToast] = useState<string | null>(null);
   const eventLock = useRef(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
@@ -53,8 +60,9 @@ export function AdventureMap({
   }, []);
 
   const mapHeight = dims.height * MAP_HEIGHT_FACTOR;
+  const nodeSize = Math.max(52, Math.min(100, dims.width * 0.15));
 
-  // Auto-scroll to the current node once measured.
+  // Center on the current node once measured (Flutter jumps without animation).
   useEffect(() => {
     if (scrolledRef.current || dims.height === 0) return;
     scrolledRef.current = true;
@@ -70,8 +78,9 @@ export function AdventureMap({
   };
 
   const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
-    setTimeout(() => setToast(null), 2600);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
   const triggerEvent = useCallback(
@@ -123,14 +132,15 @@ export function AdventureMap({
     }
   };
 
-  // --- Fight flow ---
+  // --- Fight flow: combat shows its own winner banner; the map shows a snackbar after. ---
   const onFightEnd = (node: AdventureNode, result: CombatResult) => {
     const rival = ctrl.rivalForNode(node);
+    setPopup(null);
     if (result.stars > 0) {
       mutate(() => ctrl.recordFightResult(node.id, result.stars));
-      setPopup({ kind: 'result', message: `You defeated ${rival.name}! ${'⭐'.repeat(result.stars)} The path is open!` });
+      showToast(`You defeated ${rival.name}! ${'⭐'.repeat(result.stars)} The path is open!`);
     } else {
-      setPopup({ kind: 'result', message: `${rival.name} won this time — try again!` });
+      showToast(`${rival.name} won this time — try again!`);
     }
   };
 
@@ -142,9 +152,7 @@ export function AdventureMap({
         player1Hero={ctrl.playerHero}
         player2Hero={rival}
         aiDifficulty={ctrl.difficultyForNode(node)}
-        isBoss={ctrl.isBossNode(node)}
         onGameEnd={(result) => onFightEnd(node, result)}
-        onExit={() => setPopup(null)}
       />
     );
   }
@@ -154,9 +162,9 @@ export function AdventureMap({
       <div className="adv-scroll" ref={scrollRef}>
         <div className="adv-map" style={{ height: mapHeight }}>
           {/* Biome backgrounds: peaks top, meadow bottom */}
-          <BiomePanel biome="peaks" top={0} width={dims.width} height={mapHeight / 3} />
-          <BiomePanel biome="forest" top={mapHeight / 3} width={dims.width} height={mapHeight / 3} />
-          <BiomePanel biome="meadow" top={(mapHeight / 3) * 2} width={dims.width} height={mapHeight / 3} />
+          <BiomePanel biome="peaks" top={0} height={mapHeight / 3} />
+          <BiomePanel biome="forest" top={mapHeight / 3} height={mapHeight / 3} />
+          <BiomePanel biome="meadow" top={(mapHeight / 3) * 2} height={mapHeight / 3} />
 
           {/* Dashed trails */}
           {dims.width > 0 && <Edges map={map} ctrl={ctrl} width={dims.width} height={mapHeight} />}
@@ -170,19 +178,20 @@ export function AdventureMap({
                 ctrl={ctrl}
                 width={dims.width}
                 height={mapHeight}
+                nodeSize={nodeSize}
                 onTap={() => onNodeTap(node)}
               />
             ))}
 
-          {/* Player token */}
+          {/* Player token (sits just above the current node, 650ms ease move) */}
           {dims.width > 0 && (
             <div
               className="player-token"
               style={{
-                left: ctrl.currentNode.x * dims.width,
-                top: ctrl.currentNode.y * mapHeight - nodeSize(dims.width) * 0.8,
-                width: nodeSize(dims.width) * 1.05,
-                height: nodeSize(dims.width) * 1.05,
+                left: ctrl.currentNode.x * dims.width - nodeSize * 0.55,
+                top: ctrl.currentNode.y * mapHeight - nodeSize * 1.25,
+                width: nodeSize * 1.1,
+                height: nodeSize * 1.1,
               }}
             >
               <img src={heroImage(ctrl.playerHero.imagePath)} alt="you" />
@@ -193,64 +202,70 @@ export function AdventureMap({
 
       {/* Header overlay */}
       <div className="overlay-header">
-        <button className="chip" onClick={onExit}>← Menu</button>
+        <button className="chip" onClick={onExit}>
+          <Icon name="arrowBack" size={20} color="#5D4037" />
+          Menu
+        </button>
         <span style={{ flex: 1 }} />
         <button className="chip" onClick={scrollToCurrent}>
-          ⭐ {ctrl.totalStars}/{ctrl.maxStars}
+          <Icon name="star" size={20} color="#FFC107" />
+          {ctrl.totalStars} / {ctrl.maxStars}
         </button>
-        <button
-          className="chip"
-          onClick={() => {
-            if (confirm('Erase this journey and start over?')) {
-              clearSavedJourney();
-              onExit();
-            }
-          }}
-        >
-          ↻
+        <span style={{ width: 8 }} />
+        <button className="chip" onClick={() => setPopup({ kind: 'startOver' })}>
+          <Icon name="refresh" size={20} color="#5D4037" />
         </button>
       </div>
 
-      {toast && (
-        <div style={{ position: 'absolute', bottom: 24, left: 16, right: 16, zIndex: 30, display: 'flex', justifyContent: 'center' }}>
-          <div className="chip" style={{ fontSize: 15, textAlign: 'center' }}>{toast}</div>
+      {toast && <div className="snackbar">{toast}</div>}
+
+      {popup?.kind === 'startOver' && (
+        <div className="modal-scrim" onClick={() => setPopup(null)}>
+          <div className="modal" style={{ alignItems: 'stretch' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="alert-title">Start Over?</h3>
+            <p className="alert-body">This will erase your journey and let you pick a new hero.</p>
+            <div className="alert-actions">
+              <button style={{ color: '#8D6E63' }} onClick={() => setPopup(null)}>Cancel</button>
+              <button
+                style={{ color: '#5D4037', fontWeight: 700 }}
+                onClick={() => {
+                  clearSavedJourney();
+                  onNewJourney();
+                }}
+              >
+                Start Over
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {popup?.kind === 'obstacle' && (
-        <ObstaclePopup
-          node={popup.node}
-          onClear={() => { mutate(() => ctrl.markObstacleCleared(popup.node.id)); setPopup(null); }}
+        <ObstacleDialog
+          obstacle={popup.node.obstacle!}
+          onCleared={() => { mutate(() => ctrl.markObstacleCleared(popup.node.id)); setPopup(null); }}
           onClose={() => setPopup(null)}
         />
       )}
       {popup?.kind === 'treasure' && (
-        <TreasurePopup
-          onOpen={() => { mutate(() => ctrl.openTreasure(popup.node.id)); setPopup(null); }}
+        <TreasureDialog
+          onOpened={() => { mutate(() => ctrl.openTreasure(popup.node.id)); setPopup(null); }}
           onClose={() => setPopup(null)}
         />
       )}
       {popup?.kind === 'encounter' && (
-        <EncounterPopup
+        <EncounterDialog
           ctrl={ctrl}
           node={popup.node}
           onFight={() => setPopup({ kind: 'fight', node: popup.node })}
           onClose={() => setPopup(null)}
         />
       )}
-      {popup?.kind === 'result' && (
-        <div className="modal-scrim" onClick={() => setPopup(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <p style={{ fontSize: 18 }}>{popup.message}</p>
-            <button className="btn" onClick={() => setPopup(null)}>OK</button>
-          </div>
-        </div>
-      )}
 
       {ctrl.progress.completed && (
         <VictoryOverlay
           ctrl={ctrl}
-          onPlayAgain={() => { clearSavedJourney(); onExit(); }}
+          onPlayAgain={() => { clearSavedJourney(); onNewJourney(); }}
           onMenu={onExit}
         />
       )}
@@ -258,23 +273,12 @@ export function AdventureMap({
   );
 }
 
-function nodeSize(width: number): number {
-  return Math.max(52, Math.min(100, width * 0.15));
-}
-
-function BiomePanel({ biome, top, width, height }: { biome: Biome; top: number; width: number; height: number }) {
-  const labels: Record<Biome, string> = {
-    meadow: '🌼 Sunny Meadow',
-    forest: '🌲 Whispering Forest',
-    peaks: '🏔️ Frosty Peaks',
-  };
+function BiomePanel({ biome, top, height }: { biome: Biome; top: number; height: number }) {
   return (
     <div
       className="biome-panel"
-      style={{ top, height, width, backgroundImage: `url(${biomeBg(biome)})` }}
-    >
-      <span className="biome-label">{labels[biome]}</span>
-    </div>
+      style={{ top, height, backgroundImage: `url(${biomeBg(biome)})` }}
+    />
   );
 }
 
@@ -308,58 +312,86 @@ function NodeMarker({
   ctrl,
   width,
   height,
+  nodeSize,
   onTap,
 }: {
   node: AdventureNode;
   ctrl: AdventureController;
   width: number;
   height: number;
+  nodeSize: number;
   onTap: () => void;
 }) {
-  const size = node.type === 'rival' ? nodeSize(width) * 1.2 : nodeSize(width);
-  const stateClass = visualState(ctrl, node);
+  const size = node.type === 'rival' ? nodeSize * 1.2 : nodeSize;
+  const state = visualState(ctrl, node);
+  const pulsing = state === 'next' || state === 'current';
   const stars = node.type === 'rival' ? ctrl.starsForNode(node.id) : 0;
+  const starSize = nodeSize * 0.2;
 
   return (
     <button
-      className={`adv-node ${stateClass}`}
-      style={{ left: node.x * width, top: node.y * height }}
+      className={`adv-node ${state}`}
+      style={{
+        left: node.x * width - size / 2,
+        top: node.y * height - size / 2,
+        width: size,
+        height: size * 1.25,
+      }}
       onClick={onTap}
     >
-      <div className="marker" style={{ width: size, height: size }}>
-        <NodeGlyph node={node} ctrl={ctrl} />
+      {pulsing && <div className="pulse-ring" style={{ width: size, height: size }} />}
+      <div className="node-content" style={{ width: size, height: size }}>
+        <NodeGlyph node={node} ctrl={ctrl} size={size} />
+        {state === 'locked' && node.type !== 'path' && (
+          <span className="lock-badge">
+            <Icon name="lock" size={size * 0.3} color="rgba(93,64,55,0.8)" />
+          </span>
+        )}
       </div>
-      {node.type === 'rival' && (
-        <div className="node-stars">{stars > 0 ? '⭐'.repeat(stars) : ''}</div>
+      {node.type === 'rival' && stars > 0 && (
+        <div className="node-star-pill" style={{ padding: `0 ${nodeSize * 0.2}px` }}>
+          {[0, 1, 2].map((i) => (
+            <Icon
+              key={i}
+              name="star"
+              size={starSize}
+              color={i < stars ? '#FFC107' : 'rgba(141,110,99,0.3)'}
+            />
+          ))}
+        </div>
       )}
     </button>
   );
 }
 
-function NodeGlyph({ node, ctrl }: { node: AdventureNode; ctrl: AdventureController }) {
+function NodeGlyph({ node, ctrl, size }: { node: AdventureNode; ctrl: AdventureController; size: number }) {
   switch (node.type) {
-    case 'start': return <span>🚩</span>;
-    case 'path': return <span style={{ fontSize: 12 }}>•</span>;
-    case 'finish': return <span>🏰</span>;
+    case 'start':
+      return <img className="node-art" src={ui.flag} alt="start" />;
+    case 'finish':
+      return <img className="node-art" src={ui.banner} alt="finish" />;
+    case 'path':
+      return <span className="path-dot" style={{ width: size * 0.4, height: size * 0.4 }} />;
     case 'treasure':
       return (
         <img
+          className="node-art"
           src={ctrl.isNodeCleared(node) ? ui.chestOpen : ui.chestClosed}
           alt="chest"
-          onError={(e) => (e.currentTarget.replaceWith(document.createTextNode(ctrl.isNodeCleared(node) ? '📭' : '🎁')))}
         />
       );
     case 'obstacle':
       return (
         <img
+          className="node-art"
+          style={{ opacity: ctrl.isNodeCleared(node) ? 0.5 : 1 }}
           src={obstacleArt(node.obstacle!)}
           alt="obstacle"
-          onError={(e) => (e.currentTarget.replaceWith(document.createTextNode('🚧')))}
         />
       );
     case 'rival': {
       const rival = ctrl.rivalForNode(node);
-      return <img src={heroImage(rival.imagePath)} alt={rival.name} />;
+      return <img className="node-art" src={heroImage(rival.imagePath)} alt={rival.name} />;
     }
   }
 }
@@ -381,43 +413,110 @@ function blockedHint(ctrl: AdventureController, node: AdventureNode): string {
     case 'treasure':
       return 'Open the treasure chest first!';
     default:
-      return 'Tap a glowing spot!';
+      return 'Tap a glowing node!';
   }
 }
 
-function ObstaclePopup({ node, onClear, onClose }: { node: AdventureNode; onClear: () => void; onClose: () => void }) {
+/** Tap-to-clear obstacle dialog (wobble per tap, shrink + auto-close on clear). */
+function ObstacleDialog({
+  obstacle,
+  onCleared,
+  onClose,
+}: {
+  obstacle: ObstacleType;
+  onCleared: () => void;
+  onClose: () => void;
+}) {
+  const info = OBSTACLE_INFO[obstacle];
+  const [taps, setTaps] = useState(0);
+  const cleared = taps >= info.tapsRequired;
+
+  useEffect(() => {
+    if (!cleared) return;
+    const t = setTimeout(onCleared, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleared]);
+
+  const remaining = info.tapsRequired - taps;
   return (
-    <div className="modal-scrim" onClick={onClose}>
+    <div className="modal-scrim" onClick={cleared ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{OBSTACLE_LABEL[node.obstacle!]}</h2>
-        <img className="art" src={obstacleArt(node.obstacle!)} alt="obstacle" onError={(e) => (e.currentTarget.style.display = 'none')} />
-        <p>Something's blocking the path. Clear it to move on!</p>
-        <div className="row">
-          <button className="btn secondary" onClick={onClose}>Back</button>
-          <button className="btn" onClick={onClear}>✨ Clear it!</button>
-        </div>
+        <h2>{info.title}</h2>
+        <div style={{ height: 16 }} />
+        <img
+          className={`tap-art${cleared ? ' shrunk' : ''}`}
+          src={obstacleArt(obstacle)}
+          alt="obstacle"
+          style={{
+            width: 130,
+            height: 130,
+            objectFit: 'contain',
+            cursor: 'pointer',
+            transform: cleared ? 'scale(0.6)' : `rotate(${taps * 0.02}turn)`,
+            opacity: cleared ? 0.4 : 1,
+          }}
+          onClick={() => !cleared && setTaps((t) => t + 1)}
+        />
+        <div style={{ height: 12 }} />
+        <p
+          style={{
+            margin: 0,
+            fontSize: 15,
+            fontWeight: cleared ? 700 : 400,
+            color: cleared ? '#4CAF50' : '#8D6E63',
+          }}
+        >
+          {cleared
+            ? info.clearedText
+            : taps === 0
+              ? info.instruction
+              : `Keep going! ${remaining} more...`}
+        </p>
       </div>
     </div>
   );
 }
 
-function TreasurePopup({ onOpen, onClose }: { onOpen: () => void; onClose: () => void }) {
+/** Tap-to-open treasure dialog (+2 stars, auto-close). */
+function TreasureDialog({ onOpened, onClose }: { onOpened: () => void; onClose: () => void }) {
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    if (!opened) return;
+    const t = setTimeout(onOpened, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
+
   return (
-    <div className="modal-scrim" onClick={onClose}>
+    <div className="modal-scrim" onClick={opened ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Treasure!</h2>
-        <img className="art" src={ui.chestClosed} alt="chest" onError={(e) => (e.currentTarget.style.display = 'none')} />
-        <p>A shiny chest! Open it for ⭐⭐.</p>
-        <div className="row">
-          <button className="btn secondary" onClick={onClose}>Back</button>
-          <button className="btn" onClick={onOpen}>🎁 Open</button>
-        </div>
+        <h2>A Treasure Chest!</h2>
+        <div style={{ height: 16 }} />
+        <img
+          src={opened ? ui.chestOpen : ui.chestClosed}
+          alt="chest"
+          style={{
+            width: 120,
+            height: 120,
+            objectFit: 'contain',
+            cursor: 'pointer',
+            transition: 'transform 0.3s ease',
+            transform: opened ? 'scale(1.15)' : 'scale(1)',
+          }}
+          onClick={() => setOpened(true)}
+        />
+        <div style={{ height: 12 }} />
+        <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: opened ? '#FF9800' : '#8D6E63' }}>
+          {opened ? '+2 Stars!' : 'Tap to open!'}
+        </p>
       </div>
     </div>
   );
 }
 
-function EncounterPopup({
+function EncounterDialog({
   ctrl,
   node,
   onFight,
@@ -431,20 +530,27 @@ function EncounterPopup({
   const rival = ctrl.rivalForNode(node);
   const isBoss = ctrl.isBossNode(node);
   const prev = ctrl.starsForNode(node.id);
+  const difficulty = ctrl.difficultyForNode(node);
   return (
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{isBoss ? `👑 Boss: ${rival.name}` : `Rival: ${rival.name}`}</h2>
-        <div className="row" style={{ alignItems: 'center' }}>
-          <img className="art" style={{ width: 90, height: 90 }} src={heroImage(ctrl.playerHero.imagePath)} alt="you" />
-          <img src={ui.vs} alt="vs" style={{ width: 44, height: 44, objectFit: 'contain' }} onError={(e) => (e.currentTarget.replaceWith(document.createTextNode('⚔️')))} />
-          <img className="art" style={{ width: 90, height: 90 }} src={heroImage(rival.imagePath)} alt={rival.name} />
+        <h2>{isBoss ? `${rival.name} guards the summit!` : `${rival.name} blocks your path!`}</h2>
+        <div style={{ height: 16 }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={heroImage(ctrl.playerHero.imagePath)} alt="you" style={{ width: 80, height: 80, objectFit: 'contain' }} />
+          <img src={ui.vs} alt="vs" style={{ width: 44, height: 44, objectFit: 'contain', margin: '0 8px' }} />
+          <img src={heroImage(rival.imagePath)} alt={rival.name} style={{ width: 80, height: 80, objectFit: 'contain' }} />
         </div>
-        <p>Difficulty: {ctrl.difficultyForNode(node)}{prev > 0 ? ` · best ${'⭐'.repeat(prev)}` : ''}</p>
-        <div className="row">
-          <button className="btn secondary" onClick={onClose}>Back</button>
-          <button className="btn" onClick={onFight}>⚔️ Fight!</button>
-        </div>
+        <div style={{ height: 8 }} />
+        <p className="sub">
+          {prev > 0
+            ? 'Already defeated — fight again for more stars!'
+            : `Difficulty: ${difficulty.charAt(0).toUpperCase()}${difficulty.slice(1)}`}
+        </p>
+        <div style={{ height: 20 }} />
+        <button className="img-btn yellow dialog-btn" onClick={onFight}>Fight!</button>
+        <div style={{ height: 10 }} />
+        <button className="img-btn grey dialog-btn" onClick={onClose}>Not Yet</button>
       </div>
     </div>
   );
@@ -453,16 +559,28 @@ function EncounterPopup({
 function VictoryOverlay({ ctrl, onPlayAgain, onMenu }: { ctrl: AdventureController; onPlayAgain: () => void; onMenu: () => void }) {
   return (
     <div className="modal-scrim">
-      <div className="modal">
+      <div className="modal" style={{ width: 320, padding: '32px 24px' }}>
         <div style={{ fontSize: 40 }}>🎉</div>
-        <h2>Journey Complete!</h2>
-        <img className="art" src={heroImage(ctrl.playerHero.imagePath)} alt="hero" />
-        <p>{ctrl.playerHero.name} reached the summit!</p>
-        <div className="stars-big">⭐ {ctrl.totalStars} / {ctrl.maxStars}</div>
-        <div className="row">
-          <button className="btn" onClick={onPlayAgain}>New Journey</button>
-          <button className="btn secondary" onClick={onMenu}>Menu</button>
+        <h2 style={{ fontSize: 24 }}>Journey Complete!</h2>
+        <div style={{ height: 16 }} />
+        <img
+          src={heroImage(ctrl.playerHero.imagePath)}
+          alt="hero"
+          style={{ width: 110, height: 110, objectFit: 'contain' }}
+        />
+        <div style={{ height: 8 }} />
+        <p className="sub" style={{ fontSize: 15 }}>{ctrl.playerHero.name} reached the summit!</p>
+        <div style={{ height: 12 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="star" size={28} color="#FFC107" />
+          <span style={{ fontSize: 18, fontWeight: 700, color: '#5D4037' }}>
+            {ctrl.totalStars} / {ctrl.maxStars} stars
+          </span>
         </div>
+        <div style={{ height: 24 }} />
+        <button className="img-btn yellow dialog-btn" onClick={onPlayAgain}>New Journey</button>
+        <div style={{ height: 10 }} />
+        <button className="img-btn grey dialog-btn" onClick={onMenu}>Back to Menu</button>
       </div>
     </div>
   );
