@@ -36,12 +36,20 @@ src/
     balance.test.ts  balance regression suite (seat fairness, difficulty gaps, pacing)
   adventure/
     map.ts           maze graph model + journey_1.json loader
-    progress.ts      movement rules, stars, localStorage persistence
+    progress.ts      free-roam movement (BFS pathfinding), stars, localStorage persistence
+    progress.test.ts movement/pathfinding suite (Vitest)
   ui/                React components (App, HeroSelect, AdventureMap, Combat)
 public/assets/     images + maps (copied from ../client/assets)
 ```
 
 ## How single-player works
+
+The map plays like a quest, not a level select: tap anywhere on the trail (or
+any marker, however far) and the hero roams there hop-by-hop along the dashed
+trails, camera following. Movement is BFS pathfinding over the maze graph —
+only cleared nodes can be walked *through*; an uncleared obstacle, rival, or
+treasure can be walked *to* but blocks travel beyond it until dealt with, and
+standing on one you may only retreat onto trail you have already explored.
 
 Adventure runs entirely client-side, exactly as the Flutter app does: each rival
 fight instantiates `CombatEngine` in solo-AI mode. There is **no** network call,
