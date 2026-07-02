@@ -13,10 +13,10 @@ Built with **React + Vite + vite-plugin-pwa**.
 ```bash
 cd web
 npm install
-npm run dev        # http://localhost:5173/chess/
+npm run dev        # http://localhost:5173/Chess/
 npm test           # engine parity suite (Vitest)
 npm run build      # typecheck + production build -> dist/
-npm run preview    # serve the production build at /chess/
+npm run preview    # serve the production build at /Chess/
 ```
 
 ## Project layout
@@ -54,8 +54,8 @@ The site is static, so GitHub Pages hosts it directly. A workflow at
 `.github/workflows/pages.yml` builds `web/` and deploys on pushes to `main`.
 One-time setup: repo **Settings → Pages → Source = GitHub Actions**.
 
-The site serves at `https://<user>.github.io/chess/`, so the Vite `base` is
-`/chess/` (and the PWA manifest scope + service-worker scope match it). For a
+The site serves at `https://<user>.github.io/Chess/`, so the Vite `base` is
+`/Chess/` (and the PWA manifest scope + service-worker scope match it). For a
 custom domain or a `<user>.github.io` root repo, build with `BASE_PATH=/`:
 
 ```bash
