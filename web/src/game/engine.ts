@@ -35,6 +35,15 @@ export interface EngineConfig {
   player1AIDifficulty?: string;
   player2AIDifficulty?: string;
   rng?: RNG;
+  /**
+   * Compensation for the first-mover advantage (player1 always moves first).
+   * - 'skipFirstPerk': player1's opening turn is auto-placement only (no perk).
+   * - 'bonusPiece': player2's first auto-placement places 2 pieces.
+   * - 'none': raw turn order.
+   * Default 'skipFirstPerk' (measured closest to 50/50 in AI mirror matches;
+   * see src/game/simulate.ts and balance.test.ts).
+   */
+  firstMoveCompensation?: 'none' | 'skipFirstPerk' | 'bonusPiece';
 }
 
 const PLACEMENT_TRIGGER_TYPES = ['PORTAL', 'TRAP', 'MIRROR', 'ECHO', 'SHOCKWAVE', 'RETALIATE'];
@@ -53,11 +62,16 @@ export class CombatEngine {
   player1AIDifficulty: string;
   player2AIDifficulty: string;
 
+  firstMoveCompensation: 'none' | 'skipFirstPerk' | 'bonusPiece';
+
   private nextTriggerOrder = 0;
   private isAutoPlacing = false;
+  private turnCounter = 0;
+  private bonusPieceGranted = false;
 
   constructor(gameId: string, cfg: EngineConfig = {}) {
     this.rng = cfg.rng ?? new MathRandomRNG();
+    this.firstMoveCompensation = cfg.firstMoveCompensation ?? 'skipFirstPerk';
     this.player1IsAI = cfg.player1IsAI ?? false;
     this.player2IsAI = cfg.player2IsAI ?? false;
     this.player1AIDifficulty = cfg.player1AIDifficulty ?? 'medium';
@@ -151,6 +165,41 @@ export class CombatEngine {
     this.placePieceAndAdvance(laneIndex, currentPlayer);
     this.firePlacementTriggers(laneIndex, currentPlayer, 0);
     this.checkAllLaneWins();
+
+    // First-mover compensation (see EngineConfig.firstMoveCompensation).
+    if (
+      this.firstMoveCompensation === 'bonusPiece' &&
+      currentPlayer === 'player2' &&
+      !this.bonusPieceGranted &&
+      this.state.status === 'playing'
+    ) {
+      this.bonusPieceGranted = true;
+      const bonusLanes: number[] = [];
+      for (let i = 0; i < LANE_COUNT; i++) {
+        const lane = this.state.lanes[i];
+        if (
+          lane.winner === null &&
+          getNextEmptyColumn(lane, currentPlayer) !== -1 &&
+          !isLaneFrozenFor(this.state, i, currentPlayer)
+        ) {
+          bonusLanes.push(i);
+        }
+      }
+      if (bonusLanes.length > 0) {
+        const bonusLane = this.randPick(bonusLanes);
+        this.addPiece(bonusLane, currentPlayer);
+        this.firePlacementTriggers(bonusLane, currentPlayer, 0);
+        this.checkAllLaneWins();
+      }
+    }
+    if (
+      this.firstMoveCompensation === 'skipFirstPerk' &&
+      this.turnCounter === 0 &&
+      currentPlayer === 'player1' &&
+      this.state.status === 'playing'
+    ) {
+      this.endTurn();
+    }
     return laneIndex;
   }
 
@@ -970,6 +1019,7 @@ export class CombatEngine {
     this.state.currentPlayer = nextPlayer;
     this.state.currentPhase = 'autoPlacement';
     this.state.lastAutoPlacedLane = null;
+    this.turnCounter++;
   }
 
   skipTurn(): void {

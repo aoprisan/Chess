@@ -1,13 +1,29 @@
-// AI opponent — faithful port of chooseAIPerk + scoring from combat_service.dart.
-// Greedy 1-ply heuristic scorer. Returns [perkId, targetLane, secondLane].
-// perkId 0 = pass; secondLane non-null only for dual-lane perks (Regroup/Disrupt).
+// AI opponent — greedy 1-ply heuristic scorer over (perk, lane) candidates.
+// Returns [perkId, targetLane, secondLane]; perkId 0 = pass; secondLane non-null
+// only for dual-lane perks (Regroup/Disrupt).
+//
+// Difficulty ladder (tuned via src/game/simulate.ts, see balance.test.ts):
+// - easy:   30% pass, otherwise a random usable perk on a random valid lane.
+// - medium: best-scoring choice, but 25% of turns it plays a random usable perk
+//           instead (deliberate mistakes).
+// - hard:   always the best-scoring choice.
 
 import { CombatEngine } from './engine';
-import { CombatGameState, PlayerSide, opponentOf, countPieces } from './state';
-import { getPerk } from './perks';
+import {
+  CombatGameState,
+  PlayerSide,
+  opponentOf,
+  ownerInt,
+  countPieces,
+} from './state';
+import { getPerk, PerkSlot } from './perks';
 import { getValidLanesForPerk } from './targeting';
+import { RNG } from './rng';
 
 export type AIChoice = [perkId: number, targetLane: number, secondLane: number | null];
+
+const MEDIUM_MISTAKE_RATE = 0.25;
+const EASY_PASS_RATE = 0.3;
 
 export function chooseAIPerk(engine: CombatEngine): AIChoice {
   const state = engine.state;
@@ -17,36 +33,20 @@ export function chooseAIPerk(engine: CombatEngine): AIChoice {
   const rng = engine.rng;
   const slots = engine.currentPerkSlots;
 
-  // Easy: 30% pass, 25% random usable perk
   if (difficulty === 'easy') {
-    if (rng.nextDouble() < 0.3) return [0, -1, null];
-    if (rng.nextDouble() < 0.25) {
-      const usable = slots.filter((s) => s.perkId > 0);
-      if (usable.length > 0) {
-        const slot = usable[rng.nextInt(usable.length)];
-        const perkDef = getPerk(slot.perkId);
-        if (perkDef) {
-          if (slot.perkId === 33 || slot.perkId === 34) {
-            const result = scoreDualLanePerk(state, slot.perkId, player, opponent);
-            if (result[1] >= 0) return [slot.perkId, result[1], result[2]];
-          } else if (!perkDef.requiresTarget) {
-            return [slot.perkId, -1, null];
-          } else {
-            const validLanes = getValidLanesForPerk(slot.perkId, state, player);
-            if (validLanes.length > 0) {
-              return [slot.perkId, validLanes[rng.nextInt(validLanes.length)], null];
-            }
-          }
-        }
-      }
-    }
+    if (rng.nextDouble() < EASY_PASS_RATE) return [0, -1, null];
+    return randomChoice(state, slots, player, opponent, rng);
   }
 
-  // Medium & Hard: scoring-based
+  if (difficulty === 'medium' && rng.nextDouble() < MEDIUM_MISTAKE_RATE) {
+    return randomChoice(state, slots, player, opponent, rng);
+  }
+
+  // Greedy: best-scoring (perk, lane) candidate; pass baseline is 0.
   let bestPerkId = 0;
   let bestTarget = -1;
   let bestSecondTarget: number | null = null;
-  let bestScore = 0; // pass baseline
+  let bestScore = 0;
 
   for (const slot of slots) {
     if (slot.perkId <= 0) continue;
@@ -65,7 +65,7 @@ export function chooseAIPerk(engine: CombatEngine): AIChoice {
     }
 
     if (!perkDef.requiresTarget) {
-      const score = scoreAutoTargetPerk(state, slot.perkId, opponent);
+      const score = scoreAutoTargetPerk(state, slot.perkId, player, opponent);
       if (score > bestScore) {
         bestScore = score;
         bestPerkId = slot.perkId;
@@ -89,6 +89,68 @@ export function chooseAIPerk(engine: CombatEngine): AIChoice {
   return [bestPerkId, bestTarget, bestSecondTarget];
 }
 
+/** Random usable perk on a random valid lane; falls back to pass. */
+function randomChoice(
+  state: CombatGameState,
+  slots: PerkSlot[],
+  player: PlayerSide,
+  opponent: PlayerSide,
+  rng: RNG,
+): AIChoice {
+  const usable = slots.filter((s) => s.perkId > 0);
+  // Try slots in random order until one has a legal use.
+  const order = usable.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = rng.nextInt(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  for (const slot of order) {
+    const perkDef = getPerk(slot.perkId);
+    if (!perkDef) continue;
+    if (slot.perkId === 33 || slot.perkId === 34) {
+      const result = scoreDualLanePerk(state, slot.perkId, player, opponent);
+      if (result[1] >= 0) return [slot.perkId, result[1], result[2]];
+      continue;
+    }
+    if (!perkDef.requiresTarget) return [slot.perkId, -1, null];
+    const validLanes = getValidLanesForPerk(slot.perkId, state, player);
+    if (validLanes.length > 0) {
+      return [slot.perkId, validLanes[rng.nextInt(validLanes.length)], null];
+    }
+  }
+  return [0, -1, null];
+}
+
+// --- Board aggregates -------------------------------------------------------
+
+function totalPieces(state: CombatGameState, side: PlayerSide): number {
+  let total = 0;
+  for (const lane of state.lanes) {
+    if (lane.winner === null) total += countPieces(lane, side);
+  }
+  return total;
+}
+
+function maxLanePieces(state: CombatGameState, side: PlayerSide): number {
+  let max = 0;
+  for (const lane of state.lanes) {
+    if (lane.winner !== null) continue;
+    const n = countPieces(lane, side);
+    if (n > max) max = n;
+  }
+  return max;
+}
+
+function lanesWon(state: CombatGameState, side: PlayerSide): number {
+  return side === 'player1' ? state.player1LanesWon : state.player2LanesWon;
+}
+
+// --- Scoring -----------------------------------------------------------------
+
+// Score scale: 100 = wins a lane this turn, 90 = blocks an imminent enemy lane
+// win, 20-60 = strong tempo, <20 = filler. Match-deciding moves get a bonus so
+// they always dominate.
+
 function scorePerkOnLane(
   state: CombatGameState,
   perkId: number,
@@ -99,91 +161,109 @@ function scorePerkOnLane(
   const laneState = state.lanes[lane];
   const myPieces = countPieces(laneState, player);
   const enemyPieces = countPieces(laneState, opponent);
+  // Winning/blocking the 3rd lane decides the match — always take it.
+  const winBonus = lanesWon(state, player) === 2 ? 100 : 0;
+  const blockBonus = lanesWon(state, opponent) === 2 ? 60 : 0;
 
   switch (perkId) {
-    case 1: // PlaceAnother
-      if (myPieces === 4) return 100;
-      if (enemyPieces >= 4) return 40;
-      return 10 + myPieces * 5;
-    case 2: // RemoveEnemy
-      if (enemyPieces >= 5) return 90;
-      if (enemyPieces >= 4) return 80;
-      return 5 + enemyPieces * 8;
-    case 4: // Freeze
-      if (enemyPieces >= 3) return 30 + enemyPieces * 5;
+    case 1: // PlaceAnother: instant lane win at 4
+      if (myPieces === 4) return 100 + winBonus;
+      return 12 + myPieces * 6;
+    case 2: // RemoveEnemy: block threats, don't spam
+      if (enemyPieces === 4) return 90 + blockBonus;
+      if (enemyPieces === 3) return 32;
+      return enemyPieces * 7;
+    case 4: // Freeze: deny the enemy a whole turn on their threat lane
+      if (enemyPieces >= 4) return 65 + blockBonus;
+      if (enemyPieces === 3) return 22;
+      return 6;
+    case 31: // Split: net +1 spread out; never break up a near-win
+      if (myPieces === 4) return 2;
+      return 18;
+    case 32: // Kamikaze: trade 1 for 2 random enemy pieces
+      return (totalPieces(state, opponent) >= 5 ? 20 : 12) - myPieces * 2;
+    case 35: // Scatter: repositioning filler
+      return 6;
+    case 36: // Disperse: breaks up a stacked enemy lane
+      if (enemyPieces === 4) return 55 + blockBonus;
+      if (enemyPieces === 3) return 18;
+      return 4;
+    case 39: // Rush: +2 me first => instant lane win from 3+; otherwise feeds the enemy
+      if (myPieces === 4 || myPieces === 3) return 88 + winBonus;
+      return Math.max(2, 10 - enemyPieces * 2);
+    case 48: {
+      // Nullify: only worth it against enemy-owned triggers on my lane
+      const enemyTriggers = laneState.triggers.filter((t) => t.owner !== ownerInt(player)).length;
+      return enemyTriggers > 0 ? 15 + enemyTriggers * 10 : 1;
+    }
+    case 24: // Portal — deny the enemy's winning placement on their stacked lane
+    case 25: // Trap
+      if (enemyPieces === 4) return 45 + blockBonus;
+      if (enemyPieces === 3) return 25;
       return 10;
-    case 31: // Split
-      if (myPieces >= 2) return 20;
+    case 26: // Mirror: +2 for me when they place here — best where they must place
+    case 27: // Echo
+      return 14 + enemyPieces * 3;
+    case 28: // Shockwave: they place here, lose 2 elsewhere
+      return 12 + enemyPieces * 4;
+    case 52: // Retaliate
+      return 12 + enemyPieces * 3;
+    case 29: // Hydra — protect my stacked lane from removal
+    case 30: // Backfire
+    case 46: // Absorb
+      if (myPieces >= 4) return 30;
+      if (myPieces === 3) return 20;
       return 8;
-    case 32: // Kamikaze
-      if (enemyPieces >= 4) return 35;
-      return 10;
-    case 35: // Scatter
-      if (myPieces >= 3) return 15;
-      return 5;
-    case 36: // Disperse
-      if (enemyPieces >= 4) return 40;
-      return 5 + enemyPieces * 5;
-    case 39: // Rush
-      if (myPieces >= 3) return 30;
-      return 12;
-    case 48: // Nullify
-      if (laneState.triggers.length > 0) return 25;
-      return 2;
-    case 24:
-    case 25:
-    case 26:
-    case 27:
-    case 28:
-    case 29:
-    case 30:
-    case 46:
-    case 52:
-      if (enemyPieces >= 3) return 20 + enemyPieces * 3;
-      return 10;
-    case 43: // Signal
-      return 15;
-    case 40: // Enlist
-      return 15 + myPieces * 3;
-    case 41: // Ambush
-      if (enemyPieces >= 3) return 25;
-      return 12;
-    case 42: // Reinforce
-      if (myPieces >= 3) return 25;
-      return 12;
-    case 49: // Sanctuary
-      if (myPieces >= 3) return 20;
-      return 8;
-    case 50: // Capture
-      if (enemyPieces >= 3) return 25;
-      return 10;
+    case 43: // Signal: +1 now (+1 pulled next turn) — instant win at 4, setup at 3
+      if (myPieces === 4) return 100 + winBonus;
+      if (myPieces === 3) return 60 + winBonus;
+      return 20;
+    case 40: // Enlist: +1 now, capture next turn
+      if (myPieces === 4) return 100 + winBonus;
+      return 18 + myPieces * 2;
+    case 41: // Ambush: +1 now, remove nearby enemy next turn
+      if (myPieces === 4) return 100 + winBonus;
+      return enemyPieces >= 3 ? 26 : 14;
+    case 42: // Reinforce: +1 now +1 next turn — instant win at 4, near-win at 3
+      if (myPieces === 4) return 100 + winBonus;
+      if (myPieces === 3) return 60 + winBonus;
+      return 16 + myPieces * 4;
+    case 49: // Sanctuary: worth protecting a developed board
+      return totalPieces(state, player) >= 6 ? 18 : 8;
+    case 50: // Capture: future removals land on my side
+      return totalPieces(state, opponent) >= 4 ? 20 : 10;
     case 51: // Raid
-      if (myPieces >= 2) return 18;
-      return 8;
+      return 14;
     default:
       return 10;
   }
 }
 
-function scoreAutoTargetPerk(state: CombatGameState, perkId: number, opponent: PlayerSide): number {
+function scoreAutoTargetPerk(
+  state: CombatGameState,
+  perkId: number,
+  player: PlayerSide,
+  opponent: PlayerSide,
+): number {
+  const blockBonus = lanesWon(state, opponent) === 2 ? 60 : 0;
   switch (perkId) {
     case 13: {
-      // Scramble
-      let maxEnemy = 0;
-      for (const lane of state.lanes) {
-        if (lane.winner !== null) continue;
-        const ep = countPieces(lane, opponent);
-        if (ep > maxEnemy) maxEnemy = ep;
-      }
-      if (maxEnemy >= 4) return 50;
-      if (maxEnemy >= 3) return 25;
-      return 5;
+      // Scramble: resets the enemy's board shape
+      const maxEnemy = maxLanePieces(state, opponent);
+      if (maxEnemy >= 4) return 50 + blockBonus;
+      if (maxEnemy === 3) return 20;
+      return 4;
     }
-    case 22: return 15; // Cloak
-    case 23: return 15; // Blind
-    case 37: return 12; // Gambit
-    case 38: return 20; // Steal
-    default: return 10;
+    case 22: // Cloak: shields my stacked lanes from targeted removal
+      return maxLanePieces(state, player) >= 3 ? 25 : 8;
+    case 23: // Blind
+      return 12;
+    case 37: // Gambit: 3-for-2 in the enemy's favor
+      return 6;
+    case 38: // Steal
+      return 16;
+    default:
+      return 10;
   }
 }
 
@@ -205,15 +285,17 @@ function scoreDualLanePerk(
     for (const l2 of secondLanes) {
       let score: number;
       if (perkId === 33) {
+        // Regroup: mild repositioning value
         const myL1 = countPieces(state.lanes[l1], player);
         const myL2 = countPieces(state.lanes[l2], player);
-        score = Math.abs(myL1 - myL2) * 5 + 5;
-        if (myL1 >= 3 || myL2 >= 3) score += 15;
+        score = Math.abs(myL1 - myL2) * 3 + 3;
       } else {
+        // Disrupt: drag a stacked enemy lane onto an empty one
         const eL1 = countPieces(state.lanes[l1], opponent);
         const eL2 = countPieces(state.lanes[l2], opponent);
-        score = Math.abs(eL1 - eL2) * 5 + 5;
-        if (eL1 >= 4 || eL2 >= 4) score += 20;
+        const diff = Math.abs(eL1 - eL2);
+        score = diff * 4 + 3;
+        if (Math.max(eL1, eL2) >= 4) score += 25;
       }
       if (score > bestScore) {
         bestScore = score;
