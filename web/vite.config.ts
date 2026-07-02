@@ -2,11 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// GitHub Pages project site serves at https://<user>.github.io/chess/
-// so the base path, the PWA manifest scope/start_url, and the service-worker
-// registration scope must all agree on '/chess/'. Override with BASE_PATH env
-// (e.g. BASE_PATH=/ for a custom domain or <user>.github.io root repo).
-const base = process.env.BASE_PATH ?? '/chess/';
+// GitHub Pages project site serves at https://<user>.github.io/Chess/
+// (path case matches the repo name exactly — deploy-pages reports the canonical
+// URL as /Chess/). The base path, the PWA manifest scope/start_url, and the
+// service-worker registration scope must all agree on it, or the SW won't
+// control the page and offline breaks. Override with BASE_PATH env (e.g.
+// BASE_PATH=/ for a custom domain or <user>.github.io root repo).
+const base = process.env.BASE_PATH ?? '/Chess/';
 
 export default defineConfig({
   base,
