@@ -431,13 +431,34 @@ class CompactPerkCard extends StatelessWidget {
                 color: isEnabled ? perkInfo.categoryColor : Colors.grey.shade600,
               ),
             if (perkInfo != null && !isPass) const SizedBox(width: 6),
-            Text(
-              perkInfo?.name ?? perkName,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isEnabled ? Colors.white : Colors.grey.shade500,
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  perkInfo?.name ?? perkName,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isEnabled ? Colors.white : Colors.grey.shade500,
+                  ),
+                ),
+                if (perkInfo != null && !isPass)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 130),
+                    child: Text(
+                      perkInfo.description,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: isEnabled
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),

@@ -131,9 +131,13 @@ class _CombatScreenState extends State<CombatScreen> {
           } else if (_isCurrentPlayerAI) {
             // Show dialog briefly for AI, then auto-dismiss
             _showTurnDialog = true;
-            Future.delayed(const Duration(milliseconds: 800), () {
+            Future.delayed(const Duration(milliseconds: 600), () {
               if (mounted && _showTurnDialog) _dismissTurnDialog();
             });
+          } else if (widget.player1IsAI != widget.player2IsAI) {
+            // Solo vs AI: no pass-and-play handoff needed — flow straight
+            // into the human's turn (only the opening dialog is tap-gated)
+            _showTurnDialog = false;
           } else {
             _showTurnDialog = true;
           }
@@ -187,7 +191,7 @@ class _CombatScreenState extends State<CombatScreen> {
     if (gameState.status != CombatStatus.playing) return;
     if (gameState.currentPhase != TurnPhase.autoPlacement) return;
 
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       if (_showTurnDialog) return;
       final currentState = _combatService.gameState;
@@ -215,7 +219,7 @@ class _CombatScreenState extends State<CombatScreen> {
     _aiPerkInProgress = true;
 
     // Step 1: AI "thinking" delay
-    Future.delayed(const Duration(milliseconds: 600), () {
+    Future.delayed(const Duration(milliseconds: 400), () {
       if (!mounted) { _aiPerkInProgress = false; return; }
 
       // Step 2: Choose perk
@@ -225,7 +229,7 @@ class _CombatScreenState extends State<CombatScreen> {
       _combatService.setAIPerkHighlight(perkId > 0 ? perkId : null);
 
       // Step 4: Hold highlight briefly, then execute
-      Future.delayed(const Duration(milliseconds: 1000), () {
+      Future.delayed(const Duration(milliseconds: 650), () {
         if (!mounted) { _aiPerkInProgress = false; return; }
         _combatService.setAIPerkHighlight(null);
 
@@ -381,6 +385,17 @@ class _CombatScreenState extends State<CombatScreen> {
                     color: Colors.white,
                   ),
                 ),
+                if (!widget.isOnline && _combatService.isOpeningTurn) ...[
+                  SizedBox(height: padding * 0.25),
+                  Text(
+                    'Fair start: your first turn places a piece — perks unlock next turn!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: subtitleFontSize * 0.7,
+                      color: const Color(0xFFFFCA28),
+                    ),
+                  ),
+                ],
                 SizedBox(height: padding * 0.75),
                 // "Ready!" dismiss button
                 GestureDetector(

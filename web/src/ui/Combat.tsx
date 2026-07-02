@@ -68,7 +68,8 @@ export function Combat({
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
-  // Pass-and-play turn dialog (Flutter shows it at every turn change).
+  // Turn dialog: tap-gated only on the opening turn (fair-start hint); AI
+  // turns show it briefly as a cue, later human turns flow straight through.
   const [showTurnDialog, setShowTurnDialog] = useState(true);
   const showTurnDialogRef = useRef(true);
   const setTurnDialog = useCallback((v: boolean) => {
@@ -142,7 +143,7 @@ export function Combat({
           engine.skipTurn();
         }
         afterMutation();
-      }, 500);
+      }, 300);
       return;
     }
 
@@ -159,8 +160,8 @@ export function Combat({
           if (perkId === 0) engine.skipTurn();
           else engine.executePerk(perkId, target, second);
           afterMutation();
-        }, 1000);
-      }, 600);
+        }, 650);
+      }, 400);
     }
     // Human perk selection: wait for input.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,16 +172,18 @@ export function Combat({
     const s = engine.state;
     if (s.status === 'playing' && s.currentPlayer !== prevPlayerRef.current) {
       prevPlayerRef.current = s.currentPlayer;
-      setTurnDialog(true);
       if (s.currentPlayer === 'player2') {
         // AI turn: show briefly, then auto-dismiss.
+        setTurnDialog(true);
         later(() => {
           if (showTurnDialogRef.current) {
             setTurnDialog(false);
             tick();
           }
-        }, 800);
+        }, 600);
       }
+      // Human turns flow straight into auto-placement; the tap-gated dialog
+      // only appears on the opening turn (initial state, fair-start hint).
     }
     bump();
     tick();

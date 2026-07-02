@@ -7,13 +7,78 @@ import (
 	"github.com/kiddiechess/server/internal/perks"
 )
 
-// Helper to create a test game with deterministic seed
+// Helper to create a test game with deterministic seed.
+// TurnNumber is set past the fair-start opening turn (player 1's turn 1 is
+// auto-placement only) so tests exercise the standard turn shape.
 func newTestGame(seed int64) *models.LaneGame {
 	game := models.NewLaneGame()
 	game.SetSeed(seed)
 	game.Status = models.LaneStatusPlaying
 	game.CurrentPhase = models.PhaseRaidResolution
+	game.TurnNumber = 2
 	return game
+}
+
+// ============================================================================
+// Fair Start Tests
+// ============================================================================
+
+func TestFairStart_Player1OpeningTurnSkipsPerkPhase(t *testing.T) {
+	game := models.NewLaneGame()
+	game.SetSeed(42)
+	game.Status = models.LaneStatusPlaying
+
+	engine := NewLaneEngine(game)
+	engine.ExecuteRaidResolution()
+	engine.ExecuteDeferredResolution()
+	result := engine.ExecuteAutoPlacement()
+
+	if !result.Success {
+		t.Fatalf("Auto-placement should succeed: %s", result.Error)
+	}
+	if !result.PerkPhaseSkipped {
+		t.Error("Player 1's opening turn should skip the perk phase")
+	}
+	if game.CurrentPlayer != models.Player2 {
+		t.Error("Turn should pass to player 2 after the opening auto-placement")
+	}
+	if game.CurrentPhase != models.PhaseRaidResolution {
+		t.Error("Player 2's turn should start at raid resolution")
+	}
+	if len(game.CurrentPerkSlots) != 0 {
+		t.Error("No perk slots should be offered on the opening turn")
+	}
+}
+
+func TestFairStart_Player2FirstTurnHasPerkPhase(t *testing.T) {
+	game := models.NewLaneGame()
+	game.SetSeed(42)
+	game.Status = models.LaneStatusPlaying
+
+	engine := NewLaneEngine(game)
+
+	// Player 1's opening turn (auto-placement only)
+	engine.ExecuteRaidResolution()
+	engine.ExecuteDeferredResolution()
+	engine.ExecuteAutoPlacement()
+
+	// Player 2's first turn runs the full cycle
+	engine.ExecuteRaidResolution()
+	engine.ExecuteDeferredResolution()
+	result := engine.ExecuteAutoPlacement()
+
+	if !result.Success {
+		t.Fatalf("Auto-placement should succeed: %s", result.Error)
+	}
+	if result.PerkPhaseSkipped {
+		t.Error("Player 2's first turn should include the perk phase")
+	}
+	if game.CurrentPhase != models.PhasePerkSelection {
+		t.Error("Should advance to PerkSelection phase")
+	}
+	if len(game.CurrentPerkSlots) != 4 {
+		t.Errorf("Expected 4 perk slots, got %d", len(game.CurrentPerkSlots))
+	}
 }
 
 // ============================================================================
