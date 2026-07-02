@@ -1,9 +1,16 @@
 name: Deploy PWA to GitHub Pages
 
-# Builds the standalone TypeScript Adventure PWA in web/ and deploys it to
-# GitHub Pages. Enable Pages once in repo Settings → Pages → Source =
-# "GitHub Actions". The site serves at https://<user>.github.io/chess/ so the
-# Vite base path is /chess/ (see web/vite.config.ts).
+# Builds the standalone TypeScript Adventure PWA in web/ and publishes the
+# build output to the gh-pages branch. GitHub Pages then serves that branch:
+# set it up once in repo Settings → Pages → Source = "Deploy from a branch",
+# Branch = gh-pages, Folder = / (root).
+#
+# The site serves at https://<user>.github.io/Chess/ so the Vite base path is
+# /Chess/ (see web/vite.config.ts).
+#
+# This deliberately avoids actions/deploy-pages: on this repo its Pages
+# deployments sat in deployment_queued until timeout on every run. A plain
+# git push to gh-pages has no deployment queue to get stuck in.
 
 on:
   push:
@@ -14,44 +21,44 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Allow only one concurrent deployment, but do NOT cancel an in-progress run —
-# a Pages production deployment must be allowed to complete, otherwise the
-# deploy-pages action reports "Deployment cancelled". This matches GitHub's
-# official Pages starter workflow.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web/dist
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - run: npm ci
+        working-directory: web
+
+      - run: npm test
+        working-directory: web
+
+      - run: npm run build
+        working-directory: web
+
+      - name: Publish web/dist to gh-pages branch
+        working-directory: web/dist
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # .nojekyll: serve files as-is, skip the Jekyll build Pages runs by
+          # default on branch deployments.
+          touch .nojekyll
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy ${GITHUB_SHA}"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
