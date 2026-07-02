@@ -463,6 +463,7 @@ export function Combat({
           hero={currentHero}
           isP1={state.currentPlayer === 'player1'}
           isAI={engine.isCurrentPlayerAI}
+          isOpeningTurn={lastPlacement.current === null && state.currentPlayer === 'player1'}
           onReady={dismissTurnDialog}
         />
       )}
@@ -1079,12 +1080,14 @@ function TurnDialog({
   hero,
   isP1,
   isAI,
+  isOpeningTurn,
   onReady,
 }: {
   W: number;
   hero: Hero;
   isP1: boolean;
   isAI: boolean;
+  isOpeningTurn: boolean;
   onReady: () => void;
 }) {
   const playerColor = isP1 ? '#4CAF50' : '#9C27B0';
@@ -1113,6 +1116,20 @@ function TurnDialog({
         <span style={{ fontSize: clamp(W * 0.02, 14, 24), fontWeight: 500, color: '#fff' }}>
           Your Turn!
         </span>
+        {isOpeningTurn && (
+          <>
+            <div style={{ height: padding * 0.25 }} />
+            <span
+              style={{
+                fontSize: clamp(W * 0.014, 11, 16),
+                color: '#FFCA28',
+                textAlign: 'center',
+              }}
+            >
+              Fair start: your first turn places a piece — perks unlock next turn!
+            </span>
+          </>
+        )}
         <div style={{ height: padding * 0.75 }} />
         <button
           className="img-btn red"
