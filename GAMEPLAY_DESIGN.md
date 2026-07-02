@@ -29,6 +29,8 @@ A turn-based two-player lane control strategy game. First to win 3 of 5 lanes wi
 
 ## 3. Turn Structure
 
+**Fair start:** Player 1's opening turn is auto-placement only (no perk phase) to offset the first-mover advantage. All subsequent turns run the full structure.
+
 Each turn has 3 phases executed in order:
 
 ### Phase 1: Deferred Resolution

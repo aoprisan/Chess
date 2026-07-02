@@ -32,20 +32,20 @@ const (
 	MsgError      MessageType = "error"
 
 	// V2 Lane Game Message Types
-	MsgJoinLaneGame          MessageType = "joinLaneGame"
-	MsgLaneGameState         MessageType = "laneGameState"
-	MsgAutoPlacement         MessageType = "autoPlacement"
-	MsgSelectPerk            MessageType = "selectPerk"
-	MsgPerkResult            MessageType = "perkResult"
-	MsgTurnPhaseChanged      MessageType = "turnPhaseChanged"
-	MsgLaneWon               MessageType = "laneWon"
-	MsgGameWon               MessageType = "gameWon"
-	MsgLaneMatchFound        MessageType = "laneMatchFound"
-	MsgQueueStatus           MessageType = "queueStatus"
-	MsgOpponentDisconnected  MessageType = "opponentDisconnected"
-	MsgGameResult            MessageType = "gameResult"
-	MsgTurnTimer             MessageType = "turnTimer"
-	MsgReconnect             MessageType = "reconnect"
+	MsgJoinLaneGame         MessageType = "joinLaneGame"
+	MsgLaneGameState        MessageType = "laneGameState"
+	MsgAutoPlacement        MessageType = "autoPlacement"
+	MsgSelectPerk           MessageType = "selectPerk"
+	MsgPerkResult           MessageType = "perkResult"
+	MsgTurnPhaseChanged     MessageType = "turnPhaseChanged"
+	MsgLaneWon              MessageType = "laneWon"
+	MsgGameWon              MessageType = "gameWon"
+	MsgLaneMatchFound       MessageType = "laneMatchFound"
+	MsgQueueStatus          MessageType = "queueStatus"
+	MsgOpponentDisconnected MessageType = "opponentDisconnected"
+	MsgGameResult           MessageType = "gameResult"
+	MsgTurnTimer            MessageType = "turnTimer"
+	MsgReconnect            MessageType = "reconnect"
 )
 
 // WSMessage represents a WebSocket message
@@ -384,7 +384,8 @@ func (c *Client) handleJoinLaneGame(payload map[string]interface{}) {
 	}
 }
 
-// executeLaneGameTurn executes the current player's turn
+// executeLaneGameTurn executes the current player's turn phases
+// (raid resolution -> deferred resolution -> auto-placement -> perk selection)
 func (c *Client) executeLaneGameTurn(laneGame *models.LaneGame) {
 	c.Hub.mu.Lock()
 	defer c.Hub.mu.Unlock()
@@ -395,25 +396,53 @@ func (c *Client) executeLaneGameTurn(laneGame *models.LaneGame) {
 
 	engine := game.NewLaneEngine(laneGame)
 
-	// Execute auto-placement phase
-	autoResult := engine.ExecuteAutoPlacement()
+	// Phase 1: Raid resolution
+	if laneGame.CurrentPhase == models.PhaseRaidResolution {
+		raidResult := engine.ExecuteRaidResolution()
+		if raidResult.GameWinner != 0 {
+			c.sendLaneGameState(laneGame)
+			c.sendGameWon(laneGame, raidResult.GameWinner)
+			return
+		}
+	}
 
-	// Send auto-placement notification
-	c.sendAutoPlacement(laneGame, autoResult)
+	// Phase 2: Deferred resolution
+	if laneGame.CurrentPhase == models.PhaseDeferredResolution {
+		deferredResult := engine.ExecuteDeferredResolution()
+		if deferredResult.GameWinner != 0 {
+			c.sendLaneGameState(laneGame)
+			c.sendGameWon(laneGame, deferredResult.GameWinner)
+			return
+		}
+	}
 
-	// Check if game ended
-	if autoResult.GameWinner != 0 {
-		c.sendGameWon(laneGame, autoResult.GameWinner)
+	// Phase 3: Auto-placement
+	perkPhaseSkipped := false
+	if laneGame.CurrentPhase == models.PhaseAutoPlacement {
+		autoResult := engine.ExecuteAutoPlacement()
+		c.sendAutoPlacement(laneGame, autoResult)
+
+		if autoResult.GameWinner != 0 {
+			c.sendGameWon(laneGame, autoResult.GameWinner)
+			return
+		}
+
+		if autoResult.LaneWinner != 0 {
+			c.sendLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
+		}
+
+		perkPhaseSkipped = autoResult.PerkPhaseSkipped
+	}
+
+	// Send updated game state (with perk options unless the turn auto-ended)
+	c.sendLaneGameState(laneGame)
+
+	if perkPhaseSkipped {
+		// Fair start: player 1's opening turn ended after auto-placement,
+		// so it is now the other player's turn
+		go c.executeLaneGameTurn(laneGame)
 		return
 	}
-
-	// Check if lane was won
-	if autoResult.LaneWinner != 0 {
-		c.sendLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
-	}
-
-	// Send updated game state with perk options
-	c.sendLaneGameState(laneGame)
 
 	// If it's AI's turn in perk selection, let AI choose
 	if laneGame.IsAIGame && laneGame.CurrentPlayer == models.Player2 {
@@ -424,7 +453,7 @@ func (c *Client) executeLaneGameTurn(laneGame *models.LaneGame) {
 // executeAIPerkSelection handles AI perk selection
 func (c *Client) executeAIPerkSelection(laneGame *models.LaneGame) {
 	// Small delay to make it feel more natural
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	c.Hub.mu.Lock()
 	defer c.Hub.mu.Unlock()
@@ -533,32 +562,9 @@ func (c *Client) handleSelectPerk(payload map[string]interface{}) {
 		c.sendLaneGameState(laneGame)
 		c.Hub.mu.Unlock()
 
-		// If now AI's turn, start AI turn
-		if laneGame.CurrentPlayer == models.Player2 {
-			go func() {
-				c.Hub.mu.Lock()
-				eng := game.NewLaneEngine(laneGame)
-				autoResult := eng.ExecuteAutoPlacement()
-				c.sendAutoPlacement(laneGame, autoResult)
-
-				if autoResult.GameWinner != 0 {
-					c.sendGameWon(laneGame, autoResult.GameWinner)
-					c.Hub.mu.Unlock()
-					return
-				}
-
-				if autoResult.LaneWinner != 0 {
-					c.sendLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
-				}
-
-				c.sendLaneGameState(laneGame)
-				c.Hub.mu.Unlock()
-
-				c.executeAIPerkSelection(laneGame)
-			}()
-		} else {
-			go c.executeLaneGameTurn(laneGame)
-		}
+		// Continue with the next player's turn phases; executeLaneGameTurn
+		// hands the perk phase to the AI when it's the AI's turn
+		go c.executeLaneGameTurn(laneGame)
 	} else {
 		// Multiplayer game: use Hub broadcasts
 		c.Hub.mu.Unlock()
@@ -625,11 +631,11 @@ func (c *Client) sendPerkResult(laneGame *models.LaneGame, result *game.TurnResu
 	msg := WSMessage{
 		Type: MsgPerkResult,
 		Payload: map[string]interface{}{
-			"gameId":       laneGame.ID,
-			"perkId":       result.PerkExecuted,
-			"laneIndex":    result.LaneIndex,
-			"success":      result.Success,
-			"error":        result.Error,
+			"gameId":    laneGame.ID,
+			"perkId":    result.PerkExecuted,
+			"laneIndex": result.LaneIndex,
+			"success":   result.Success,
+			"error":     result.Error,
 		},
 	}
 	data, _ := json.Marshal(msg)
@@ -761,7 +767,7 @@ func (h *Hub) createMultiplayerGame(entry1, entry2 *QueueEntry) {
 			"gameId":           laneGame.ID,
 			"side":             "player1",
 			"opponentUsername": entry2.Username,
-			"opponentHero":    string(laneGame.Player2.HeroType),
+			"opponentHero":     string(laneGame.Player2.HeroType),
 		},
 	}
 	p1Data, _ := json.Marshal(p1Msg)
@@ -773,7 +779,7 @@ func (h *Hub) createMultiplayerGame(entry1, entry2 *QueueEntry) {
 			"gameId":           laneGame.ID,
 			"side":             "player2",
 			"opponentUsername": entry1.Username,
-			"opponentHero":    string(laneGame.Player1.HeroType),
+			"opponentHero":     string(laneGame.Player1.HeroType),
 		},
 	}
 	p2Data, _ := json.Marshal(p2Msg)
@@ -909,6 +915,7 @@ func (h *Hub) executeMultiplayerTurn(laneGame *models.LaneGame) {
 	}
 
 	// Phase 3: Auto-placement
+	perkPhaseSkipped := false
 	if laneGame.CurrentPhase == models.PhaseAutoPlacement {
 		autoResult := engine.ExecuteAutoPlacement()
 
@@ -928,6 +935,18 @@ func (h *Hub) executeMultiplayerTurn(laneGame *models.LaneGame) {
 			h.broadcastLaneWon(laneGame, autoResult.LaneIndex, autoResult.LaneWinner)
 			h.mu.Lock()
 		}
+
+		perkPhaseSkipped = autoResult.PerkPhaseSkipped
+	}
+
+	if perkPhaseSkipped {
+		// Fair start: player 1's opening turn ended after auto-placement —
+		// run the next player's turn instead of waiting for perk input
+		h.mu.Unlock()
+		h.broadcastGameState(laneGame)
+		h.mu.Lock()
+		go h.executeMultiplayerTurn(laneGame)
+		return
 	}
 
 	// Phase 4: Perk selection — send state and wait for player input
@@ -1165,9 +1184,9 @@ func (h *Hub) handleReconnect(client *Client, payload map[string]interface{}) {
 	h.broadcastToGame(laneGame, WSMessage{
 		Type: MsgQueueStatus,
 		Payload: map[string]interface{}{
-			"status":  "reconnected",
-			"player":  reconnectedPlayer.Side.String(),
-			"gameId":  laneGame.ID,
+			"status": "reconnected",
+			"player": reconnectedPlayer.Side.String(),
+			"gameId": laneGame.ID,
 		},
 	})
 

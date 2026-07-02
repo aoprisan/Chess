@@ -77,6 +77,10 @@ class CombatService extends ChangeNotifier {
   // AI perk highlight: stores the perk ID the AI chose during its turn
   int? _lastAIPerkId;
 
+  // Completed turns this game (local mode). Drives the fair-start rule:
+  // player 1's opening turn is auto-placement only.
+  int _turnCounter = 0;
+
   // Getters
   CombatGameState? get gameState => _gameState;
   bool get isGameOver => _gameState?.isGameOver ?? false;
@@ -96,6 +100,9 @@ class CombatService extends ChangeNotifier {
   int? get ratingChange => _ratingChange;
   int? get newRating => _newRating;
 
+  /// True before any turn has completed (local mode) — the fair-start turn
+  bool get isOpeningTurn => _turnCounter == 0;
+
   /// Whether the current player is AI-controlled
   bool get isCurrentPlayerAI {
     if (_gameState == null) return false;
@@ -112,6 +119,7 @@ class CombatService extends ChangeNotifier {
     _player2IsAI = player2IsAI;
     _player1AIDifficulty = player1AIDifficulty;
     _player2AIDifficulty = player2AIDifficulty;
+    _turnCounter = 0;
     _gameState = CombatGameState.initial(
       gameId,
       player1Hero: player1Hero,
@@ -129,6 +137,12 @@ class CombatService extends ChangeNotifier {
 
   /// AI perk selection: returns (perkId, targetLane, secondLane).
   /// perkId=0 means pass. secondLane is non-null only for dual-lane perks.
+  ///
+  /// Difficulty ladder (mirrors the PWA, tuned via its simulate.ts):
+  /// - easy:   30% pass, otherwise a random usable perk on a random lane
+  /// - medium: best-scoring choice, but 25% of turns plays a random perk
+  ///           instead (deliberate mistakes)
+  /// - hard:   always the best-scoring choice
   (int, int, int?) chooseAIPerk() {
     if (_gameState == null) return (0, -1, null);
     final player = _gameState!.currentPlayer;
@@ -139,35 +153,18 @@ class CombatService extends ChangeNotifier {
     final difficulty = player == PlayerSide.player1
         ? _player1AIDifficulty
         : _player2AIDifficulty;
-    final rng = Random();
+    final rng = _random;
 
-    // Easy difficulty: 30% chance to pass, 25% chance to pick a random perk
     if (difficulty == 'easy') {
       if (rng.nextDouble() < 0.30) return (0, -1, null);
-      if (rng.nextDouble() < 0.25) {
-        final usable = _currentPerkSlots.where((s) => s.perkId > 0).toList();
-        if (usable.isNotEmpty) {
-          final slot = usable[rng.nextInt(usable.length)];
-          final perkDef = PerkDefinitions.getPerk(slot.perkId);
-          if (perkDef != null) {
-            if (slot.perkId == 33 || slot.perkId == 34) {
-              final result = _scoreDualLanePerk(slot.perkId, player, opponent);
-              if (result.$2 >= 0) return (slot.perkId, result.$2, result.$3);
-            } else if (!perkDef.requiresTarget) {
-              return (slot.perkId, -1, null);
-            } else {
-              final validLanes = LaneValidator.getValidLanesForPerk(
-                  slot.perkId, _gameState!, player);
-              if (validLanes.isNotEmpty) {
-                return (slot.perkId, validLanes[rng.nextInt(validLanes.length)], null);
-              }
-            }
-          }
-        }
-      }
+      return _randomAIChoice(player, opponent, rng);
     }
 
-    // Medium and Hard: scoring-based (current behavior)
+    if (difficulty == 'medium' && rng.nextDouble() < 0.25) {
+      return _randomAIChoice(player, opponent, rng);
+    }
+
+    // Greedy: best-scoring (perk, lane) candidate; pass baseline is 0
     int bestPerkId = 0;
     int bestTarget = -1;
     int? bestSecondTarget;
@@ -218,73 +215,132 @@ class CombatService extends ChangeNotifier {
     return (bestPerkId, bestTarget, bestSecondTarget);
   }
 
-  /// Score a targeted perk on a specific lane
+  /// Random usable perk on a random valid lane; falls back to pass.
+  (int, int, int?) _randomAIChoice(PlayerSide player, PlayerSide opponent, Random rng) {
+    final usable = _currentPerkSlots.where((s) => s.perkId > 0).toList()
+      ..shuffle(rng);
+    for (final slot in usable) {
+      final perkDef = PerkDefinitions.getPerk(slot.perkId);
+      if (perkDef == null) continue;
+      if (slot.perkId == 33 || slot.perkId == 34) {
+        final result = _scoreDualLanePerk(slot.perkId, player, opponent);
+        if (result.$2 >= 0) return (slot.perkId, result.$2, result.$3);
+        continue;
+      }
+      if (!perkDef.requiresTarget) return (slot.perkId, -1, null);
+      final validLanes = LaneValidator.getValidLanesForPerk(
+          slot.perkId, _gameState!, player);
+      if (validLanes.isNotEmpty) {
+        return (slot.perkId, validLanes[rng.nextInt(validLanes.length)], null);
+      }
+    }
+    return (0, -1, null);
+  }
+
+  /// Total pieces for a side across lanes still in play
+  int _totalPieces(PlayerSide side) {
+    int total = 0;
+    for (final lane in _gameState!.lanes) {
+      if (lane.winner == null) total += lane.countPieces(side);
+    }
+    return total;
+  }
+
+  /// Largest single-lane piece count for a side across lanes still in play
+  int _maxLanePieces(PlayerSide side) {
+    int maxCount = 0;
+    for (final lane in _gameState!.lanes) {
+      if (lane.winner != null) continue;
+      final n = lane.countPieces(side);
+      if (n > maxCount) maxCount = n;
+    }
+    return maxCount;
+  }
+
+  /// Score a targeted perk on a specific lane.
+  ///
+  /// Scale (mirrors the PWA scorer): 100 = wins a lane this turn, 90 = blocks
+  /// an imminent enemy lane win, 20-60 = strong tempo, <20 = filler.
+  /// Match-deciding moves get a bonus so they always dominate.
   int _scorePerkOnLane(int perkId, int lane, PlayerSide player, PlayerSide opponent) {
     final laneState = _gameState!.lanes[lane];
     final myPieces = laneState.countPieces(player);
     final enemyPieces = laneState.countPieces(opponent);
+    // Winning/blocking the 3rd lane decides the match — always take it.
+    final winBonus = _gameState!.getLanesWon(player) == 2 ? 100 : 0;
+    final blockBonus = _gameState!.getLanesWon(opponent) == 2 ? 60 : 0;
 
     switch (perkId) {
-      case 1: // PlaceAnother
-        if (myPieces == 4) return 100; // winning move
-        if (enemyPieces >= 4) return 40; // contested lane
-        return 10 + myPieces * 5;
-      case 2: // RemoveEnemy
-        if (enemyPieces >= 5) return 90; // block near-win
-        if (enemyPieces >= 4) return 80;
-        return 5 + enemyPieces * 8;
-      case 4: // Freeze
-        if (enemyPieces >= 3) return 30 + enemyPieces * 5;
-        return 10;
-      case 31: // Split
-        if (myPieces >= 2) return 20;
-        return 8;
-      case 32: // Kamikaze
-        if (enemyPieces >= 4) return 35;
-        return 10;
-      case 35: // Scatter
-        if (myPieces >= 3) return 15;
-        return 5;
-      case 36: // Disperse
-        if (enemyPieces >= 4) return 40;
-        return 5 + enemyPieces * 5;
-      case 39: // Rush
-        if (myPieces >= 3) return 30;
-        return 12;
-      case 48: // Nullify
-        if (laneState.triggers.isNotEmpty) return 25;
-        return 2;
-      case 24: // Portal
+      case 1: // PlaceAnother: instant lane win at 4
+        if (myPieces == 4) return 100 + winBonus;
+        return 12 + myPieces * 6;
+      case 2: // RemoveEnemy: block threats, don't spam
+        if (enemyPieces >= 4) return 90 + blockBonus;
+        if (enemyPieces == 3) return 32;
+        return enemyPieces * 7;
+      case 4: // Freeze: deny the enemy a whole turn on their threat lane
+        if (enemyPieces >= 4) return 65 + blockBonus;
+        if (enemyPieces == 3) return 22;
+        return 6;
+      case 31: // Split: net +1 spread out; never break up a near-win
+        if (myPieces == 4) return 2;
+        return 18;
+      case 32: // Kamikaze: trade 1 for 2 random enemy pieces
+        return (_totalPieces(opponent) >= 5 ? 20 : 12) - myPieces * 2;
+      case 35: // Scatter: repositioning filler
+        return 6;
+      case 36: // Disperse: breaks up a stacked enemy lane
+        if (enemyPieces >= 4) return 55 + blockBonus;
+        if (enemyPieces == 3) return 18;
+        return 4;
+      case 39: // Rush: +2 me first => instant lane win from 3+; otherwise feeds the enemy
+        if (myPieces == 4 || myPieces == 3) return 88 + winBonus;
+        return max(2, 10 - enemyPieces * 2);
+      case 48: // Nullify: only worth it against enemy-owned triggers on my lane
+        {
+          final myOwner = player == PlayerSide.player1 ? 1 : 2;
+          final enemyTriggers =
+              laneState.triggers.where((t) => t.owner != myOwner).length;
+          return enemyTriggers > 0 ? 15 + enemyTriggers * 10 : 1;
+        }
+      case 24: // Portal: deny the enemy's winning placement on their stacked lane
       case 25: // Trap
-      case 26: // Mirror
+        if (enemyPieces >= 4) return 45 + blockBonus;
+        if (enemyPieces == 3) return 25;
+        return 10;
+      case 26: // Mirror: +2 for me when they place here — best where they must place
       case 27: // Echo
-      case 28: // Shockwave
-      case 29: // Hydra
+        return 14 + enemyPieces * 3;
+      case 28: // Shockwave: they place here, lose 2 elsewhere
+        return 12 + enemyPieces * 4;
+      case 52: // Retaliate
+        return 12 + enemyPieces * 3;
+      case 29: // Hydra: protect my stacked lane from removal
       case 30: // Backfire
       case 46: // Absorb
-      case 52: // Retaliate
-        // Triggers: value based on lane contest level
-        if (enemyPieces >= 3) return 20 + enemyPieces * 3;
-        return 10;
-      case 43: // Signal
-        return 15;
-      case 40: // Enlist
-        return 15 + myPieces * 3;
-      case 41: // Ambush
-        if (enemyPieces >= 3) return 25;
-        return 12;
-      case 42: // Reinforce
-        if (myPieces >= 3) return 25;
-        return 12;
-      case 49: // Sanctuary
-        if (myPieces >= 3) return 20;
+        if (myPieces >= 4) return 30;
+        if (myPieces == 3) return 20;
         return 8;
-      case 50: // Capture
-        if (enemyPieces >= 3) return 25;
-        return 10;
+      case 43: // Signal: +1 now (+1 pulled next turn) — instant win at 4, setup at 3
+        if (myPieces == 4) return 100 + winBonus;
+        if (myPieces == 3) return 60 + winBonus;
+        return 20;
+      case 40: // Enlist: +1 now, capture next turn
+        if (myPieces == 4) return 100 + winBonus;
+        return 18 + myPieces * 2;
+      case 41: // Ambush: +1 now, remove nearby enemy next turn
+        if (myPieces == 4) return 100 + winBonus;
+        return enemyPieces >= 3 ? 26 : 14;
+      case 42: // Reinforce: +1 now +1 next turn — instant win at 4, near-win at 3
+        if (myPieces == 4) return 100 + winBonus;
+        if (myPieces == 3) return 60 + winBonus;
+        return 16 + myPieces * 4;
+      case 49: // Sanctuary: worth protecting a developed board
+        return _totalPieces(player) >= 6 ? 18 : 8;
+      case 50: // Capture: future removals land on my side
+        return _totalPieces(opponent) >= 4 ? 20 : 10;
       case 51: // Raid
-        if (myPieces >= 2) return 18;
-        return 8;
+        return 14;
       default:
         return 10;
     }
@@ -292,26 +348,23 @@ class CombatService extends ChangeNotifier {
 
   /// Score an auto-target (no lane selection) perk
   int _scoreAutoTargetPerk(int perkId, PlayerSide player, PlayerSide opponent) {
+    final blockBonus = _gameState!.getLanesWon(opponent) == 2 ? 60 : 0;
     switch (perkId) {
-      case 13: // Scramble
-        // Value based on opponent's max concentration
-        int maxEnemy = 0;
-        for (final lane in _gameState!.lanes) {
-          if (lane.winner != null) continue;
-          final ep = lane.countPieces(opponent);
-          if (ep > maxEnemy) maxEnemy = ep;
+      case 13: // Scramble: resets the enemy's board shape
+        {
+          final maxEnemy = _maxLanePieces(opponent);
+          if (maxEnemy >= 4) return 50 + blockBonus;
+          if (maxEnemy == 3) return 20;
+          return 4;
         }
-        if (maxEnemy >= 4) return 50;
-        if (maxEnemy >= 3) return 25;
-        return 5;
-      case 22: // Cloak
-        return 15;
+      case 22: // Cloak: shields my stacked lanes from targeted removal
+        return _maxLanePieces(player) >= 3 ? 25 : 8;
       case 23: // Blind
-        return 15;
-      case 37: // Gambit
         return 12;
+      case 37: // Gambit: 3-for-2 in the enemy's favor
+        return 6;
       case 38: // Steal
-        return 20;
+        return 16;
       default:
         return 10;
     }
@@ -333,18 +386,16 @@ class CombatService extends ChangeNotifier {
       for (final l2 in secondLanes) {
         int score;
         if (perkId == 33) {
-          // Regroup: value moving pieces to a lane where we're close to winning
+          // Regroup: mild repositioning value
           final myL1 = _gameState!.lanes[l1].countPieces(player);
           final myL2 = _gameState!.lanes[l2].countPieces(player);
-          score = (myL1 - myL2).abs() * 5 + 5;
-          // Bonus if either lane is near win after swap
-          if (myL1 >= 3 || myL2 >= 3) score += 15;
+          score = (myL1 - myL2).abs() * 3 + 3;
         } else {
-          // Disrupt: value disrupting enemy concentrations
+          // Disrupt: drag a stacked enemy lane onto an empty one
           final eL1 = _gameState!.lanes[l1].countPieces(opponent);
           final eL2 = _gameState!.lanes[l2].countPieces(opponent);
-          score = (eL1 - eL2).abs() * 5 + 5;
-          if (eL1 >= 4 || eL2 >= 4) score += 20;
+          score = (eL1 - eL2).abs() * 4 + 3;
+          if (max(eL1, eL2) >= 4) score += 25;
         }
         if (score > bestScore) {
           bestScore = score;
@@ -447,6 +498,17 @@ class CombatService extends ChangeNotifier {
     // Fire placement triggers after placing
     _firePlacementTriggers(laneIndex, currentPlayer, 0);
     _checkAllLaneWins();
+
+    // Fair start: player 1's opening turn is auto-placement only, offsetting
+    // the first-mover advantage (mirrors the server and PWA rule)
+    if (!_isServerDriven &&
+        _turnCounter == 0 &&
+        currentPlayer == PlayerSide.player1 &&
+        _gameState!.status == CombatStatus.playing) {
+      endTurn();
+      return laneIndex;
+    }
+
     notifyListeners();
 
     return laneIndex;
@@ -1440,6 +1502,8 @@ class CombatService extends ChangeNotifier {
       player2Captures: newP2Captures,
       pendingRaids: newPendingRaids,
     );
+
+    _turnCounter++;
 
     notifyListeners();
   }

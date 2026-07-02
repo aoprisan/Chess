@@ -17,13 +17,17 @@ const TestPerkPairIndex = 2
 
 // TurnResult contains the results of executing a turn phase
 type TurnResult struct {
-	Success        bool                 `json:"success"`
-	Phase          models.LaneTurnPhase `json:"phase"`
-	LaneIndex      int                  `json:"laneIndex,omitempty"`      // For auto-placement
-	LaneWinner     models.PlayerSide    `json:"laneWinner,omitempty"`     // If a lane was won
-	GameWinner     models.PlayerSide    `json:"gameWinner,omitempty"`     // If game is over
-	PerkExecuted   int                  `json:"perkExecuted,omitempty"`   // Perk ID that was executed
-	Error          string               `json:"error,omitempty"`
+	Success      bool                 `json:"success"`
+	Phase        models.LaneTurnPhase `json:"phase"`
+	LaneIndex    int                  `json:"laneIndex,omitempty"`    // For auto-placement
+	LaneWinner   models.PlayerSide    `json:"laneWinner,omitempty"`   // If a lane was won
+	GameWinner   models.PlayerSide    `json:"gameWinner,omitempty"`   // If game is over
+	PerkExecuted int                  `json:"perkExecuted,omitempty"` // Perk ID that was executed
+	Error        string               `json:"error,omitempty"`
+
+	// PerkPhaseSkipped is set when the turn ended right after auto-placement
+	// (fair start: player 1's opening turn has no perk phase)
+	PerkPhaseSkipped bool `json:"perkPhaseSkipped,omitempty"`
 
 	// Raid resolution results
 	RaidResults []perks.RaidResult `json:"raidResults,omitempty"`
@@ -203,6 +207,17 @@ func (e *LaneEngine) ExecuteAutoPlacement() *TurnResult {
 		}
 	}
 
+	// Fair start: player 1's opening turn is auto-placement only. Skipping the
+	// perk phase offsets the first-mover advantage (mirror matches measured
+	// ~59-67% player-1 win rate without it, ~53/47 with it).
+	if e.game.TurnNumber == 1 && currentPlayer == models.Player1 {
+		result.PerkPhaseSkipped = true
+		e.game.CurrentPerkSlots = nil
+		e.game.AdvancePhase() // auto-placement -> perk selection
+		e.game.AdvancePhase() // perk selection -> switch turn
+		return result
+	}
+
 	// Advance to perk selection phase
 	e.game.AdvancePhase()
 
@@ -322,6 +337,10 @@ func (e *LaneEngine) ExecuteAITurn(ai *LaneAI) []*TurnResult {
 		return results // Game over
 	}
 
+	if autoResult.PerkPhaseSkipped {
+		return results // Fair start: opening turn has no perk phase
+	}
+
 	// Phase 4: Perk selection
 	perkID, targets := ai.ChoosePerk(e.game)
 	var perkResult *TurnResult
@@ -369,6 +388,10 @@ func (e *LaneEngine) ExecuteFullTurn(perkID int, targetLane int, targetLanes ...
 
 		if autoResult.GameWinner != 0 {
 			return results
+		}
+
+		if autoResult.PerkPhaseSkipped {
+			return results // Fair start: opening turn has no perk phase
 		}
 	}
 

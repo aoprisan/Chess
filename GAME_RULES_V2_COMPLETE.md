@@ -37,6 +37,10 @@ This document provides the complete rules for the V2 game system, including all 
 
 ## 2. Turn Structure
 
+### Fair Start Rule
+
+**Player 1's opening turn is auto-placement only** — no perk selection is offered; the turn ends immediately after the auto-placed piece lands. This offsets the first-mover advantage (mirror-match simulations measured a 59-67% win rate for player 1 without the rule, ~53/47 with it). Every turn after that follows the full structure below.
+
 ```
 1. DEFERRED RESOLUTION (if any)
    - Deferred perks from previous turn resolve
