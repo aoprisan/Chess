@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import { AdventureMapDef, AdventureNode, Biome, ObstacleType } from '../adventure/map';
 import { AdventureController, clearSavedJourney } from '../adventure/progress';
 import { HeroType } from '../game/hero';
@@ -6,10 +6,20 @@ import { Combat, CombatResult } from './Combat';
 import { biomeBg, obstacleArt, OBSTACLE_INFO, heroImage, ui } from './assets';
 import { Icon } from './Icons';
 
-// Mirrors client/lib/screens/adventure_map_screen.dart:
+// Visuals mirror client/lib/screens/adventure_map_screen.dart:
 // mapHeight = viewport * 3.6, three biome panels, dashed trails,
-// pulse rings on reachable nodes, cream chips, cream dialogs.
+// pulse rings on quest objectives, cream chips, cream dialogs.
+// Movement goes further than the Flutter client: tap anywhere on the
+// trail — however far — and the hero roams there hop-by-hop (BFS path
+// through cleared nodes), so the map plays like a quest rather than a
+// level select.
 const MAP_HEIGHT_FACTOR = 3.6;
+
+// One hop along a trail edge while the hero walks (must match the
+// .player-token CSS transition duration).
+const HOP_MS = 380;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 type Popup =
   | null
@@ -42,8 +52,15 @@ export function AdventureMap({
 
   const [popup, setPopup] = useState<Popup>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [walking, setWalking] = useState(false);
   const eventLock = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
@@ -77,6 +94,15 @@ export function AdventureMap({
     scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   };
 
+  // Keep the camera on the hero while they roam the trails.
+  const followHero = useCallback(
+    (node: AdventureNode) => {
+      const target = node.y * mapHeight - dims.height / 2;
+      scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+    },
+    [mapHeight, dims.height],
+  );
+
   const showToast = (msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
@@ -108,28 +134,65 @@ export function AdventureMap({
     [ctrl, mutate],
   );
 
+  // Walk the hero hop-by-hop along [path], camera following, then trigger
+  // whatever waits at the destination. This is what makes the map feel like
+  // a quest: one tap sends the hero roaming the whole trail.
+  const walkTo = useCallback(
+    async (node: AdventureNode, path: string[]) => {
+      eventLock.current = true;
+      setWalking(true);
+      try {
+        for (const stepId of path) {
+          mutate(() => ctrl.moveToNode(stepId));
+          followHero(ctrl.currentNode);
+          await sleep(HOP_MS);
+          if (!aliveRef.current) return;
+        }
+      } finally {
+        eventLock.current = false;
+        setWalking(false);
+      }
+      if (!ctrl.isNodeCleared(node)) triggerEvent(node);
+    },
+    [ctrl, mutate, followHero, triggerEvent],
+  );
+
   const onNodeTap = (node: AdventureNode) => {
     if (eventLock.current || popup !== null) return;
-    if (!ctrl.canTapNode(node)) {
+    if (node.id === ctrl.progress.currentNodeId) {
+      // Retry the event underfoot, or rematch a defeated rival.
+      if (ctrl.canTapNode(node)) triggerEvent(node);
+      return;
+    }
+    const path = ctrl.pathTo(node.id);
+    if (path === null || path.length === 0) {
       if (!ctrl.progress.completed && !ctrl.isNodeCleared(ctrl.currentNode)) {
         showToast(blockedHint(ctrl, ctrl.currentNode));
-      } else if (!ctrl.isAdjacentToPlayer(node) && node.id !== ctrl.progress.currentNodeId) {
-        showToast('You can only walk to a connected spot!');
+      } else {
+        showToast("You can't reach that spot yet — find another way!");
       }
       return;
     }
-    eventLock.current = true;
-    const standingHere = node.id === ctrl.progress.currentNodeId;
-    if (!standingHere) {
-      mutate(() => ctrl.moveToNode(node.id));
-      setTimeout(() => {
-        eventLock.current = false;
-        if (!ctrl.isNodeCleared(node)) triggerEvent(node);
-      }, 700);
-    } else {
-      eventLock.current = false;
-      triggerEvent(node);
+    void walkTo(node, path);
+  };
+
+  // Tap anywhere on the map — the hero walks to the nearest spot on the
+  // trail. Node buttons stop propagation, so this only sees ground taps.
+  const onMapTap = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (eventLock.current || popup !== null || dims.width === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let nearest: AdventureNode | null = null;
+    let nearestDist = Infinity;
+    for (const node of map.nodes) {
+      const dist = Math.hypot(node.x * dims.width - x, node.y * mapHeight - y);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = node;
+      }
     }
+    if (nearest && nearestDist <= nodeSize * 2) onNodeTap(nearest);
   };
 
   // --- Fight flow: combat shows its own winner banner; the map shows a snackbar after. ---
@@ -160,7 +223,7 @@ export function AdventureMap({
   return (
     <div className="screen">
       <div className="adv-scroll" ref={scrollRef}>
-        <div className="adv-map" style={{ height: mapHeight }}>
+        <div className="adv-map" style={{ height: mapHeight }} onClick={onMapTap}>
           {/* Biome backgrounds: peaks top, meadow bottom */}
           <BiomePanel biome="peaks" top={0} height={mapHeight / 3} />
           <BiomePanel biome="forest" top={mapHeight / 3} height={mapHeight / 3} />
@@ -186,7 +249,7 @@ export function AdventureMap({
           {/* Player token (sits just above the current node, 650ms ease move) */}
           {dims.width > 0 && (
             <div
-              className="player-token"
+              className={`player-token${walking ? ' walking' : ''}`}
               style={{
                 left: ctrl.currentNode.x * dims.width - nodeSize * 0.55,
                 top: ctrl.currentNode.y * mapHeight - nodeSize * 1.25,
@@ -337,7 +400,10 @@ function NodeMarker({
         width: size,
         height: size * 1.25,
       }}
-      onClick={onTap}
+      onClick={(e) => {
+        e.stopPropagation(); // keep ground-tap handler from also walking here
+        onTap();
+      }}
     >
       {pulsing && <div className="pulse-ring" style={{ width: size, height: size }} />}
       <div className="node-content" style={{ width: size, height: size }}>
@@ -399,7 +465,11 @@ function NodeGlyph({ node, ctrl, size }: { node: AdventureNode; ctrl: AdventureC
 function visualState(ctrl: AdventureController, node: AdventureNode): string {
   const isCurrent = node.id === ctrl.progress.currentNodeId;
   if (isCurrent) return ctrl.isNodeCleared(node) ? 'visited' : 'current';
-  if (ctrl.canMoveTo(node) && !ctrl.isNodeVisited(node)) return 'next';
+  if (ctrl.canReach(node) && !ctrl.isNodeVisited(node)) {
+    // Only quest objectives pulse; open trail ahead just looks walkable
+    // rather than making whole corridors of dots blink.
+    return node.type === 'path' ? 'open' : 'next';
+  }
   if (ctrl.isNodeVisited(node)) return ctrl.isNodeCleared(node) ? 'cleared' : 'visited';
   return 'locked';
 }
@@ -413,7 +483,7 @@ function blockedHint(ctrl: AdventureController, node: AdventureNode): string {
     case 'treasure':
       return 'Open the treasure chest first!';
     default:
-      return 'Tap a glowing node!';
+      return 'Tap anywhere on the trail to walk there!';
   }
 }
 

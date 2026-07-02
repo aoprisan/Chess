@@ -146,11 +146,59 @@ export class AdventureController {
     return this.isNodeVisited(node);
   }
 
+  /**
+   * BFS shortest path from the current node to [targetId], so the hero can
+   * roam freely: any spot on the map is one tap away as long as open trail
+   * leads there. Only cleared nodes can be walked *through* — an uncleared
+   * event node (obstacle, rival, treasure) may be the destination but blocks
+   * travel beyond it. Standing on an uncleared node, the first step may only
+   * retreat to already-visited neighbors.
+   *
+   * Returns the node ids to walk, in order, excluding the current node —
+   * or null when the target cannot be reached yet.
+   */
+  pathTo(targetId: string): string[] | null {
+    const startId = this.progress.currentNodeId;
+    if (targetId === startId) return [];
+    const startCleared = this.isNodeCleared(this.currentNode);
+    const cameFrom = new Map<string, string>();
+    const seen = new Set<string>([startId]);
+    const queue: string[] = [startId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      // Uncleared event nodes are terminal: reachable, but not passable.
+      if (id !== startId && !this.isNodeCleared(this.map.nodeById(id))) continue;
+      for (const nextId of this.map.neighborsOf(id)) {
+        if (seen.has(nextId)) continue;
+        if (id === startId && !startCleared && !this.progress.visitedNodes.has(nextId)) {
+          continue; // retreat rule
+        }
+        seen.add(nextId);
+        cameFrom.set(nextId, id);
+        if (nextId === targetId) {
+          const path: string[] = [];
+          for (let cur = nextId; cur !== startId; cur = cameFrom.get(cur)!) {
+            path.push(cur);
+          }
+          return path.reverse();
+        }
+        queue.push(nextId);
+      }
+    }
+    return null;
+  }
+
+  /** Whether the hero can walk to [node] right now (possibly multiple hops). */
+  canReach(node: AdventureNode): boolean {
+    if (node.id === this.progress.currentNodeId) return false;
+    return this.pathTo(node.id) !== null;
+  }
+
   canTapNode(node: AdventureNode): boolean {
     if (node.id === this.progress.currentNodeId) {
       return !this.isNodeCleared(node) || node.type === 'rival';
     }
-    return this.canMoveTo(node);
+    return this.canReach(node);
   }
 
   moveToNode(nodeId: string): void {
