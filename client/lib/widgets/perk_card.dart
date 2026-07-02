@@ -194,7 +194,7 @@ class PerkDefinitions {
     32: PerkInfo(
       id: 32,
       name: 'Kamikaze',
-      description: 'Sacrifice 1, enemy loses 2',
+      description: 'Sacrifice 1, enemy loses 3',
       category: PerkCategory.offensive,
     ),
 
@@ -216,7 +216,7 @@ class PerkDefinitions {
     37: PerkInfo(
       id: 37,
       name: 'Gambit',
-      description: 'Enemy gets 3, you get 2 concentrated',
+      description: 'Enemy gets 2, you get 2 concentrated',
       category: PerkCategory.utility,
       requiresTarget: false,
     ),

@@ -240,8 +240,8 @@ class CombatService extends ChangeNotifier {
         if (myPieces >= 2) return 20;
         return 8;
       case 32: // Kamikaze
-        if (enemyPieces >= 4) return 35;
-        return 10;
+        if (enemyPieces >= 4) return 45;
+        return 15;
       case 35: // Scatter
         if (myPieces >= 3) return 15;
         return 5;
@@ -309,7 +309,7 @@ class CombatService extends ChangeNotifier {
       case 23: // Blind
         return 15;
       case 37: // Gambit
-        return 12;
+        return 15;
       case 38: // Steal
         return 20;
       default:
@@ -664,7 +664,7 @@ class CombatService extends ChangeNotifier {
     return true;
   }
 
-  /// Kamikaze - sacrifice 1 piece, enemy loses 2 from random lanes
+  /// Kamikaze - sacrifice 1 piece, enemy loses 3 from random lanes
   bool kamikazePiece(int laneIndex) {
     if (_gameState == null) return false;
     if (laneIndex < 0 || laneIndex >= 5) return false;
@@ -700,8 +700,8 @@ class CombatService extends ChangeNotifier {
       lanes[laneIndex] = lanes[laneIndex].copyWith(player2Columns: newCols);
     }
 
-    // Remove up to 2 enemy pieces from random lanes (per Python simulation)
-    for (int r = 0; r < 2; r++) {
+    // Remove up to 3 enemy pieces from random lanes
+    for (int r = 0; r < 3; r++) {
       // Find lanes with enemy pieces
       final lanesWithEnemy = <int>[];
       for (int i = 0; i < 5; i++) {
@@ -1020,10 +1020,11 @@ class CombatService extends ChangeNotifier {
     final currentPlayer = _gameState!.currentPlayer;
     if (_gameState!.isCloaked(currentPlayer)) return false; // already cloaked
 
+    // Counter ticks every half-turn, so 4 ticks = hidden for 2 opponent turns
     if (currentPlayer == PlayerSide.player1) {
-      _gameState = _gameState!.copyWith(player1Cloaked: 2);
+      _gameState = _gameState!.copyWith(player1Cloaked: 4);
     } else {
-      _gameState = _gameState!.copyWith(player2Cloaked: 2);
+      _gameState = _gameState!.copyWith(player2Cloaked: 4);
     }
 
     notifyListeners();
@@ -1037,16 +1038,17 @@ class CombatService extends ChangeNotifier {
     final opponent = currentPlayer == PlayerSide.player1
         ? PlayerSide.player2 : PlayerSide.player1;
     if (_gameState!.isBlinded(opponent)) return false; // already blinded
+    // Counter ticks every half-turn, so 4 ticks = hidden for 2 opponent turns
     if (opponent == PlayerSide.player1) {
-      _gameState = _gameState!.copyWith(player1Blinded: 2);
+      _gameState = _gameState!.copyWith(player1Blinded: 4);
     } else {
-      _gameState = _gameState!.copyWith(player2Blinded: 2);
+      _gameState = _gameState!.copyWith(player2Blinded: 4);
     }
     notifyListeners();
     return true;
   }
 
-  /// Gambit - give enemy 3 pieces on random lanes, gain 2 on one lane
+  /// Gambit - give enemy 2 pieces on random lanes, gain 2 on one lane
   bool gambitPieces() {
     if (_gameState == null) return false;
 
@@ -1057,8 +1059,8 @@ class CombatService extends ChangeNotifier {
 
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
 
-    // Give opponent 3 pieces on random lanes (can repeat same lane)
-    for (int i = 0; i < 3; i++) {
+    // Give opponent 2 pieces on random lanes (can repeat same lane)
+    for (int i = 0; i < 2; i++) {
       final available = <int>[];
       for (int j = 0; j < 5; j++) {
         if (lanes[j].winner == null && !lanes[j].isSideFilled(enemy)) {
@@ -2181,13 +2183,13 @@ class CombatService extends ChangeNotifier {
       // Roll probability (0-99)
       final roll = _random.nextInt(100);
 
-      if (roll < 10) {
-        // 10% - Lost: Remove the raid piece from opponent's side
+      if (roll < 5) {
+        // 5% - Lost: Remove the raid piece from opponent's side
         if (lanes[laneIdx].countPieces(opponent) > 0) {
           _removePieceFromLane(lanes, laneIdx, opponent);
         }
-      } else if (roll < 25) {
-        // 15% - +2 recruits: Convert to player's piece + 2 more = 3 total
+      } else if (roll < 30) {
+        // 25% - +2 recruits: Convert to player's piece + 2 more = 3 total
         if (lanes[laneIdx].countPieces(opponent) > 0) {
           _removePieceFromLane(lanes, laneIdx, opponent);
         }
@@ -2196,8 +2198,8 @@ class CombatService extends ChangeNotifier {
             _addPieceToLane(lanes, laneIdx, player);
           }
         }
-      } else if (roll < 55) {
-        // 30% - +1 recruit: Convert to player's piece + 1 more = 2 total
+      } else if (roll < 65) {
+        // 35% - +1 recruit: Convert to player's piece + 1 more = 2 total
         if (lanes[laneIdx].countPieces(opponent) > 0) {
           _removePieceFromLane(lanes, laneIdx, opponent);
         }
@@ -2207,7 +2209,7 @@ class CombatService extends ChangeNotifier {
           }
         }
       } else {
-        // 45% - Alone: Just convert to player's piece
+        // 35% - Alone: Just convert to player's piece
         if (lanes[laneIdx].countPieces(opponent) > 0) {
           _removePieceFromLane(lanes, laneIdx, opponent);
         }
