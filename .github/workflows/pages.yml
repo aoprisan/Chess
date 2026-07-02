@@ -1,16 +1,12 @@
 name: Deploy PWA to GitHub Pages
 
-# Builds the standalone TypeScript Adventure PWA in web/ and publishes the
-# build output to the gh-pages branch. GitHub Pages then serves that branch:
-# set it up once in repo Settings → Pages → Source = "Deploy from a branch",
-# Branch = gh-pages, Folder = / (root).
+# Builds the standalone TypeScript Adventure PWA in web/ and deploys it with the
+# official GitHub Actions Pages pipeline (actions/upload-pages-artifact +
+# actions/deploy-pages). GitHub Pages serves the uploaded artifact directly.
+# One-time setup: repo Settings -> Pages -> Source = "GitHub Actions".
 #
 # The site serves at https://<user>.github.io/Chess/ so the Vite base path is
 # /Chess/ (see web/vite.config.ts).
-#
-# This deliberately avoids actions/deploy-pages: on this repo its Pages
-# deployments sat in deployment_queued until timeout on every run. A plain
-# git push to gh-pages has no deployment queue to get stuck in.
 
 on:
   push:
@@ -21,14 +17,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,17 +46,18 @@ jobs:
       - run: npm run build
         working-directory: web
 
-      - name: Publish web/dist to gh-pages branch
-        working-directory: web/dist
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          # .nojekyll: serve files as-is, skip the Jekyll build Pages runs by
-          # default on branch deployments.
-          touch .nojekyll
-          git init -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Deploy ${GITHUB_SHA}"
-          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
