@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { CombatEngine, MoveLogEntry } from '../game/engine';
 import { chooseAIPerk } from '../game/ai';
 import { getValidLanesForPerk, perkRequiresTarget } from '../game/targeting';
-import { getPerk, PerkCategory, PerkSlot } from '../game/perks';
+import { getPerk, PerkCategory, PerkInfo, PerkSlot, PerkTargetSide } from '../game/perks';
 import { Hero } from '../game/hero';
 import {
   CombatGameState,
@@ -22,7 +22,6 @@ import { Icon, IconName } from './Icons';
 // pass-and-play turn dialog (auto-dismissed for the AI).
 
 const DUAL_LANE_PERKS = new Set([33, 34]);
-const ENEMY_TRIGGER_PERKS = new Set([24, 25, 26, 27, 50]);
 const FREEZE_PERK = 4;
 
 const CATEGORY_COLOR: Record<PerkCategory, string> = {
@@ -36,6 +35,55 @@ const CATEGORY_ICON: Record<PerkCategory, IconName> = {
   utility: 'build',
 };
 
+// Lane-half highlight palette while targeting: green = your half, purple =
+// enemy half, amber = whole lane; Freeze keeps its signature ice-blue.
+interface SideStyle {
+  fill: string;
+  border: string;
+  pill: string;
+  label: string;
+}
+const SIDE_STYLE: Record<PerkTargetSide, SideStyle> = {
+  own: { fill: 'rgba(76,175,80,0.35)', border: '#66BB6A', pill: 'rgba(56,142,60,0.9)', label: 'Your side' },
+  enemy: { fill: 'rgba(156,39,176,0.35)', border: '#AB47BC', pill: 'rgba(123,31,162,0.9)', label: 'Enemy side' },
+  both: { fill: 'rgba(255,193,7,0.3)', border: '#FFCA28', pill: 'rgba(255,160,0,0.9)', label: 'Whole lane' },
+};
+const FREEZE_STYLE: SideStyle = {
+  fill: 'rgba(33,150,243,0.35)',
+  border: '#42A5F5',
+  pill: 'rgba(25,118,210,0.9)',
+  label: 'Enemy side',
+};
+const SIDE_CHIP_COLOR: Record<PerkTargetSide, string> = {
+  own: '#388E3C',
+  enemy: '#7B1FA2',
+  both: '#FFA000',
+};
+
+function sideStyleFor(perkId: number, info: PerkInfo | undefined): SideStyle {
+  if (perkId === FREEZE_PERK) return FREEZE_STYLE;
+  return SIDE_STYLE[info?.targetSide ?? 'both'];
+}
+
+/** Icon shown in the lane pill (and targeting hint) for a perk. */
+function targetingIcon(perkId: number): IconName {
+  switch (perkId) {
+    case 4: return 'snowflake';
+    case 24: return 'swap';
+    case 25: return 'warning';
+    case 26: return 'flip';
+    case 27: return 'surround';
+    case 28: return 'warning';
+    case 50: return 'capture';
+    case 51: return 'raid';
+    case 52: return 'raid';
+    default: {
+      const info = getPerk(perkId);
+      return info ? CATEGORY_ICON[info.category] : 'flash';
+    }
+  }
+}
+
 interface CombatResult {
   playerWon: boolean;
   stars: number; // 0 on loss, 1-3 on win
@@ -47,11 +95,16 @@ export function Combat({
   player1Hero,
   player2Hero,
   aiDifficulty,
+  player2IsAI = true,
+  exitLabel = 'Back to Map',
   onGameEnd,
 }: {
   player1Hero: Hero;
   player2Hero: Hero;
   aiDifficulty: string;
+  /** false = pass-and-play: both sides are humans sharing this device. */
+  player2IsAI?: boolean;
+  exitLabel?: string;
   onGameEnd: (result: CombatResult) => void;
 }) {
   const engineRef = useRef<CombatEngine | null>(null);
@@ -59,7 +112,7 @@ export function Combat({
     engineRef.current = new CombatEngine(`game_${Date.now()}`, {
       player1Hero: player1Hero.type,
       player2Hero: player2Hero.type,
-      player2IsAI: true,
+      player2IsAI,
       player2AIDifficulty: aiDifficulty,
     });
   }
@@ -173,7 +226,7 @@ export function Combat({
     const s = engine.state;
     if (s.status === 'playing' && s.currentPlayer !== prevPlayerRef.current) {
       prevPlayerRef.current = s.currentPlayer;
-      if (s.currentPlayer === 'player2') {
+      if (engine.isCurrentPlayerAI) {
         // AI turn: show briefly, then auto-dismiss.
         setTurnDialog(true);
         later(() => {
@@ -182,14 +235,18 @@ export function Combat({
             tick();
           }
         }, 600);
+      } else if (!player2IsAI) {
+        // Pass-and-play: tap-gated hand-off so the device can change hands
+        // (the board hides Cloak/Blind info while the dialog is up).
+        setTurnDialog(true);
       }
-      // Human turns flow straight into auto-placement; the tap-gated dialog
-      // only appears on the opening turn (initial state, fair-start hint).
+      // Solo human turns flow straight into auto-placement; the tap-gated
+      // dialog only appears on the opening turn (fair-start hint).
     }
     bump();
     tick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, bump, later, tick, setTurnDialog]);
+  }, [engine, bump, later, tick, setTurnDialog, player2IsAI]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -215,7 +272,8 @@ export function Combat({
   const onPerkClick = (perkId: number) => {
     if (!humanTurn) return;
     if (engine.currentPerkSlots.some((s) => s.perkId === perkId && s.disabled)) return;
-    setSelectedPerkId(perkId);
+    // Tapping the selected perk again collapses its explanation.
+    setSelectedPerkId((prev) => (prev === perkId ? null : perkId));
     setIsSelectingLane(false);
     setFirstSelectedLane(null);
   };
@@ -375,7 +433,7 @@ export function Combat({
               onGameEnd({ playerWon, stars });
             }}
           >
-            Back to Map
+            {exitLabel}
           </button>
         </div>
       ) : state.currentPhase === 'autoPlacement' && !showTurnDialog ? (
@@ -399,85 +457,31 @@ export function Combat({
               Opponent&apos;s turn
             </div>
           </div>
+        ) : isSelectingLane && selectedPerkId !== null && selectedInfo ? (
+          // Targeting: a hint takes the perk panel's spot, color-matched to
+          // the lane-half glow so the player knows which side to tap.
+          <TargetingHint
+            W={W}
+            perkId={selectedPerkId}
+            info={selectedInfo}
+            firstSelectedLane={firstSelectedLane}
+            onCancel={resetSelection}
+          />
         ) : (
           <PerkPanel
             slots={engine.currentPerkSlots}
             disabled={!humanTurn}
             aiHighlight={engine.lastAIPerkId}
             selectedPerkId={selectedPerkId}
+            selectedInfo={selectedInfo}
             onPerk={onPerkClick}
             onPass={onPass}
+            onConfirm={onConfirmPerk}
+            onCancel={resetSelection}
           />
         )
       ) : (
         <div style={{ height: H * 0.01 }} />
-      )}
-
-      {/* Perk confirmation bar (perk picked, not yet targeting) */}
-      {selectedPerkId !== null && !isSelectingLane && selectedInfo && (
-        <div
-          className="perk-bar"
-          style={{
-            padding: `${clamp(W * 0.01, 8, 14)}px ${clamp(W * 0.02, 12, 20)}px`,
-            border: `2px solid ${CATEGORY_COLOR[selectedInfo.category]}`,
-            boxShadow: `0 0 8px 1px ${CATEGORY_COLOR[selectedInfo.category]}4D`,
-          }}
-        >
-          <Icon
-            name={CATEGORY_ICON[selectedInfo.category]}
-            size={clamp(W * 0.022, 16, 24)}
-            color={CATEGORY_COLOR[selectedInfo.category]}
-          />
-          <div className="info">
-            <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>{selectedInfo.name}</span>
-            <span className="desc" style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.8 }}>{selectedInfo.description}</span>
-          </div>
-          <button
-            className="bar-btn"
-            style={{ background: CATEGORY_COLOR[selectedInfo.category] }}
-            onClick={onConfirmPerk}
-          >
-            <Icon name="check" size={14} color="#fff" />
-            Go
-          </button>
-          <button className="bar-btn cancel" onClick={resetSelection}>
-            <Icon name="close" size={14} color="#fff" />
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Perk targeting bar (selecting a lane) */}
-      {isSelectingLane && selectedInfo && (
-        <div
-          className="perk-bar"
-          style={{
-            padding: `${clamp(W * 0.01, 8, 14)}px ${clamp(W * 0.02, 12, 20)}px`,
-            border: `2px solid ${CATEGORY_COLOR[selectedInfo.category]}`,
-            boxShadow: `0 0 8px 1px ${CATEGORY_COLOR[selectedInfo.category]}4D`,
-          }}
-        >
-          <Icon
-            name={CATEGORY_ICON[selectedInfo.category]}
-            size={clamp(W * 0.022, 16, 24)}
-            color={CATEGORY_COLOR[selectedInfo.category]}
-          />
-          <div className="info">
-            <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>{selectedInfo.name}</span>
-            <span className="desc" style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.8 }}>{selectedInfo.description}</span>
-            <span className="hint" style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.85 }}>
-              {DUAL_LANE_PERKS.has(selectedPerkId!)
-                ? firstSelectedLane === null
-                  ? 'Select first lane'
-                  : `Select second lane (Lane ${firstSelectedLane + 1} selected)`
-                : 'Select a lane on the board'}
-            </span>
-          </div>
-          <button className="bar-btn cancel" onClick={resetSelection}>
-            <Icon name="close" size={14} color="#fff" />
-            Cancel
-          </button>
-        </div>
       )}
 
       {/* Move-log overlay */}
@@ -927,9 +931,18 @@ function LaneSelection({
   onLaneClick: (i: number) => void;
 }) {
   const me = state.currentPlayer;
-  const enemyHalfLeft = me === 'player1' ? halfW : 0;
-  const myHalfLeft = me === 'player1' ? 0 : halfW;
-  const perkName = getPerk(selectedPerkId)?.name ?? '';
+  const info = getPerk(selectedPerkId);
+  const perkName = info?.name ?? '';
+  const side = info?.targetSide ?? 'both';
+  const style = sideStyleFor(selectedPerkId, info);
+  const icon = targetingIcon(selectedPerkId);
+
+  // Player 1 always owns the left half of the board, player 2 the right.
+  const highlightLeft =
+    side === 'own' ? (me === 'player1' ? 0 : halfW)
+    : side === 'enemy' ? (me === 'player1' ? halfW : 0)
+    : 0;
+  const highlightWidth = side === 'both' ? bw : halfW;
 
   return (
     <>
@@ -937,16 +950,15 @@ function LaneSelection({
         if (lane.winner) return null;
 
         if (firstSelectedLane === i && DUAL_LANE_PERKS.has(selectedPerkId)) {
-          // First selected lane of a dual-lane perk (Regroup = own half, Disrupt = enemy half)
-          const left = selectedPerkId === 33 ? myHalfLeft : enemyHalfLeft;
+          // First selected lane of a dual-lane perk, on the half the perk affects
           return (
             <div
               key={i}
               className="lane-overlay"
               style={{
-                left,
+                left: highlightLeft,
                 top: i * cellH,
-                width: halfW,
+                width: highlightWidth,
                 height: cellH,
                 background: 'rgba(255,152,0,0.35)',
                 border: '3px solid #FFA726',
@@ -973,82 +985,82 @@ function LaneSelection({
           );
         }
 
-        if (selectedPerkId === FREEZE_PERK) {
-          return (
-            <div
-              key={i}
-              className="lane-overlay tappable"
-              style={{
-                left: enemyHalfLeft,
-                top: i * cellH,
-                width: halfW,
-                height: cellH,
-                background: 'rgba(33,150,243,0.35)',
-                border: '3px solid #42A5F5',
-                boxShadow: '0 0 8px 1px rgba(33,150,243,0.4)',
-              }}
-              onClick={() => onLaneClick(i)}
-            >
-              <div className="pill-center">
-                <span className="lane-pill" style={{ background: 'rgba(25,118,210,0.9)' }}>
-                  <Icon name="snowflake" size={14} color="#fff" />
-                  Freeze {i + 1}
-                </span>
-              </div>
-            </div>
-          );
-        }
-
-        if (ENEMY_TRIGGER_PERKS.has(selectedPerkId)) {
-          const icon: IconName =
-            selectedPerkId === 24 ? 'swap' : selectedPerkId === 26 ? 'flip' : selectedPerkId === 27 ? 'surround' : selectedPerkId === 50 ? 'capture' : 'warning';
-          return (
-            <div
-              key={i}
-              className="lane-overlay tappable"
-              style={{
-                left: enemyHalfLeft,
-                top: i * cellH,
-                width: halfW,
-                height: cellH,
-                background: 'rgba(156,39,176,0.35)',
-                border: '3px solid #AB47BC',
-                boxShadow: '0 0 8px 1px rgba(156,39,176,0.4)',
-              }}
-              onClick={() => onLaneClick(i)}
-            >
-              <div className="pill-center">
-                <span className="lane-pill" style={{ background: 'rgba(123,31,162,0.9)' }}>
-                  <Icon name={icon} size={14} color="#fff" />
-                  {perkName} {i + 1}
-                </span>
-              </div>
-            </div>
-          );
-        }
-
+        // Highlight only the half of the lane the perk affects.
         return (
           <div
             key={i}
             className="lane-overlay tappable"
             style={{
-              left: 0,
+              left: highlightLeft,
               top: i * cellH,
-              width: bw,
+              width: highlightWidth,
               height: cellH,
-              background: 'rgba(255,193,7,0.3)',
-              border: '3px solid #FFCA28',
-              boxShadow: '0 0 8px 1px rgba(255,193,7,0.4)',
+              background: style.fill,
+              border: `3px solid ${style.border}`,
+              boxShadow: `0 0 8px 1px ${style.fill}`,
             }}
             onClick={() => onLaneClick(i)}
           >
             <div className="pill-center">
-              <span className="lane-pill" style={{ background: 'rgba(255,160,0,0.9)' }}>Lane {i + 1}</span>
+              <span className="lane-pill" style={{ background: style.pill }}>
+                <Icon name={icon} size={14} color="#fff" />
+                {perkName} {i + 1}
+              </span>
             </div>
           </div>
         );
       })}
     </>
+  );
+}
+
+// --- Targeting hint (below the board, replaces the perk panel while aiming) -----
+
+function TargetingHint({
+  W,
+  perkId,
+  info,
+  firstSelectedLane,
+  onCancel,
+}: {
+  W: number;
+  perkId: number;
+  info: PerkInfo;
+  firstSelectedLane: number | null;
+  onCancel: () => void;
+}) {
+  const style = sideStyleFor(perkId, info);
+  const where =
+    info.targetSide === 'own' ? 'on your side'
+    : info.targetSide === 'enemy' ? 'on the enemy side'
+    : 'on the board';
+  const instruction = DUAL_LANE_PERKS.has(perkId)
+    ? firstSelectedLane === null
+      ? `Tap the first lane ${where}`
+      : `Tap the second lane ${where} (Lane ${firstSelectedLane + 1} picked)`
+    : `Tap a glowing lane ${where}`;
+
+  return (
+    <div
+      className="perk-bar"
+      style={{
+        padding: `${clamp(W * 0.01, 8, 14)}px ${clamp(W * 0.02, 12, 20)}px`,
+        border: `2px solid ${style.border}`,
+        boxShadow: `0 0 8px 1px ${style.fill}`,
+      }}
+    >
+      <Icon name={targetingIcon(perkId)} size={clamp(W * 0.022, 16, 24)} color={style.border} />
+      <div className="info">
+        <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>{info.name}</span>
+        <span className="hint" style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.85, color: style.border }}>
+          {instruction}
+        </span>
+      </div>
+      <button className="bar-btn cancel" onClick={onCancel}>
+        <Icon name="close" size={14} color="#fff" />
+        Cancel
+      </button>
+    </div>
   );
 }
 
@@ -1059,59 +1071,98 @@ function PerkPanel({
   disabled,
   aiHighlight,
   selectedPerkId,
+  selectedInfo,
   onPerk,
   onPass,
+  onConfirm,
+  onCancel,
 }: {
   slots: PerkSlot[];
   disabled: boolean;
   aiHighlight: number | null;
   selectedPerkId: number | null;
+  selectedInfo?: PerkInfo;
   onPerk: (perkId: number) => void;
   onPass: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
 }) {
   const aiMode = aiHighlight !== null;
   return (
-    <div className={`perk-panel${aiMode ? ' ai' : ''}`}>
-      {aiMode && (
-        <span className="ai-chip">
-          <Icon name="robot" size={12} color="#fff" />
-          AI
-        </span>
+    <div className={`perk-panel column${aiMode ? ' ai' : ''}`}>
+      {/* Inline explanation of the selected perk, right where the player
+          tapped — no separate top-of-screen confirmation bar. */}
+      {!aiMode && selectedInfo && (
+        <div className="perk-explain" style={{ borderColor: CATEGORY_COLOR[selectedInfo.category] }}>
+          <Icon name={CATEGORY_ICON[selectedInfo.category]} size={20} color={CATEGORY_COLOR[selectedInfo.category]} />
+          <div className="info">
+            <span className="row">
+              <span className="name">{selectedInfo.name}</span>
+              {/* Where the perk lands, matching the lane highlight color */}
+              <span className="side-chip" style={{ background: SIDE_CHIP_COLOR[selectedInfo.targetSide] }}>
+                <Icon name={targetingIcon(selectedInfo.id)} size={10} color="#fff" />
+                {sideStyleFor(selectedInfo.id, selectedInfo).label}
+              </span>
+            </span>
+            <span className="desc">
+              {selectedInfo.requiresTarget ? `${selectedInfo.description}. Next: tap a lane.` : selectedInfo.description}
+            </span>
+          </div>
+          <button
+            className="bar-btn"
+            style={{ background: CATEGORY_COLOR[selectedInfo.category] }}
+            onClick={onConfirm}
+          >
+            <Icon name="check" size={14} color="#fff" />
+            Use
+          </button>
+          <button className="bar-btn cancel" onClick={onCancel}>
+            <Icon name="close" size={14} color="#fff" />
+          </button>
+        </div>
       )}
-      {slots
-        .filter((slot) => slot.perkId > 0)
-        .map((slot) => {
-          const info = getPerk(slot.perkId);
-          const category = info?.category ?? 'utility';
-          const isAiChoice = aiHighlight === slot.perkId;
-          const isSel = selectedPerkId === slot.perkId;
-          const recharging = slot.disabled === true;
-          return (
-            <button
-              key={slot.slotIndex}
-              className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}`}
-              style={
-                isSel
-                  ? { borderColor: CATEGORY_COLOR[category], background: `${CATEGORY_COLOR[category]}4D` }
-                  : undefined
-              }
-              disabled={disabled || recharging}
-              onClick={() => onPerk(slot.perkId)}
-            >
-              <Icon
-                name={CATEGORY_ICON[category]}
-                size={14}
-                color={(disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category]}
-              />
-              {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
-            </button>
-          );
-        })}
-      {!aiMode && (
-        <button className="pass-chip" disabled={disabled} onClick={onPass}>
-          Pass
-        </button>
-      )}
+      <div className="perk-chip-row">
+        {aiMode && (
+          <span className="ai-chip">
+            <Icon name="robot" size={12} color="#fff" />
+            AI
+          </span>
+        )}
+        {slots
+          .filter((slot) => slot.perkId > 0)
+          .map((slot) => {
+            const info = getPerk(slot.perkId);
+            const category = info?.category ?? 'utility';
+            const isAiChoice = aiHighlight === slot.perkId;
+            const isSel = selectedPerkId === slot.perkId;
+            const recharging = slot.disabled === true;
+            return (
+              <button
+                key={slot.slotIndex}
+                className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}`}
+                style={
+                  isSel
+                    ? { borderColor: CATEGORY_COLOR[category], background: `${CATEGORY_COLOR[category]}4D` }
+                    : undefined
+                }
+                disabled={disabled || recharging}
+                onClick={() => onPerk(slot.perkId)}
+              >
+                <Icon
+                  name={CATEGORY_ICON[category]}
+                  size={14}
+                  color={(disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category]}
+                />
+                {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
+              </button>
+            );
+          })}
+        {!aiMode && (
+          <button className="pass-chip" disabled={disabled} onClick={onPass}>
+            Pass
+          </button>
+        )}
+      </div>
     </div>
   );
 }
