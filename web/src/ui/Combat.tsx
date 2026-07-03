@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CombatEngine } from '../game/engine';
+import { CombatEngine, MoveLogEntry } from '../game/engine';
 import { chooseAIPerk } from '../game/ai';
 import { getValidLanesForPerk, perkRequiresTarget } from '../game/targeting';
 import { getPerk, PerkCategory, PerkSlot } from '../game/perks';
@@ -80,6 +80,7 @@ export function Combat({
   const [selectedPerkId, setSelectedPerkId] = useState<number | null>(null);
   const [isSelectingLane, setIsSelectingLane] = useState(false);
   const [firstSelectedLane, setFirstSelectedLane] = useState<number | null>(null);
+  const [showMoveLog, setShowMoveLog] = useState(false);
 
   const prevPlayerRef = useRef<PlayerSide>('player1');
   const aiPerkInProgress = useRef(false);
@@ -157,7 +158,7 @@ export function Combat({
         later(() => {
           engine.lastAIPerkId = null;
           aiPerkInProgress.current = false;
-          if (perkId === 0) engine.skipTurn();
+          if (perkId === 0) engine.passTurn();
           else engine.executePerk(perkId, target, second);
           afterMutation();
         }, 650);
@@ -250,7 +251,7 @@ export function Combat({
 
   const onPass = () => {
     if (!humanTurn) return;
-    engine.skipTurn();
+    engine.passTurn();
     resetSelection();
     afterMutation();
   };
@@ -275,6 +276,17 @@ export function Combat({
   const hideP2 =
     (isCloaked(state, 'player2') && viewer !== 'player2') ||
     (isBlinded(state, 'player2') && blindViewer === 'player2');
+  // Fog labels so a half emptied by Cloak/Blind reads as "hidden", not vanished.
+  const p1FogLabel = hideP1
+    ? isCloaked(state, 'player1') && viewer !== 'player1'
+      ? 'Hidden by Cloak'
+      : 'Hidden by Blind'
+    : null;
+  const p2FogLabel = hideP2
+    ? isCloaked(state, 'player2') && viewer !== 'player2'
+      ? 'Hidden by Cloak'
+      : 'Hidden by Blind'
+    : null;
 
   const gap = H * 0.005;
   const selectedInfo = selectedPerkId !== null ? getPerk(selectedPerkId) : undefined;
@@ -282,6 +294,12 @@ export function Combat({
   return (
     <div className="combat doodle-bg" ref={rootRef}>
       <div style={{ height: gap }} />
+
+      {/* Move-log button */}
+      <button className="log-btn" onClick={() => setShowMoveLog(true)}>
+        <Icon name="list" size={14} color="#FFCA28" />
+        Moves
+      </button>
 
       {/* Turn pill */}
       <div
@@ -315,6 +333,8 @@ export function Combat({
           player2Hero={player2Hero}
           hideP1={hideP1}
           hideP2={hideP2}
+          p1FogLabel={p1FogLabel}
+          p2FogLabel={p2FogLabel}
           lastPlacement={lastPlacement.current}
           isSelectingLane={isSelectingLane}
           selectedPerkId={selectedPerkId}
@@ -460,6 +480,16 @@ export function Combat({
         </div>
       )}
 
+      {/* Move-log overlay */}
+      {showMoveLog && (
+        <MoveLogOverlay
+          entries={engine.moveLog}
+          player1Hero={player1Hero}
+          player2Hero={player2Hero}
+          onClose={() => setShowMoveLog(false)}
+        />
+      )}
+
       {/* Pass-and-play turn dialog */}
       {showTurnDialog && !finished && (
         <TurnDialog
@@ -578,6 +608,8 @@ function GameBoard({
   player2Hero,
   hideP1,
   hideP2,
+  p1FogLabel,
+  p2FogLabel,
   lastPlacement,
   isSelectingLane,
   selectedPerkId,
@@ -591,6 +623,8 @@ function GameBoard({
   player2Hero: Hero;
   hideP1: boolean;
   hideP2: boolean;
+  p1FogLabel: string | null;
+  p2FogLabel: string | null;
   lastPlacement: { lane: number; player: PlayerSide; counter: number } | null;
   isSelectingLane: boolean;
   selectedPerkId: number | null;
@@ -735,6 +769,10 @@ function GameBoard({
 
         {/* Pieces */}
         {pieces}
+
+        {/* Fog banners over halves hidden by Cloak/Blind */}
+        {bw > 0 && hideP1 && p1FogLabel && <FogOverlay left={0} width={halfW} height={bh} label={p1FogLabel} />}
+        {bw > 0 && hideP2 && p2FogLabel && <FogOverlay left={halfW} width={halfW} height={bh} label={p2FogLabel} />}
 
         {/* Lane selection highlights */}
         {bw > 0 && isSelectingLane && selectedPerkId !== null && (
@@ -1074,6 +1112,67 @@ function PerkPanel({
           Pass
         </button>
       )}
+    </div>
+  );
+}
+
+// --- Fog overlay (Cloak/Blind) ------------------------------------------------------
+
+function FogOverlay({ left, width, height, label }: { left: number; width: number; height: number; label: string }) {
+  return (
+    <div className="fog-overlay" style={{ left, top: 0, width, height }}>
+      <span className="fog-pill">
+        <Icon name="eyeOff" size={14} color="#fff" />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// --- Move log -----------------------------------------------------------------------
+
+function MoveLogOverlay({
+  entries,
+  player1Hero,
+  player2Hero,
+  onClose,
+}: {
+  entries: MoveLogEntry[];
+  player1Hero: Hero;
+  player2Hero: Hero;
+  onClose: () => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+  }, []);
+  return (
+    <div className="modal-scrim" style={{ zIndex: 25 }} onClick={onClose}>
+      <div className="move-log" onClick={(e) => e.stopPropagation()}>
+        <div className="move-log-title">
+          <Icon name="list" size={18} color="#FFCA28" />
+          Battle Log
+          <button className="bar-btn cancel" style={{ marginLeft: 'auto' }} onClick={onClose}>
+            <Icon name="close" size={14} color="#fff" />
+            Close
+          </button>
+        </div>
+        <div className="move-log-list" ref={listRef}>
+          {entries.length === 0 && <span className="move-log-empty">Nothing has happened yet!</span>}
+          {entries.map((e, i) => {
+            const hero = e.side === 'player1' ? player1Hero : player2Hero;
+            const color = e.side === 'player1' ? '#81C784' : '#CE93D8';
+            return (
+              <div key={i} className="move-log-row">
+                <span className="ply">{e.ply + 1}</span>
+                <span>
+                  <b style={{ color }}>{hero.name}</b> {e.text}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

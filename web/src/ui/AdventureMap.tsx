@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import { AdventureMapDef, AdventureNode, Biome, ObstacleType } from '../adventure/map';
 import { AdventureController, clearSavedJourney } from '../adventure/progress';
 import { HeroType } from '../game/hero';
@@ -62,31 +62,34 @@ export function AdventureMap({
     return () => { aliveRef.current = false; };
   }, []);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollObserver = useRef<ResizeObserver | null>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
-  const scrolledRef = useRef(false);
 
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const measure = () => setDims({ width: el.clientWidth, height: el.clientHeight });
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // The scroll container unmounts whenever a battle takes over the screen, so
+  // measurement must re-attach on every mount (a mount-once effect left the
+  // ResizeObserver bound to the dead element: it reported 0x0 as the old map
+  // was torn down and never saw the new one, so the map came back blank after
+  // every fight). Centering the camera on the hero lives here too — it should
+  // happen on each mount, both first load and returning from a battle.
+  const attachScroll = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollRef.current = el;
+      scrollObserver.current?.disconnect();
+      scrollObserver.current = null;
+      if (!el) return;
+      const measure = () => setDims({ width: el.clientWidth, height: el.clientHeight });
+      measure();
+      scrollObserver.current = new ResizeObserver(measure);
+      scrollObserver.current.observe(el);
+      const mapH = el.clientHeight * MAP_HEIGHT_FACTOR;
+      el.scrollTo({ top: Math.max(0, ctrl.currentNode.y * mapH - el.clientHeight / 2) });
+    },
+    [ctrl],
+  );
 
   const mapHeight = dims.height * MAP_HEIGHT_FACTOR;
   const nodeSize = Math.max(52, Math.min(100, dims.width * 0.15));
-
-  // Center on the current node once measured (Flutter jumps without animation).
-  useEffect(() => {
-    if (scrolledRef.current || dims.height === 0) return;
-    scrolledRef.current = true;
-    const node = ctrl.currentNode;
-    const target = node.y * mapHeight - dims.height / 2;
-    scrollRef.current?.scrollTo({ top: Math.max(0, target) });
-  }, [dims.height, mapHeight, ctrl]);
 
   const scrollToCurrent = () => {
     const node = ctrl.currentNode;
@@ -222,7 +225,7 @@ export function AdventureMap({
 
   return (
     <div className="screen">
-      <div className="adv-scroll" ref={scrollRef}>
+      <div className="adv-scroll" ref={attachScroll}>
         <div className="adv-map" style={{ height: mapHeight }} onClick={onMapTap}>
           {/* Biome backgrounds: peaks top, meadow bottom */}
           <BiomePanel biome="peaks" top={0} height={mapHeight / 3} />

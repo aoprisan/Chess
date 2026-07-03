@@ -51,11 +51,28 @@ const REMOVAL_TRIGGER_TYPES = ['HYDRA', 'BACKFIRE', 'ABSORB'];
 const SOURCE_EXCLUSION_THRESHOLD = 3;
 const MAX_TRIGGER_CHAIN_DEPTH = 10;
 
+/** One line of the battle log ("who did what"), shown in the Combat move-log overlay. */
+export interface MoveLogEntry {
+  /** Ply (engine turnCounter) when the entry was recorded, 0-based. */
+  ply: number;
+  /** The player the entry is about (actor for moves, owner for triggers/raids). */
+  side: PlayerSide;
+  kind: 'place' | 'perk' | 'pass' | 'trigger' | 'deferred' | 'raid' | 'lane';
+  /** Sentence fragment that reads naturally after the player's hero name. */
+  text: string;
+}
+
+function titleCase(s: string): string {
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
 export class CombatEngine {
   state: CombatGameState;
   rng: RNG;
   currentPerkSlots: PerkSlot[] = [];
   lastAIPerkId: number | null = null;
+  /** Chronological record of everything that happened, for the move-log UI. */
+  moveLog: MoveLogEntry[] = [];
 
   player1IsAI: boolean;
   player2IsAI: boolean;
@@ -88,6 +105,10 @@ export class CombatEngine {
 
   private randPick<T>(arr: T[]): T {
     return arr[this.rng.nextInt(arr.length)];
+  }
+
+  private log(side: PlayerSide, kind: MoveLogEntry['kind'], text: string): void {
+    this.moveLog.push({ ply: this.turnCounter, side, kind, text });
   }
 
   // --- Perk slot generation ---
@@ -174,6 +195,7 @@ export class CombatEngine {
 
     const laneIndex = this.randPick(availableLanes);
     this.placePieceAndAdvance(laneIndex, currentPlayer);
+    this.log(currentPlayer, 'place', `placed a piece in Lane ${laneIndex + 1}`);
     this.firePlacementTriggers(laneIndex, currentPlayer, 0);
     this.checkAllLaneWins();
 
@@ -199,6 +221,7 @@ export class CombatEngine {
       if (bonusLanes.length > 0) {
         const bonusLane = this.randPick(bonusLanes);
         this.addPiece(bonusLane, currentPlayer);
+        this.log(currentPlayer, 'place', `placed a bonus piece in Lane ${bonusLane + 1}`);
         this.firePlacementTriggers(bonusLane, currentPlayer, 0);
         this.checkAllLaneWins();
       }
@@ -709,6 +732,7 @@ export class CombatEngine {
 
       // Remove trigger by orderId (one-time use)
       lane.triggers = lane.triggers.filter((t) => t.orderId !== trigger.orderId);
+      this.log(triggerOwner, 'trigger', `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`);
 
       switch (trigger.type) {
         case 'PORTAL': this.handlePortalTrigger(laneIndex, placingPlayer, chainDepth); break;
@@ -800,6 +824,7 @@ export class CombatEngine {
       if (this.state.status !== 'playing') break;
 
       lane.triggers = lane.triggers.filter((t) => t.orderId !== trigger.orderId);
+      this.log(pieceOwner, 'trigger', `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`);
 
       switch (trigger.type) {
         case 'HYDRA': this.handleHydraTrigger(laneIndex, pieceOwner); break;
@@ -859,26 +884,31 @@ export class CombatEngine {
       const laneIdx = raid.lane;
       if (this.state.lanes[laneIdx].winner !== null) continue;
       const roll = this.rng.nextInt(100);
+      const label = raid.source === 'RAID' ? 'Raid' : 'Retaliate raid';
 
       if (roll < 10) {
         // 10% lost
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
+        this.log(player, 'raid', `lost their ${label} in Lane ${laneIdx + 1}`);
       } else if (roll < 25) {
         // 15% +2 recruits => 3 total
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
         for (let i = 0; i < 3; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
+        this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — 2 recruits joined!`);
       } else if (roll < 55) {
         // 30% +1 recruit => 2 total
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
         for (let i = 0; i < 2; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
+        this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — a recruit joined!`);
       } else {
         // 45% alone
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
         if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
+        this.log(player, 'raid', `finished their ${label} in Lane ${laneIdx + 1}`);
       }
     }
   }
@@ -896,6 +926,7 @@ export class CombatEngine {
       lane.deferred = lane.deferred.filter((d) => d.owner !== owner);
 
       for (const effect of effects) {
+        this.log(player, 'deferred', `resolved ${titleCase(effect.type)} in Lane ${laneIdx + 1}`);
         switch (effect.type) {
           case 'SIGNAL': this.resolveSignal(laneIdx, player); break;
           case 'ENLIST': this.resolveEnlist(laneIdx, player, opponent); break;
@@ -995,6 +1026,7 @@ export class CombatEngine {
       lane.winner = winner;
       if (winner === 'player1') this.state.player1LanesWon += 1;
       else this.state.player2LanesWon += 1;
+      this.log(winner, 'lane', `conquered Lane ${laneIndex + 1}!`);
       this.checkGameWin();
     }
   }
@@ -1003,9 +1035,11 @@ export class CombatEngine {
     if (this.state.player1LanesWon >= LANES_TO_WIN) {
       this.state.status = 'finished';
       this.state.gameWinner = 'player1';
+      this.log('player1', 'lane', 'won the battle!');
     } else if (this.state.player2LanesWon >= LANES_TO_WIN) {
       this.state.status = 'finished';
       this.state.gameWinner = 'player2';
+      this.log('player2', 'lane', 'won the battle!');
     }
   }
 
@@ -1056,10 +1090,26 @@ export class CombatEngine {
     this.endTurn();
   }
 
+  /** Deliberate pass (a player choosing not to play a perk) — logged, unlike forced skips. */
+  passTurn(): void {
+    this.log(this.state.currentPlayer, 'pass', 'passed the turn');
+    this.endTurn();
+  }
+
   // --- Perk dispatch (mirrors combat_screen.dart _executePerk) ---
 
   /** Execute a perk then end the turn (always, matching the Dart controller). */
   executePerk(perkId: number, targetLane: number, secondLane: number | null = null): void {
+    const info = getPerk(perkId);
+    if (info) {
+      const lanes =
+        secondLane !== null && targetLane >= 0
+          ? ` on Lanes ${secondLane + 1} & ${targetLane + 1}`
+          : targetLane >= 0 && info.requiresTarget
+            ? ` on Lane ${targetLane + 1}`
+            : '';
+      this.log(this.state.currentPlayer, 'perk', `used ${info.name}${lanes}`);
+    }
     switch (perkId) {
       case 1: if (targetLane >= 0) this.placeOnLane(targetLane); break;
       case 2:
