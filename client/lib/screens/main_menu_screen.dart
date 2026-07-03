@@ -216,13 +216,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onPressed: () => _navigateToHeroSelection(context,
                         mode: GameMode.localMultiplayer),
                   ),
-                  const SizedBox(height: 16),
-                  // Online multiplayer button
-                  _StyledButton(
-                    text: 'Play Online',
-                    onPressed: () => _navigateToHeroSelection(context,
-                        mode: GameMode.online),
-                  ),
                 ],
               ),
             ),
