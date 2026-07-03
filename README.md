@@ -1,221 +1,58 @@
 # Kiddie Chess
 
-A kid-friendly chess game with cute characters and special abilities (perks).
+A kid-friendly lane-battle game with cute characters and special abilities (perks), delivered as a standalone **TypeScript Progressive Web App**. Everything — the combat engine, the 32-perk system, the AI opponent, and the Adventure journeys — runs entirely in the browser: no server, no login, fully playable offline once installed.
+
+Full game rules live in `GAME_RULES_V2_COMPLETE.md`.
 
 ## Tech Stack
 
-- **Frontend**: Flutter + Flame (2D game engine)
-- **Backend**: Go (WebSocket server)
-- **Database**: SQLite (local, file-based)
+- **App**: TypeScript + React 18 + Vite + vite-plugin-pwa (`web/`)
+- **Tests**: Vitest (engine parity, balance regression, adventure suites)
+- **Balance reference**: Python simulation in `templates/sim/` (reference-only)
 
 ## Project Structure
 
 ```
 Chess/
-├── client/                 # Flutter app
-│   ├── lib/
-│   │   ├── main.dart       # App entry point
-│   │   ├── models/         # Data models
-│   │   │   ├── hero.dart   # Hero types and perks
-│   │   │   └── game_state.dart  # Game state model
-│   │   ├── screens/        # UI screens
-│   │   │   ├── main_menu_screen.dart
-│   │   │   ├── hero_selection_screen.dart
-│   │   │   └── game_screen.dart
-│   │   ├── services/       # Business logic
-│   │   │   ├── game_service.dart
-│   │   │   └── websocket_service.dart
-│   │   ├── game/           # Flame game components
-│   │   │   └── chess_game.dart
-│   │   └── widgets/        # Reusable widgets
-│   └── pubspec.yaml
-│
-├── server/                 # Go backend
-│   ├── cmd/server/
-│   │   └── main.go         # Server entry point
-│   ├── internal/
-│   │   ├── database/       # SQLite database
-│   │   │   └── database.go # Migrations, queries
-│   │   ├── models/         # Shared models
-│   │   │   └── game.go
-│   │   ├── handlers/       # WebSocket handlers
-│   │   │   └── websocket.go
-│   │   ├── game/           # Game logic & AI
-│   │   │   └── engine.go
-│   │   └── matchmaking/    # Player matchmaking
-│   │       └── matchmaker.go
-│   ├── data/               # SQLite database file
-│   └── go.mod
-│
-└── html.zip               # Original UI mockups
+├── web/                    # The PWA (see web/README.md for details)
+│   ├── src/
+│   │   ├── game/           # Pure TypeScript engine: state, 32 perks,
+│   │   │                   # targeting, CombatEngine, AI, balance sim
+│   │   ├── adventure/      # Journey maps, levels, progress persistence
+│   │   └── ui/             # React components (App, AdventureMap, Combat, …)
+│   └── public/assets/      # Images and journey maps
+├── templates/sim/          # Python balance simulation (reference only)
+├── docs/                   # Additional documentation
+└── *.md                    # Game rules and design docs
 ```
 
 ## Getting Started
 
-### Prerequisites
-
-- Flutter SDK (>= 3.2.0)
-- Go (>= 1.21)
-- (Optional) Docker for deployment
-
-### Running the Backend
-
 ```bash
-cd server
-go mod download
-go run cmd/server/main.go
+cd web
+npm install
+npm run dev        # http://localhost:5173/Chess/
 ```
 
-Server starts on `http://localhost:8080`
-
-### Running the Flutter App
+### Testing & Building
 
 ```bash
-cd client
-flutter pub get
-flutter run
-```
-
-### Running on Different Platforms
-
-```bash
-# iOS
-flutter run -d ios
-
-# Android
-flutter run -d android
-
-# Web
-flutter run -d chrome
-
-# macOS
-flutter run -d macos
+cd web
+npm test           # Vitest suites
+npm run build      # typecheck + production build -> dist/
+npm run preview    # serve the production build
 ```
 
 ## Features
 
-### Heroes
-Each hero has unique perks:
-
-| Hero | Perks |
-|------|-------|
-| Sloth | Freeze (x2), Cancel Move (x1) |
-| Panda | Extra Move (x2), Remove Enemy (x1) |
-| Unicorn | Scatter (x1), Place Piece (x2) |
-| Snowman | Freeze (x2), Extra Move (x1) |
-| Gnom | Remove Enemy (x2), Cancel Move (x1) |
-| Yeti | Place Piece (x2), Scatter (x1) |
-
-### Perks
-- **Extra Move**: Take an additional turn
-- **Remove Enemy**: Remove any enemy piece
-- **Place Piece**: Place a captured piece back
-- **Scatter**: Randomly reposition enemy pieces
-- **Freeze**: Skip opponent's next turn
-- **Cancel Move**: Undo your last move
-
-### Game Modes
-- **vs Friend**: Local 2-player
-- **vs AI**: Play against AI (Easy/Medium/Hard)
-- **Online**: Matchmaking against other players
-
-## Database
-
-SQLite database is automatically created at `./data/kiddiechess.db` with:
-
-- **users**: Player accounts, stats, and ratings
-- **games**: Game records with board state
-- **game_moves**: Detailed move history
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | Server port |
-| `DB_PATH` | `./data/kiddiechess.db` | SQLite database path |
-
-## REST API
-
-### Users
-
-```bash
-# Create user
-POST /api/users
-{"id": "uuid", "username": "player1", "email": "optional@email.com"}
-
-# Get user by ID
-GET /api/users?id=uuid
-
-# Get user by username
-GET /api/users?username=player1
-```
-
-### Leaderboard
-
-```bash
-# Get top 50 players
-GET /api/leaderboard
-```
-
-## WebSocket Protocol
-
-### Message Types
-
-```json
-// Join game
-{"type": "joinGame", "payload": {"playerId": "...", "heroType": "panda", "vsAI": false}}
-
-// Make move
-{"type": "makeMove", "payload": {"gameId": "...", "fromRow": 6, "fromCol": 4, "toRow": 4, "toCol": 4}}
-
-// Use perk
-{"type": "usePerk", "payload": {"gameId": "...", "perk": "freeze"}}
-
-// Game state update (from server)
-{"type": "gameState", "payload": {"game": {...}}}
-```
-
-## Development
-
-### Adding New Perks
-
-1. Add perk to `Perk` enum in `client/lib/models/hero.dart`
-2. Add perk logic in `server/internal/handlers/websocket.go`
-3. Update hero perk assignments in both client and server
-
-### Adding New Heroes
-
-1. Add hero to `Hero.allHeroes` in `client/lib/models/hero.dart`
-2. Add hero image to `client/assets/images/characters/`
-3. Update `GetHeroPerks()` in `server/internal/models/game.go`
+- **Adventure mode** — 5 journey maps with free-roam movement, rivals, obstacles, and treasure; unlock progression and star ratings persist in `localStorage`.
+- **Lane combat** — 5-lane battles, race to fill 3 lanes; all 32 perks (placement triggers, removal triggers, repositioning, trades, raids, and more).
+- **6 heroes** — Sloth, Panda, Unicorn, Snowman, Gnom, and Yeti.
+- **AI opponent** — easy/medium/hard difficulty ladder tuned with seeded AI-vs-AI simulation.
 
 ## Deployment
 
-### Backend (Fly.io)
-
-```bash
-cd server
-fly launch
-fly deploy
-```
-
-### Frontend (Web)
-
-```bash
-cd client
-flutter build web
-# Deploy build/web to any static hosting
-```
-
-### Mobile (App Stores)
-
-```bash
-# Android
-flutter build appbundle
-
-# iOS
-flutter build ios
-```
+The app is static. A GitHub Actions workflow (`.github/workflows/pages.yml`) builds `web/` and deploys to GitHub Pages on pushes to `main`. See `web/README.md` for base-path configuration and alternative hosts.
 
 ## License
 

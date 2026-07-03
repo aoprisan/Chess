@@ -1,38 +1,34 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `client/`: Flutter app. Main code lives in `client/lib/` (`models/`, `services/`, `screens/`, `widgets/`), assets in `client/assets/`, tests in `client/test/`.
-- `server/`: Go backend. Entrypoints are in `server/cmd/`; core logic is in `server/internal/` (`game/`, `perks/`, `handlers/`, `models/`, `matchmaking/`, `database/`).
-- `templates/sim/`: Python simulation engine and pytest suite for perk/mechanics validation.
-- `scripts/`: Local developer helpers (`build-and-run.sh`, `run-server.sh`, `run-client.sh`).
+- `web/`: the TypeScript PWA (React + Vite). Engine in `web/src/game/`, adventure logic in `web/src/adventure/`, React components in `web/src/ui/`, assets in `web/public/assets/`. Tests live beside implementation as `*.test.ts`.
+- `templates/sim/`: Python simulation engine and pytest suite for perk/mechanics reference (reference-only — do not modify).
+- `docs/` and root `*.md`: game rules and design documentation.
 
 ## Build, Test, and Development Commands
-- `./scripts/build-and-run.sh`: Build Flutter web client, then start Go server with `air` hot reload.
-- `./scripts/run-server.sh`: Start server with hot reload on `:8080`.
-- `./scripts/run-client.sh`: Start Flutter client on Chrome.
-- `cd server && go run cmd/server/main.go`: Run backend directly.
-- `cd client && flutter pub get && flutter run -d chrome`: Run frontend locally.
-- `cd client && flutter analyze`: Static analysis for Dart/Flutter code.
-- `cd client && flutter test`: Run Flutter tests.
-- `cd server && go test ./...`: Run Go unit tests.
-- `cd templates/sim && python -m pytest tests/ -v`: Run simulator tests.
+- `cd web && npm install`: install dependencies.
+- `cd web && npm run dev`: start the dev server at `http://localhost:5173/Chess/`.
+- `cd web && npm test`: run all Vitest suites.
+- `cd web && npx vitest run src/game/engine.test.ts`: run a single suite.
+- `cd web && npm run build`: typecheck (`tsc`) + production build to `dist/`.
+- `cd web && npm run preview`: serve the production build.
+- `cd templates/sim && python -m pytest tests/ -v`: run simulator tests (reference).
 
 ## Coding Style & Naming Conventions
-- Dart: follow `client/analysis_options.yaml` (`flutter_lints`), use 2-space indentation, and format with `dart format lib test`.
-- Go: format with `gofmt`; keep package names lowercase; keep tests beside implementation as `*_test.go`.
+- TypeScript: 2-space indentation; keep the `game/` engine framework-free (no React imports); React components in PascalCase files (`Combat.tsx`), modules in lowercase (`targeting.ts`).
 - Python: use `snake_case` and keep tests named `test_*.py`.
-- Prefer descriptive, feature-based file names like `perk_selection_panel.dart` and `lane_engine.go`.
+- Keep tests beside implementation as `*.test.ts`.
 
 ## Testing Guidelines
 - Add or update tests with each behavior change.
-- While iterating, run targeted tests first; before opening a PR, run `flutter test`, `go test ./...`, and relevant `pytest` suites.
-- No strict coverage gate is configured, so PRs should include meaningful regression tests for fixes/features.
+- While iterating, run targeted suites first; before opening a PR, run `npm test` and `npm run build` (the build is also the typecheck).
+- Balance-affecting engine/AI changes must keep `src/game/balance.test.ts` green.
 
 ## Commit & Pull Request Guidelines
 - Recent history favors short, imperative commit subjects (examples: `Add game simulation runner...`, `Fix combat screen sizing...`).
-- Keep commits focused by layer (`client`, `server`, or `templates/sim`) when possible.
 - PRs should include: summary, changed paths, test commands/results, linked issue, and screenshots/GIFs for UI changes.
 
 ## Configuration & Data Notes
-- Server environment variables: `PORT` (default `8080`) and `DB_PATH` (default `./data/kiddiechess.db`).
-- Treat generated artifacts (`build/`, `__pycache__/`, coverage outputs) as non-source and avoid committing them.
+- The app is fully static; GitHub Pages deploys from `.github/workflows/pages.yml` on pushes to `main`. Use `BASE_PATH=/ npm run build` for non-`/Chess/` hosting.
+- Player progress persists in browser `localStorage` (`adventure_progress_v2`, `adventure_levels_v1`).
+- Treat generated artifacts (`web/dist/`, `node_modules/`, `__pycache__/`) as non-source and avoid committing them.

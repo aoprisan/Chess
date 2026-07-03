@@ -42,7 +42,7 @@ src/
     levels.test.ts   unlock progression suite (Vitest)
     maps.test.ts     structural validation of every journey map (Vitest)
   ui/                React components (App, LevelSelect, HeroSelect, AdventureMap, Combat)
-public/assets/     images + maps (copied from ../client/assets)
+public/assets/     images + maps
 scripts/
   generate-journeys.mjs  authoring tool that emits journey_2..journey_5.json
                          (journey_1 stays hand-crafted); deterministic, safe to re-run
@@ -62,7 +62,7 @@ scroll, more rivals and treasure, harder AI). Finishing a level unlocks the
 next on the level-select screen; unlock state and best stars persist under
 `adventure_levels_v1`.
 
-Adventure runs entirely client-side, exactly as the Flutter app does: each rival
+Adventure runs entirely client-side: each rival
 fight instantiates `CombatEngine` in solo-AI mode. There is **no** network call,
 no WebSocket, and no auth. Journey progress (current node, cleared obstacles,
 opened treasures, best stars per rival) persists to `localStorage` under
