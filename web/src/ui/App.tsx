@@ -4,6 +4,7 @@ import { JourneyMeta, nextJourney } from '../adventure/levels';
 import { hasSavedJourney } from '../adventure/progress';
 import { ALL_HEROES, HeroType, heroByType } from '../game/hero';
 import { BASE_URL, ui } from './assets';
+import { preloadGameImages } from './preload';
 import { HeroSelect } from './HeroSelect';
 import { AdventureMap } from './AdventureMap';
 import { LevelSelect } from './LevelSelect';
@@ -28,6 +29,11 @@ function randomRival(p1: HeroType): HeroType {
 export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
   const [loadError, setLoadError] = useState<string | null>(null);
+  // All game art loads up front behind a progress bar, so no screen ever
+  // paints with half-loaded images (the adventure map used to swap biome
+  // backgrounds mid-scroll while they streamed in).
+  const [assetProgress, setAssetProgress] = useState(0);
+  const [assetsReady, setAssetsReady] = useState(false);
   // Journey maps load on demand (bigger levels shouldn't delay first paint)
   // and are cached for the session.
   const mapsRef = useRef<Map<string, AdventureMapDef>>(new Map());
@@ -35,6 +41,18 @@ export function App() {
 
   const journeyId = view.name === 'adventure' ? view.journeyId : null;
   const map = journeyId ? mapsRef.current.get(journeyId) : undefined;
+
+  useEffect(() => {
+    let stale = false;
+    void preloadGameImages((fraction) => {
+      if (!stale) setAssetProgress(fraction);
+    }).then(() => {
+      if (!stale) setAssetsReady(true);
+    });
+    return () => {
+      stale = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!journeyId || mapsRef.current.has(journeyId)) return;
@@ -50,6 +68,19 @@ export function App() {
       stale = true;
     };
   }, [journeyId]);
+
+  if (!assetsReady) {
+    const percent = Math.round(assetProgress * 100);
+    return (
+      <div className="app screen menu-home boot-screen">
+        <h1 className="boot-title">Kiddie Chess</h1>
+        <div className="boot-bar">
+          <div className="boot-bar-fill" style={{ width: `${percent}%` }} />
+        </div>
+        <p className="boot-label">Loading… {percent}%</p>
+      </div>
+    );
+  }
 
   if (loadError) {
     return (
