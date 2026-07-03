@@ -7,6 +7,11 @@ import { HeroType, Hero, heroByType, ALL_HEROES } from '../game/hero';
 
 const PREFS_KEY = 'adventure_progress_v2';
 
+/** Per-journey storage key. journey_1 keeps the legacy key so old saves survive. */
+export function journeyStorageKey(mapId: string): string {
+  return mapId === 'journey_1' ? PREFS_KEY : `${PREFS_KEY}:${mapId}`;
+}
+
 /** Fixed rival order; the player's own hero is removed, leaving exactly 5. */
 const RIVAL_ORDER: HeroType[] = ['gnom', 'panda', 'sloth', 'unicorn', 'snowman', 'yeti'];
 
@@ -66,12 +71,23 @@ function toJson(p: AdventureProgress): AdventureProgressJson {
   };
 }
 
-export function hasSavedJourney(): boolean {
-  return localStorage.getItem(PREFS_KEY) !== null;
+export function hasSavedJourney(mapId = 'journey_1'): boolean {
+  return localStorage.getItem(journeyStorageKey(mapId)) !== null;
 }
 
-export function clearSavedJourney(): void {
-  localStorage.removeItem(PREFS_KEY);
+export function clearSavedJourney(mapId = 'journey_1'): void {
+  localStorage.removeItem(journeyStorageKey(mapId));
+}
+
+/** Hero of the saved journey for [mapId], or undefined when there is none. */
+export function savedJourneyHero(mapId: string): HeroType | undefined {
+  try {
+    const stored = localStorage.getItem(journeyStorageKey(mapId));
+    if (!stored) return undefined;
+    return (JSON.parse(stored) as AdventureProgressJson).heroType;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -89,9 +105,10 @@ export class AdventureController {
       this.progress = freshProgress(map.id, newJourneyHero, map.startNodeId);
       this.save();
     } else {
-      const stored = localStorage.getItem(PREFS_KEY);
-      if (stored) {
-        this.progress = fromJson(JSON.parse(stored) as AdventureProgressJson);
+      const stored = localStorage.getItem(journeyStorageKey(map.id));
+      const parsed = stored ? (JSON.parse(stored) as AdventureProgressJson) : null;
+      if (parsed && parsed.mapId === map.id) {
+        this.progress = fromJson(parsed);
       } else {
         this.progress = freshProgress(map.id, 'panda', map.startNodeId);
         this.save();
@@ -100,7 +117,7 @@ export class AdventureController {
   }
 
   private save(): void {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(toJson(this.progress)));
+    localStorage.setItem(journeyStorageKey(this.progress.mapId), JSON.stringify(toJson(this.progress)));
   }
 
   get playerHero(): Hero {
@@ -238,6 +255,8 @@ export class AdventureController {
   }
 
   difficultyForNode(node: AdventureNode): string {
+    if (node.difficulty) return node.difficulty;
+    // Legacy maps without explicit difficulties scale by rival index.
     const index = node.rivalIndex!;
     if (index <= 1) return 'easy';
     if (index <= 3) return 'medium';

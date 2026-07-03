@@ -35,11 +35,17 @@ src/
     engine.test.ts   Vitest parity suite
     balance.test.ts  balance regression suite (seat fairness, difficulty gaps, pacing)
   adventure/
-    map.ts           maze graph model + journey_1.json loader
+    map.ts           maze graph model + journey JSON loader
+    levels.ts        5-level catalog + unlock progression (finish level N to open N+1)
     progress.ts      free-roam movement (BFS pathfinding), stars, localStorage persistence
     progress.test.ts movement/pathfinding suite (Vitest)
-  ui/                React components (App, HeroSelect, AdventureMap, Combat)
+    levels.test.ts   unlock progression suite (Vitest)
+    maps.test.ts     structural validation of every journey map (Vitest)
+  ui/                React components (App, LevelSelect, HeroSelect, AdventureMap, Combat)
 public/assets/     images + maps (copied from ../client/assets)
+scripts/
+  generate-journeys.mjs  authoring tool that emits journey_2..journey_5.json
+                         (journey_1 stays hand-crafted); deterministic, safe to re-run
 ```
 
 ## How single-player works
@@ -51,12 +57,18 @@ only cleared nodes can be walked *through*; an uncleared obstacle, rival, or
 treasure can be walked *to* but blocks travel beyond it until dealt with, and
 standing on one you may only retreat onto trail you have already explored.
 
+There are **5 levels**, each a bigger map than the last (30 → 81 nodes, taller
+scroll, more rivals and treasure, harder AI). Finishing a level unlocks the
+next on the level-select screen; unlock state and best stars persist under
+`adventure_levels_v1`.
+
 Adventure runs entirely client-side, exactly as the Flutter app does: each rival
 fight instantiates `CombatEngine` in solo-AI mode. There is **no** network call,
 no WebSocket, and no auth. Journey progress (current node, cleared obstacles,
 opened treasures, best stars per rival) persists to `localStorage` under
-`adventure_progress_v2` — the same key/shape the Flutter app uses in
-`SharedPreferences`.
+`adventure_progress_v2` (suffixed with the journey id for levels 2+) — level 1
+keeps the same key/shape the Flutter app uses in `SharedPreferences`, so
+existing saves carry over.
 
 ## Gameplay balance
 
