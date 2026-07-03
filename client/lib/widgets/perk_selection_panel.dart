@@ -265,6 +265,11 @@ class CompactPerkBar extends StatelessWidget {
   final VoidCallback onPass;
   final int? aiHighlightPerkId;
 
+  /// Perk whose explanation is expanded inline (tap a card to select it)
+  final int? selectedPerkId;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+
   const CompactPerkBar({
     super.key,
     required this.perkSlots,
@@ -272,6 +277,9 @@ class CompactPerkBar extends StatelessWidget {
     required this.onPerkSelected,
     required this.onPass,
     this.aiHighlightPerkId,
+    this.selectedPerkId,
+    this.onConfirm,
+    this.onCancel,
   });
 
   @override
@@ -309,40 +317,178 @@ class CompactPerkBar extends StatelessWidget {
       );
     }
 
+    final selectedInfo =
+        selectedPerkId != null ? PerkDefinitions.getPerk(selectedPerkId!) : null;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.8),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.amber.shade700),
+        border: Border.all(
+          color: selectedInfo?.categoryColor ?? Colors.amber.shade700,
+        ),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Perks
-          ...perkSlots.where((s) => s.perkId > 0).map((slot) {
-            return CompactPerkCard(
-              perkId: slot.perkId,
-              perkName: slot.perkName,
-              onTap: () => onPerkSelected(slot.perkId),
-            );
-          }),
-          // Pass button
+          // Inline explanation of the selected perk, right where the player
+          // tapped, with Use/Cancel — no separate top-of-screen bar.
+          if (selectedInfo != null) ...[
+            _buildExplanation(selectedInfo),
+            const SizedBox(height: 8),
+          ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              // Perks
+              ...perkSlots.where((s) => s.perkId > 0).map((slot) {
+                return CompactPerkCard(
+                  perkId: slot.perkId,
+                  perkName: slot.perkName,
+                  isSelected: slot.perkId == selectedPerkId,
+                  onTap: () => onPerkSelected(slot.perkId),
+                );
+              }),
+              // Pass button
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onPass,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade700,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Pass',
+                    style: TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExplanation(PerkInfo info) {
+    final sideColor = info.targetSideColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: info.categoryColor, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Icon(info.categoryIcon, color: info.categoryColor, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        info.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Where the perk lands, matching the lane highlight color
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: sideColor.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(info.targetSideIcon,
+                              color: Colors.white, size: 10),
+                          const SizedBox(width: 3),
+                          Text(
+                            info.targetSideLabel,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  info.requiresTarget
+                      ? '${info.description}. Next: tap a lane.'
+                      : info.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade300,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: onPass,
+            onTap: onConfirm,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: info.categoryColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Use',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onCancel,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.grey.shade700,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
-                'Pass',
-                style: TextStyle(color: Colors.white, fontSize: 11),
-              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 14),
             ),
           ),
         ],

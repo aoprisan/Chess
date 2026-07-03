@@ -276,12 +276,6 @@ class _CombatScreenState extends State<CombatScreen> {
                   ? _buildContent()
                   : const Center(child: CircularProgressIndicator()),
             ),
-            // Perk confirmation bar (shown before targeting/execution)
-            if (_isShowingPerkConfirmation && _selectedPerkId != null)
-              _buildPerkConfirmationBar(),
-            // Perk targeting info bar (replaces full-screen overlay)
-            if (_isSelectingLane && _selectedPerkId != null)
-              _buildPerkTargetingBar(),
             // Opponent disconnected overlay (online only)
             if (widget.isOnline && _combatService.opponentDisconnected)
               _buildOpponentDisconnectedOverlay(),
@@ -533,253 +527,119 @@ class _CombatScreenState extends State<CombatScreen> {
     );
   }
 
-  Widget _buildPerkTargetingBar() {
+  /// Compact hint shown below the board (where the perk bar sits) while the
+  /// player is picking a target lane. Its accent color matches the lane
+  /// highlight so the player knows which half of the board to tap.
+  Widget _buildTargetingHint(double screenWidth) {
     final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
-    final screenWidth = MediaQuery.of(context).size.width;
     final fontSize = (screenWidth * 0.016).clamp(12.0, 18.0);
     final iconSize = (screenWidth * 0.022).clamp(16.0, 24.0);
     final horizontalPadding = (screenWidth * 0.02).clamp(12.0, 20.0);
     final verticalPadding = (screenWidth * 0.01).clamp(8.0, 14.0);
+    final MaterialColor accent = _selectedPerkId == 4
+        ? Colors.blue
+        : perkInfo?.targetSideColor ?? Colors.amber;
 
-    // Determine instruction text based on perk and state
+    String where;
+    switch (perkInfo?.targetSide ?? PerkTargetSide.both) {
+      case PerkTargetSide.own:
+        where = 'on your side';
+        break;
+      case PerkTargetSide.enemy:
+        where = 'on the enemy side';
+        break;
+      case PerkTargetSide.both:
+        where = 'on the board';
+        break;
+    }
+
     String instruction;
     final isDualLane = _selectedPerkId == 33 || _selectedPerkId == 34;
     if (isDualLane) {
-      if (_firstSelectedLane == null) {
-        instruction = 'Select first lane';
-      } else {
-        instruction = 'Select second lane (Lane ${_firstSelectedLane! + 1} selected)';
-      }
+      instruction = _firstSelectedLane == null
+          ? 'Tap the first lane $where'
+          : 'Tap the second lane $where (Lane ${_firstSelectedLane! + 1} picked)';
     } else {
-      instruction = 'Select a lane on the board';
+      instruction = 'Tap a glowing lane $where';
     }
 
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 8,
-      left: 16,
-      right: 16,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: verticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade900.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: perkInfo?.categoryColor ?? Colors.amber,
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (perkInfo?.categoryColor ?? Colors.amber).withValues(alpha: 0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            if (perkInfo != null)
-              Icon(
-                perkInfo.categoryIcon,
-                color: perkInfo.categoryColor,
-                size: iconSize,
-              ),
-            SizedBox(width: horizontalPadding * 0.5),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    perkInfo?.name ?? 'Unknown',
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    perkInfo?.description ?? '',
-                    style: TextStyle(
-                      fontSize: fontSize * 0.8,
-                      color: Colors.grey.shade400,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    instruction,
-                    style: TextStyle(
-                      fontSize: fontSize * 0.85,
-                      color: Colors.amber.shade400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GestureDetector(
-              onTap: _cancelLaneSelection,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding * 0.75,
-                  vertical: verticalPadding * 0.5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.close, color: Colors.white, size: iconSize * 0.85),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: fontSize * 0.9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
       ),
-    );
-  }
-
-  Widget _buildPerkConfirmationBar() {
-    final perkInfo = PerkDefinitions.getPerk(_selectedPerkId!);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = (screenWidth * 0.016).clamp(12.0, 18.0);
-    final iconSize = (screenWidth * 0.022).clamp(16.0, 24.0);
-    final horizontalPadding = (screenWidth * 0.02).clamp(12.0, 20.0);
-    final verticalPadding = (screenWidth * 0.01).clamp(8.0, 14.0);
-    final categoryColor = perkInfo?.categoryColor ?? Colors.amber;
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 8,
-      left: 16,
-      right: 16,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: verticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade900.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: categoryColor,
-            width: 2,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.shade400, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.3),
+            blurRadius: 8,
+            spreadRadius: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: categoryColor.withValues(alpha: 0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            PerkDefinitions.getTargetingIcon(_selectedPerkId!),
+            color: accent.shade400,
+            size: iconSize,
+          ),
+          SizedBox(width: horizontalPadding * 0.5),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  perkInfo?.name ?? 'Unknown',
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  instruction,
+                  style: TextStyle(
+                    fontSize: fontSize * 0.85,
+                    color: accent.shade200,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            if (perkInfo != null)
-              Icon(
-                perkInfo.categoryIcon,
-                color: categoryColor,
-                size: iconSize,
+          ),
+          GestureDetector(
+            onTap: _cancelLaneSelection,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding * 0.75,
+                vertical: verticalPadding * 0.5,
               ),
-            SizedBox(width: horizontalPadding * 0.5),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade700,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(Icons.close, color: Colors.white, size: iconSize * 0.85),
+                  const SizedBox(width: 4),
                   Text(
-                    perkInfo?.name ?? 'Unknown',
+                    'Cancel',
                     style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
+                      fontSize: fontSize * 0.9,
                       color: Colors.white,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ),
-                  Text(
-                    perkInfo?.description ?? '',
-                    style: TextStyle(
-                      fontSize: fontSize * 0.8,
-                      color: Colors.grey.shade400,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            SizedBox(width: horizontalPadding * 0.5),
-            GestureDetector(
-              onTap: _onPerkConfirmGo,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding * 0.75,
-                  vertical: verticalPadding * 0.5,
-                ),
-                decoration: BoxDecoration(
-                  color: categoryColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check, color: Colors.white, size: iconSize * 0.85),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Go',
-                      style: TextStyle(
-                        fontSize: fontSize * 0.9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _cancelPerkConfirmation,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding * 0.75,
-                  vertical: verticalPadding * 0.5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.close, color: Colors.white, size: iconSize * 0.85),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: fontSize * 0.9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -842,7 +702,8 @@ class _CombatScreenState extends State<CombatScreen> {
     if (gameState == null || gameState.status == CombatStatus.finished) {
       return false;
     }
-    if (_isShowingPerkConfirmation) return false;
+    // Keep the panel visible while a perk explanation is expanded; hide it
+    // only during lane targeting (the targeting hint takes its place).
     if (_isSelectingLane) return false;
     // Show during perk selection phase (human turn)
     if (gameState.currentPhase == TurnPhase.perkSelection) return true;
@@ -853,8 +714,14 @@ class _CombatScreenState extends State<CombatScreen> {
 
   void _onPerkSelected(int perkId) {
     setState(() {
-      _selectedPerkId = perkId;
-      _isShowingPerkConfirmation = true;
+      if (_isShowingPerkConfirmation && _selectedPerkId == perkId) {
+        // Tapping the selected perk again collapses its explanation
+        _selectedPerkId = null;
+        _isShowingPerkConfirmation = false;
+      } else {
+        _selectedPerkId = perkId;
+        _isShowingPerkConfirmation = true;
+      }
     });
   }
 
@@ -1119,8 +986,13 @@ class _CombatScreenState extends State<CombatScreen> {
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.005),
-                // Perk selection below the board
-                if (_shouldShowPerkOverlay())
+                // Targeting hint or perk selection below the board
+                if (_isSelectingLane && _selectedPerkId != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: _buildTargetingHint(screenWidth),
+                  )
+                else if (_shouldShowPerkOverlay())
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: _PerkSelectionArea(
@@ -1132,6 +1004,10 @@ class _CombatScreenState extends State<CombatScreen> {
                       onPass: _onPass,
                       screenWidth: screenWidth,
                       aiHighlightPerkId: _combatService.lastAIPerkId,
+                      selectedPerkId:
+                          _isShowingPerkConfirmation ? _selectedPerkId : null,
+                      onConfirm: _onPerkConfirmGo,
+                      onCancel: _cancelPerkConfirmation,
                     ),
                   ),
                 // Game over UI or skip turn button
@@ -1993,11 +1869,30 @@ class _GameBoard extends StatelessWidget {
   }
 
   List<Widget> _buildLaneSelectionHighlights() {
-    // Freeze perk (4) shows blue highlight on opponent's half only
-    final isFreezePerk = selectedPerkId == 4;
-    // Enemy-targeting trigger perks highlight opponent's half in purple
-    final isEnemyTriggerPerk = const {24, 25, 26, 27, 50}.contains(selectedPerkId);
+    final perkInfo = PerkDefinitions.getPerk(selectedPerkId ?? -1);
+    // Which half of the lane the perk affects: your half for perks that
+    // place/protect/move your pieces, enemy half for perks that hit them.
+    final targetSide = perkInfo?.targetSide ?? PerkTargetSide.both;
     final currentPlayer = gameState.currentPlayer;
+    // Freeze keeps its signature ice-blue; otherwise green = your side,
+    // purple = enemy side, amber = whole lane.
+    final color = selectedPerkId == 4
+        ? Colors.blue
+        : perkInfo?.targetSideColor ?? Colors.amber;
+    final pillIcon = PerkDefinitions.getTargetingIcon(selectedPerkId ?? -1);
+    final perkName = perkInfo?.name ?? 'Lane';
+
+    // Player 1 always owns the left half of the board, player 2 the right.
+    double? highlightLeft(double halfWidth) {
+      switch (targetSide) {
+        case PerkTargetSide.own:
+          return currentPlayer == PlayerSide.player1 ? 0.0 : halfWidth;
+        case PerkTargetSide.enemy:
+          return currentPlayer == PlayerSide.player1 ? halfWidth : 0.0;
+        case PerkTargetSide.both:
+          return null; // full lane
+      }
+    }
 
     return [
       Positioned.fill(
@@ -2005,6 +1900,7 @@ class _GameBoard extends StatelessWidget {
           builder: (context, constraints) {
             final laneHeight = constraints.maxHeight / 5;
             final halfWidth = constraints.maxWidth / 2;
+            final left = highlightLeft(halfWidth);
 
             return Stack(
               children: List.generate(5, (i) {
@@ -2017,58 +1913,16 @@ class _GameBoard extends StatelessWidget {
 
                 // First selected lane for dual-lane perks (Regroup/Disrupt)
                 if (i == firstSelectedLane) {
-                  // Regroup (33) affects your half, Disrupt (34) affects enemy half
-                  final isOwnHalf = selectedPerkId == 33;
-                  final left = isOwnHalf
-                      ? (currentPlayer == PlayerSide.player1 ? 0.0 : halfWidth)
-                      : (currentPlayer == PlayerSide.player1 ? halfWidth : 0.0);
                   return Positioned(
                     top: i * laneHeight,
-                    left: left,
-                    width: halfWidth,
+                    left: left ?? 0,
+                    width: left == null ? constraints.maxWidth : halfWidth,
                     height: laneHeight,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.35),
-                        border: Border.all(
-                          color: Colors.orange.shade400,
-                          width: 3,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade700.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.check, color: Colors.white, size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Lane ${i + 1} \u2713',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    child: _laneHighlightBox(
+                      color: Colors.orange,
+                      icon: Icons.check,
+                      label: 'Lane ${i + 1} \u2713',
+                      onTap: null,
                     ),
                   );
                 }
@@ -2087,174 +1941,16 @@ class _GameBoard extends StatelessWidget {
                   );
                 }
 
-                // For Freeze perk, highlight only opponent's half in blue
-                if (isFreezePerk) {
-                  return Positioned(
-                    top: i * laneHeight,
-                    // Player 1's opponent is on the right half, Player 2's opponent is on the left
-                    left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
-                    width: halfWidth,
-                    height: laneHeight,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onLaneSelected?.call(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.35),
-                          border: Border.all(
-                            color: Colors.blue.shade400,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade700.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.ac_unit, color: Colors.white, size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Freeze ${i + 1}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                // Enemy-targeting perks highlight opponent's half in purple
-                if (isEnemyTriggerPerk) {
-                  final perkName = {24: 'Portal', 25: 'Trap', 26: 'Mirror', 27: 'Echo', 50: 'Capture'}[selectedPerkId] ?? 'Perk';
-                  return Positioned(
-                    top: i * laneHeight,
-                    left: currentPlayer == PlayerSide.player1 ? halfWidth : 0,
-                    width: halfWidth,
-                    height: laneHeight,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onLaneSelected?.call(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withValues(alpha: 0.35),
-                          border: Border.all(
-                            color: Colors.purple.shade400,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.purple.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.purple.shade700.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  {24: Icons.swap_horiz, 26: Icons.flip, 27: Icons.surround_sound, 50: Icons.catching_pokemon}[selectedPerkId] ?? Icons.warning,
-                                  color: Colors.white,
-                                  size: 14,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$perkName ${i + 1}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                // Default amber highlight for other perks
                 return Positioned(
                   top: i * laneHeight,
-                  left: 0,
-                  right: 0,
+                  left: left ?? 0,
+                  width: left == null ? constraints.maxWidth : halfWidth,
                   height: laneHeight,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  child: _laneHighlightBox(
+                    color: color,
+                    icon: pillIcon,
+                    label: '$perkName ${i + 1}',
                     onTap: () => onLaneSelected?.call(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.3),
-                        border: Border.all(
-                          color: Colors.amber.shade400,
-                          width: 3,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.amber.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade700.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Lane ${i + 1}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   ),
                 );
               }),
@@ -2263,6 +1959,63 @@ class _GameBoard extends StatelessWidget {
         ),
       ),
     ];
+  }
+
+  /// A tappable highlight box covering the affected half (or all) of a lane
+  Widget _laneHighlightBox({
+    required MaterialColor color,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.35),
+          border: Border.all(
+            color: color.shade400,
+            width: 3,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.4),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: color.shade700.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2301,6 +2054,9 @@ class _PerkSelectionArea extends StatelessWidget {
   final VoidCallback onPass;
   final double screenWidth;
   final int? aiHighlightPerkId;
+  final int? selectedPerkId;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
 
   const _PerkSelectionArea({
     required this.perkSlots,
@@ -2309,6 +2065,9 @@ class _PerkSelectionArea extends StatelessWidget {
     required this.onPass,
     required this.screenWidth,
     this.aiHighlightPerkId,
+    this.selectedPerkId,
+    this.onConfirm,
+    this.onCancel,
   });
 
   @override
@@ -2319,6 +2078,9 @@ class _PerkSelectionArea extends StatelessWidget {
       onPerkSelected: onPerkSelected,
       onPass: onPass,
       aiHighlightPerkId: aiHighlightPerkId,
+      selectedPerkId: selectedPerkId,
+      onConfirm: onConfirm,
+      onCancel: onCancel,
     );
   }
 }
