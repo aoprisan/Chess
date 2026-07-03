@@ -1,0 +1,452 @@
+{
+  "id": "journey_2",
+  "name": "Winding Woods",
+  "heightFactor": 4.6,
+  "startNodeId": "start",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "x": 0.5,
+      "y": 0.972,
+      "biome": "meadow",
+      "connections": [
+        "m0A"
+      ]
+    },
+    {
+      "id": "m0A",
+      "type": "path",
+      "x": 0.4703,
+      "y": 0.945,
+      "biome": "meadow",
+      "connections": [
+        "start",
+        "m0L1",
+        "m0R1"
+      ]
+    },
+    {
+      "id": "m0L1",
+      "type": "obstacle",
+      "obstacle": "fallenLog",
+      "x": 0.2105,
+      "y": 0.8837,
+      "biome": "meadow",
+      "connections": [
+        "m0A",
+        "m0L2"
+      ]
+    },
+    {
+      "id": "m0L2",
+      "type": "path",
+      "x": 0.1657,
+      "y": 0.8225,
+      "biome": "meadow",
+      "connections": [
+        "m0L1",
+        "m0L3"
+      ]
+    },
+    {
+      "id": "m0L3",
+      "type": "obstacle",
+      "obstacle": "riverRaft",
+      "x": 0.1391,
+      "y": 0.7612,
+      "biome": "meadow",
+      "connections": [
+        "m0L2",
+        "m0B"
+      ]
+    },
+    {
+      "id": "m0R1",
+      "type": "path",
+      "x": 0.7589,
+      "y": 0.8837,
+      "biome": "meadow",
+      "connections": [
+        "m0A",
+        "m0R2"
+      ]
+    },
+    {
+      "id": "m0R2",
+      "type": "obstacle",
+      "obstacle": "sleepingCub",
+      "x": 0.8318,
+      "y": 0.8225,
+      "biome": "meadow",
+      "connections": [
+        "m0R1",
+        "m0R3",
+        "m0RS"
+      ]
+    },
+    {
+      "id": "m0R3",
+      "type": "obstacle",
+      "obstacle": "fallenLog",
+      "x": 0.8682,
+      "y": 0.7612,
+      "biome": "meadow",
+      "connections": [
+        "m0R2",
+        "m0B"
+      ]
+    },
+    {
+      "id": "m0B",
+      "type": "path",
+      "x": 0.4728,
+      "y": 0.7,
+      "biome": "meadow",
+      "connections": [
+        "m0L3",
+        "m0R3",
+        "m0BT",
+        "gate_m"
+      ]
+    },
+    {
+      "id": "m0RS",
+      "type": "rival",
+      "x": 0.93,
+      "y": 0.8105,
+      "biome": "meadow",
+      "connections": [
+        "m0R2",
+        "m0RT"
+      ],
+      "rivalIndex": 0,
+      "difficulty": "easy"
+    },
+    {
+      "id": "m0RT",
+      "type": "treasure",
+      "x": 0.95,
+      "y": 0.7805,
+      "biome": "meadow",
+      "connections": [
+        "m0RS"
+      ]
+    },
+    {
+      "id": "m0BT",
+      "type": "treasure",
+      "x": 0.3028,
+      "y": 0.678,
+      "biome": "meadow",
+      "connections": [
+        "m0B"
+      ]
+    },
+    {
+      "id": "gate_m",
+      "type": "rival",
+      "x": 0.4861,
+      "y": 0.672,
+      "biome": "meadow",
+      "connections": [
+        "m0B",
+        "f0A"
+      ],
+      "rivalIndex": 1,
+      "difficulty": "easy"
+    },
+    {
+      "id": "f0A",
+      "type": "path",
+      "x": 0.5003,
+      "y": 0.645,
+      "biome": "forest",
+      "connections": [
+        "gate_m",
+        "f0L1",
+        "f0R1"
+      ]
+    },
+    {
+      "id": "f0L1",
+      "type": "obstacle",
+      "obstacle": "tangledVines",
+      "x": 0.2092,
+      "y": 0.5837,
+      "biome": "forest",
+      "connections": [
+        "f0A",
+        "f0L2"
+      ]
+    },
+    {
+      "id": "f0L2",
+      "type": "path",
+      "x": 0.1583,
+      "y": 0.5225,
+      "biome": "forest",
+      "connections": [
+        "f0L1",
+        "f0L3"
+      ]
+    },
+    {
+      "id": "f0L3",
+      "type": "path",
+      "x": 0.1589,
+      "y": 0.4613,
+      "biome": "forest",
+      "connections": [
+        "f0L2",
+        "f0B"
+      ]
+    },
+    {
+      "id": "f0R1",
+      "type": "obstacle",
+      "obstacle": "ropeBridge",
+      "x": 0.7953,
+      "y": 0.5837,
+      "biome": "forest",
+      "connections": [
+        "f0A",
+        "f0R2"
+      ]
+    },
+    {
+      "id": "f0R2",
+      "type": "obstacle",
+      "obstacle": "sleepingCub",
+      "x": 0.792,
+      "y": 0.5225,
+      "biome": "forest",
+      "connections": [
+        "f0R1",
+        "f0R3",
+        "f0RS"
+      ]
+    },
+    {
+      "id": "f0R3",
+      "type": "path",
+      "x": 0.8869,
+      "y": 0.4613,
+      "biome": "forest",
+      "connections": [
+        "f0R2",
+        "f0B"
+      ]
+    },
+    {
+      "id": "f0B",
+      "type": "path",
+      "x": 0.4883,
+      "y": 0.4,
+      "biome": "forest",
+      "connections": [
+        "f0L3",
+        "f0R3",
+        "f0BT",
+        "gate_f"
+      ]
+    },
+    {
+      "id": "f0RS",
+      "type": "rival",
+      "x": 0.912,
+      "y": 0.5105,
+      "biome": "forest",
+      "connections": [
+        "f0R2",
+        "f0RT"
+      ],
+      "rivalIndex": 2,
+      "difficulty": "medium"
+    },
+    {
+      "id": "f0RT",
+      "type": "treasure",
+      "x": 0.95,
+      "y": 0.4805,
+      "biome": "forest",
+      "connections": [
+        "f0RS"
+      ]
+    },
+    {
+      "id": "f0BT",
+      "type": "treasure",
+      "x": 0.3183,
+      "y": 0.378,
+      "biome": "forest",
+      "connections": [
+        "f0B"
+      ]
+    },
+    {
+      "id": "gate_f",
+      "type": "rival",
+      "x": 0.5086,
+      "y": 0.372,
+      "biome": "forest",
+      "connections": [
+        "f0B",
+        "p0A"
+      ],
+      "rivalIndex": 3,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p0A",
+      "type": "path",
+      "x": 0.5305,
+      "y": 0.35,
+      "biome": "peaks",
+      "connections": [
+        "gate_f",
+        "p0L1",
+        "p0R1"
+      ]
+    },
+    {
+      "id": "p0L1",
+      "type": "obstacle",
+      "obstacle": "snowballBoulder",
+      "x": 0.2051,
+      "y": 0.2875,
+      "biome": "peaks",
+      "connections": [
+        "p0A",
+        "p0L2"
+      ]
+    },
+    {
+      "id": "p0L2",
+      "type": "path",
+      "x": 0.213,
+      "y": 0.225,
+      "biome": "peaks",
+      "connections": [
+        "p0L1",
+        "p0L3"
+      ]
+    },
+    {
+      "id": "p0L3",
+      "type": "path",
+      "x": 0.113,
+      "y": 0.1625,
+      "biome": "peaks",
+      "connections": [
+        "p0L2",
+        "p0B"
+      ]
+    },
+    {
+      "id": "p0R1",
+      "type": "obstacle",
+      "obstacle": "icePatch",
+      "x": 0.8017,
+      "y": 0.2875,
+      "biome": "peaks",
+      "connections": [
+        "p0A",
+        "p0R2"
+      ]
+    },
+    {
+      "id": "p0R2",
+      "type": "path",
+      "x": 0.8293,
+      "y": 0.225,
+      "biome": "peaks",
+      "connections": [
+        "p0R1",
+        "p0R3",
+        "p0RS"
+      ]
+    },
+    {
+      "id": "p0R3",
+      "type": "obstacle",
+      "obstacle": "ropeBridge",
+      "x": 0.8802,
+      "y": 0.1625,
+      "biome": "peaks",
+      "connections": [
+        "p0R2",
+        "p0B"
+      ]
+    },
+    {
+      "id": "p0B",
+      "type": "path",
+      "x": 0.4503,
+      "y": 0.1,
+      "biome": "peaks",
+      "connections": [
+        "p0L3",
+        "p0R3",
+        "p0BT",
+        "boss"
+      ]
+    },
+    {
+      "id": "p0RS",
+      "type": "rival",
+      "x": 0.93,
+      "y": 0.213,
+      "biome": "peaks",
+      "connections": [
+        "p0R2",
+        "p0RT"
+      ],
+      "rivalIndex": 0,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p0RT",
+      "type": "treasure",
+      "x": 0.95,
+      "y": 0.183,
+      "biome": "peaks",
+      "connections": [
+        "p0RS"
+      ]
+    },
+    {
+      "id": "p0BT",
+      "type": "treasure",
+      "x": 0.2803,
+      "y": 0.078,
+      "biome": "peaks",
+      "connections": [
+        "p0B"
+      ]
+    },
+    {
+      "id": "boss",
+      "type": "rival",
+      "x": 0.51,
+      "y": 0.072,
+      "biome": "peaks",
+      "connections": [
+        "p0B",
+        "finish"
+      ],
+      "rivalIndex": 4,
+      "difficulty": "hard"
+    },
+    {
+      "id": "finish",
+      "type": "finish",
+      "x": 0.5,
+      "y": 0.032,
+      "biome": "peaks",
+      "connections": [
+        "boss"
+      ]
+    }
+  ]
+}

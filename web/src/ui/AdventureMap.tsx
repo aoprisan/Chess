@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import { AdventureMapDef, AdventureNode, Biome, ObstacleType } from '../adventure/map';
 import { AdventureController, clearSavedJourney } from '../adventure/progress';
+import { journeyById, nextJourney, recordJourneyCompletion } from '../adventure/levels';
 import { HeroType } from '../game/hero';
 import { Combat, CombatResult } from './Combat';
 import { biomeBg, obstacleArt, OBSTACLE_INFO, heroImage, ui } from './assets';
 import { Icon } from './Icons';
 
 // Visuals mirror client/lib/screens/adventure_map_screen.dart:
-// mapHeight = viewport * 3.6, three biome panels, dashed trails,
-// pulse rings on quest objectives, cream chips, cream dialogs.
+// mapHeight = viewport * map.heightFactor (bigger levels scroll longer),
+// three biome panels, dashed trails, pulse rings on quest objectives,
+// cream chips, cream dialogs.
 // Movement goes further than the Flutter client: tap anywhere on the
 // trail — however far — and the hero roams there hop-by-hop (BFS path
 // through cleared nodes), so the map plays like a quest rather than a
 // level select.
-const MAP_HEIGHT_FACTOR = 3.6;
 
 // One hop along a trail edge while the hero walks (must match the
 // .player-token CSS transition duration).
@@ -34,11 +35,14 @@ export function AdventureMap({
   newJourneyHero,
   onExit,
   onNewJourney,
+  onNextLevel,
 }: {
   map: AdventureMapDef;
   newJourneyHero?: HeroType;
   onExit: () => void;
   onNewJourney: () => void;
+  /** Start the next level's journey with the given hero (absent on the last level). */
+  onNextLevel: (hero: HeroType) => void;
 }) {
   const ctrlRef = useRef<AdventureController | null>(null);
   if (ctrlRef.current === null) {
@@ -62,34 +66,49 @@ export function AdventureMap({
     return () => { aliveRef.current = false; };
   }, []);
 
+  // Record completion in the level store whenever a completed journey is on
+  // screen (idempotent). Catching it here rather than only at the moment the
+  // hero steps on the finish node also unlocks the next level for journeys
+  // completed before the level system existed.
+  const completed = ctrl.progress.completed;
+  useEffect(() => {
+    if (completed) recordJourneyCompletion(map.id, ctrl.totalStars);
+  }, [completed, ctrl, map]);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollObserver = useRef<ResizeObserver | null>(null);
+  const needsCenter = useRef(true);
   const [dims, setDims] = useState({ width: 0, height: 0 });
 
   // The scroll container unmounts whenever a battle takes over the screen, so
   // measurement must re-attach on every mount (a mount-once effect left the
   // ResizeObserver bound to the dead element: it reported 0x0 as the old map
   // was torn down and never saw the new one, so the map came back blank after
-  // every fight). Centering the camera on the hero lives here too — it should
-  // happen on each mount, both first load and returning from a battle.
-  const attachScroll = useCallback(
-    (el: HTMLDivElement | null) => {
-      scrollRef.current = el;
-      scrollObserver.current?.disconnect();
-      scrollObserver.current = null;
-      if (!el) return;
-      const measure = () => setDims({ width: el.clientWidth, height: el.clientHeight });
-      measure();
-      scrollObserver.current = new ResizeObserver(measure);
-      scrollObserver.current.observe(el);
-      const mapH = el.clientHeight * MAP_HEIGHT_FACTOR;
-      el.scrollTo({ top: Math.max(0, ctrl.currentNode.y * mapH - el.clientHeight / 2) });
-    },
-    [ctrl],
-  );
+  // every fight).
+  const attachScroll = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    scrollObserver.current?.disconnect();
+    scrollObserver.current = null;
+    if (!el) return;
+    needsCenter.current = true;
+    const measure = () => setDims({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    scrollObserver.current = new ResizeObserver(measure);
+    scrollObserver.current.observe(el);
+  }, []);
 
-  const mapHeight = dims.height * MAP_HEIGHT_FACTOR;
+  const mapHeight = dims.height * map.heightFactor;
   const nodeSize = Math.max(52, Math.min(100, dims.width * 0.15));
+
+  // Center the camera on the hero after each (re)mount — both first load and
+  // returning from a battle. This must wait until dims are measured and the
+  // map div is laid out at full height, or the scroll clamps to the top.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!needsCenter.current || dims.height === 0 || !el) return;
+    needsCenter.current = false;
+    el.scrollTo({ top: Math.max(0, ctrl.currentNode.y * mapHeight - dims.height / 2) });
+  });
 
   const scrollToCurrent = () => {
     const node = ctrl.currentNode;
@@ -272,6 +291,10 @@ export function AdventureMap({
           <Icon name="arrowBack" size={20} color="#5D4037" />
           Menu
         </button>
+        <span style={{ width: 8 }} />
+        <span className="chip">
+          {journeyById(map.id) ? `Level ${journeyById(map.id)!.level}` : map.name}
+        </span>
         <span style={{ flex: 1 }} />
         <button className="chip" onClick={scrollToCurrent}>
           <Icon name="star" size={20} color="#FFC107" />
@@ -295,7 +318,7 @@ export function AdventureMap({
               <button
                 style={{ color: '#5D4037', fontWeight: 700 }}
                 onClick={() => {
-                  clearSavedJourney();
+                  clearSavedJourney(map.id);
                   onNewJourney();
                 }}
               >
@@ -331,7 +354,8 @@ export function AdventureMap({
       {ctrl.progress.completed && (
         <VictoryOverlay
           ctrl={ctrl}
-          onPlayAgain={() => { clearSavedJourney(); onNewJourney(); }}
+          onNextLevel={nextJourney(map.id) ? () => onNextLevel(ctrl.progress.heroType) : undefined}
+          onPlayAgain={() => { clearSavedJourney(map.id); onNewJourney(); }}
           onMenu={onExit}
         />
       )}
@@ -629,12 +653,23 @@ function EncounterDialog({
   );
 }
 
-function VictoryOverlay({ ctrl, onPlayAgain, onMenu }: { ctrl: AdventureController; onPlayAgain: () => void; onMenu: () => void }) {
+function VictoryOverlay({
+  ctrl,
+  onNextLevel,
+  onPlayAgain,
+  onMenu,
+}: {
+  ctrl: AdventureController;
+  /** Absent on the final level. */
+  onNextLevel?: () => void;
+  onPlayAgain: () => void;
+  onMenu: () => void;
+}) {
   return (
     <div className="modal-scrim">
       <div className="modal" style={{ width: 320, padding: '32px 24px' }}>
         <div style={{ fontSize: 40 }}>🎉</div>
-        <h2 style={{ fontSize: 24 }}>Journey Complete!</h2>
+        <h2 style={{ fontSize: 24 }}>{onNextLevel ? 'Journey Complete!' : 'Adventure Complete!'}</h2>
         <div style={{ height: 16 }} />
         <img
           src={heroImage(ctrl.playerHero.imagePath)}
@@ -642,7 +677,11 @@ function VictoryOverlay({ ctrl, onPlayAgain, onMenu }: { ctrl: AdventureControll
           style={{ width: 110, height: 110, objectFit: 'contain' }}
         />
         <div style={{ height: 8 }} />
-        <p className="sub" style={{ fontSize: 15 }}>{ctrl.playerHero.name} reached the summit!</p>
+        <p className="sub" style={{ fontSize: 15 }}>
+          {onNextLevel
+            ? `${ctrl.playerHero.name} reached the summit!`
+            : `${ctrl.playerHero.name} conquered every journey!`}
+        </p>
         <div style={{ height: 12 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Icon name="star" size={28} color="#FFC107" />
@@ -651,7 +690,15 @@ function VictoryOverlay({ ctrl, onPlayAgain, onMenu }: { ctrl: AdventureControll
           </span>
         </div>
         <div style={{ height: 24 }} />
-        <button className="img-btn yellow dialog-btn" onClick={onPlayAgain}>New Journey</button>
+        {onNextLevel && (
+          <>
+            <button className="img-btn yellow dialog-btn" onClick={onNextLevel}>Next Level!</button>
+            <div style={{ height: 10 }} />
+          </>
+        )}
+        <button className={`img-btn ${onNextLevel ? 'grey' : 'yellow'} dialog-btn`} onClick={onPlayAgain}>
+          New Journey
+        </button>
         <div style={{ height: 10 }} />
         <button className="img-btn grey dialog-btn" onClick={onMenu}>Back to Menu</button>
       </div>

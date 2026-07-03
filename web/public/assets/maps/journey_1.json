@@ -1,5 +1,7 @@
 {
   "id": "journey_1",
+  "name": "Meadow Trail",
+  "heightFactor": 3.6,
   "startNodeId": "start",
   "nodes": [
     { "id": "start", "type": "start", "x": 0.50, "y": 0.965, "biome": "meadow",
