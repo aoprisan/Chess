@@ -12,6 +12,8 @@ export interface MatchResult {
   turns: number;
   /** perk id -> times used, per side. */
   perkUse: Record<number, number>[];
+  /** perk id -> times offered in a selectable (non-disabled) slot, per side. */
+  perkOffered: Record<number, number>[];
 }
 
 export interface SeriesOptions {
@@ -29,12 +31,13 @@ export interface SeriesResult {
   player2Wins: number;
   draws: number;
   avgTurns: number;
-  /** perk id -> [uses, wins-when-used] for either side combined. */
-  perkStats: Record<number, { uses: number; wins: number }>;
+  /** perk id -> uses, wins-when-used, and times offered, for either side combined. */
+  perkStats: Record<number, { uses: number; wins: number; offered: number }>;
 }
 
 export function playMatch(engine: CombatEngine, maxTurns = 400): MatchResult {
   const perkUse: Record<number, number>[] = [{}, {}];
+  const perkOffered: Record<number, number>[] = [{}, {}];
   let turns = 0;
 
   while (engine.state.status === 'playing' && turns < maxTurns) {
@@ -50,6 +53,11 @@ export function playMatch(engine: CombatEngine, maxTurns = 400): MatchResult {
       }
     } else {
       const side = engine.state.currentPlayer === 'player1' ? 0 : 1;
+      for (const slot of engine.currentPerkSlots) {
+        if (slot.perkId > 0 && !slot.disabled) {
+          perkOffered[side][slot.perkId] = (perkOffered[side][slot.perkId] ?? 0) + 1;
+        }
+      }
       const [perkId, target, second] = chooseAIPerk(engine);
       if (perkId === 0) {
         engine.skipTurn();
@@ -61,7 +69,7 @@ export function playMatch(engine: CombatEngine, maxTurns = 400): MatchResult {
     }
   }
 
-  return { winner: engine.state.gameWinner, turns, perkUse };
+  return { winner: engine.state.gameWinner, turns, perkUse, perkOffered };
 }
 
 export function playSeries(opts: SeriesOptions): SeriesResult {
@@ -70,7 +78,7 @@ export function playSeries(opts: SeriesOptions): SeriesResult {
   let p2 = 0;
   let draws = 0;
   let totalTurns = 0;
-  const perkStats: Record<number, { uses: number; wins: number }> = {};
+  const perkStats: Record<number, { uses: number; wins: number; offered: number }> = {};
 
   for (let g = 0; g < games; g++) {
     const engine = new CombatEngine(`sim_${g}`, {
@@ -91,9 +99,14 @@ export function playSeries(opts: SeriesOptions): SeriesResult {
         (side === 0 && result.winner === 'player1') || (side === 1 && result.winner === 'player2');
       for (const [id, uses] of Object.entries(result.perkUse[side])) {
         const perkId = Number(id);
-        const s = (perkStats[perkId] ??= { uses: 0, wins: 0 });
+        const s = (perkStats[perkId] ??= { uses: 0, wins: 0, offered: 0 });
         s.uses += uses;
         if (won) s.wins += uses;
+      }
+      for (const [id, offered] of Object.entries(result.perkOffered[side])) {
+        const perkId = Number(id);
+        const s = (perkStats[perkId] ??= { uses: 0, wins: 0, offered: 0 });
+        s.offered += offered;
       }
     }
   }

@@ -77,4 +77,6 @@ export interface PerkSlot {
   slotIndex: number;
   perkId: number;
   perkName: string;
+  /** Slot is visible but not selectable this turn (e.g. RemoveEnemy recharging). */
+  disabled?: boolean;
 }
