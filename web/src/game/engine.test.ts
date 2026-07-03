@@ -115,6 +115,49 @@ describe('placement triggers', () => {
     expect(e.state.lanes[0].triggers.length).toBe(0);
   });
 
+  it('buffed triggers place +1 own piece at cast and live 2 opponent turns', () => {
+    const e = engine();
+    expect(e.setMirrorTrigger(0)).toBe(true);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(1);
+    expect(e.state.lanes[0].triggers).toHaveLength(1);
+    expect(e.state.lanes[0].triggers[0]).toMatchObject({ type: 'MIRROR', owner: 1, turnsLeft: 4 });
+  });
+
+  it('cast +1 that wins the lane pushes no trigger', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player1', 4);
+    expect(e.setMirrorTrigger(0)).toBe(true);
+    expect(e.state.lanes[0].winner).toBe('player1');
+    expect(e.state.lanes[0].triggers).toHaveLength(0);
+  });
+
+  it('buffed trigger still fires on the opponent 2nd turn, then is gone by the 3rd', () => {
+    const e = engine();
+    e.setMirrorTrigger(0);
+    e.endTurn(); // p1 -> p2 (opponent turn 1, unused)
+    e.endTurn(); // p2 -> p1
+    e.endTurn(); // p1 -> p2 (opponent turn 2)
+    expect(e.state.lanes[0].triggers).toHaveLength(1);
+    e.placeOnLane(0); // p2 places on the mirrored lane
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(3); // 1 at cast + 2 mirrored
+    expect(e.state.lanes[0].triggers).toHaveLength(0); // one-shot
+
+    const e2 = engine();
+    e2.setMirrorTrigger(0);
+    for (let i = 0; i < 4; i++) e2.endTurn();
+    expect(e2.state.lanes[0].triggers).toHaveLength(0); // expired unfired
+  });
+
+  it('Portal/Trap keep the old 1-opponent-turn lifetime and no cast bonus', () => {
+    const e = engine();
+    e.setPortalTrigger(0);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(0);
+    expect(e.state.lanes[0].triggers[0]).toMatchObject({ type: 'PORTAL', turnsLeft: 2 });
+    e.endTurn();
+    e.endTurn();
+    expect(e.state.lanes[0].triggers).toHaveLength(0);
+  });
+
   it('trigger chaining respects depth guard (no infinite loop)', () => {
     const e = engine();
     // Portal on every lane owned by player2; player1 placement bounces around.
@@ -174,6 +217,57 @@ describe('targeting', () => {
     e.state.player2Cloaked = 2;
     const valid = getValidLanesForPerk(2, e.state, 'player1');
     expect(valid.length).toBe(0);
+  });
+});
+
+describe('RemoveEnemy cooldown', () => {
+  it('a successful use disables the slot for the next turn only', () => {
+    const e = engine();
+    setPieces(e.state.lanes[1], 'player2', 3);
+    e.executePerk(2, 1); // p1 removes; turn passes to p2
+    expect(countPieces(e.state.lanes[1], 'player2')).toBe(2);
+    expect(e.isRemoveEnemyAvailable('player1')).toBe(false);
+    expect(e.isRemoveEnemyAvailable('player2')).toBe(true);
+
+    e.endTurn(); // p2 -> p1: p1's next perk phase is still on cooldown
+    expect(e.state.currentPlayer).toBe('player1');
+    const slots = e.generatePerkSlots();
+    expect(slots[1].perkId).toBe(2);
+    expect(slots[1].disabled).toBe(true);
+
+    e.endTurn(); // p1 -> p2 (passing doesn't extend the cooldown)
+    e.endTurn(); // p2 -> p1: recharged
+    expect(e.isRemoveEnemyAvailable('player1')).toBe(true);
+    expect(e.generatePerkSlots()[1].disabled).toBe(false);
+  });
+
+  it('a failed use does not start the cooldown', () => {
+    const e = engine();
+    e.executePerk(2, 1); // no enemy pieces on lane 1
+    expect(e.isRemoveEnemyAvailable('player1')).toBe(true);
+  });
+
+  it('a blocked use removes nothing but still ends the turn', () => {
+    const e = engine();
+    setPieces(e.state.lanes[1], 'player2', 3);
+    e.executePerk(2, 1); // p1 uses it, cooldown starts
+    e.endTurn(); // back to p1, still on cooldown
+    e.executePerk(2, 1); // blocked
+    expect(countPieces(e.state.lanes[1], 'player2')).toBe(2); // unchanged
+    expect(e.state.currentPlayer).toBe('player2'); // turn still ended
+  });
+
+  it('the AI never picks a disabled RemoveEnemy slot', () => {
+    const e = engine(7);
+    e.player1IsAI = true;
+    e.player1AIDifficulty = 'hard';
+    setPieces(e.state.lanes[0], 'player2', 4); // maximal RemoveEnemy incentive
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = e
+      .generatePerkSlots()
+      .map((s) => (s.perkId === 2 ? { ...s, disabled: true } : s));
+    const [perkId] = chooseAIPerk(e);
+    expect(perkId).not.toBe(2);
   });
 });
 

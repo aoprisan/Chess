@@ -61,7 +61,27 @@ describe('pacing and perk diversity (mirror medium)', () => {
   it('no single perk dominates usage', () => {
     const total = Object.values(r.perkStats).reduce((acc, s) => acc + s.uses, 0);
     const max = Math.max(...Object.values(r.perkStats).map((s) => s.uses));
-    // Pre-rework RemoveEnemy alone was ~83% of all perk uses.
-    expect(max / total).toBeLessThanOrEqual(0.5);
+    // Pre-rework RemoveEnemy alone was ~83% of all perk uses; post
+    // trigger-buff/cooldown the max (PlaceAnother) measures ~42%.
+    expect(max / total).toBeLessThanOrEqual(0.47);
+  });
+});
+
+describe('trigger viability and RemoveEnemy cap (mirror hard)', () => {
+  // Hard has no random-mistake noise, so uses here are genuine greedy picks.
+  const r = playSeries({ games: N, player1Difficulty: 'hard', player2Difficulty: 'hard', seed: 44 });
+  const total = Object.values(r.perkStats).reduce((acc, s) => acc + s.uses, 0);
+
+  it('conditional trigger perks are worth picking', () => {
+    const TRIGGER_IDS = [26, 27, 28, 29, 30, 46, 52];
+    const trigUses = TRIGGER_IDS.reduce((acc, id) => acc + (r.perkStats[id]?.uses ?? 0), 0);
+    // Pre-buff these 7 combined were 0.6% of uses (Hydra/Backfire/Absorb: 0);
+    // with "+1 now" + 2-turn lifetime they measure ~18%.
+    expect(trigUses / total).toBeGreaterThanOrEqual(0.08);
+  });
+
+  it('RemoveEnemy stays under the cooldown-enforced cap', () => {
+    // Pre-cooldown RemoveEnemy was ~48% of all uses; measured ~23% after.
+    expect((r.perkStats[2]?.uses ?? 0) / total).toBeLessThanOrEqual(0.35);
   });
 });

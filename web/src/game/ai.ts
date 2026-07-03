@@ -49,7 +49,7 @@ export function chooseAIPerk(engine: CombatEngine): AIChoice {
   let bestScore = 0;
 
   for (const slot of slots) {
-    if (slot.perkId <= 0) continue;
+    if (slot.perkId <= 0 || slot.disabled) continue;
     const perkDef = getPerk(slot.perkId);
     if (!perkDef) continue;
 
@@ -97,7 +97,7 @@ function randomChoice(
   opponent: PlayerSide,
   rng: RNG,
 ): AIChoice {
-  const usable = slots.filter((s) => s.perkId > 0);
+  const usable = slots.filter((s) => s.perkId > 0 && !s.disabled);
   // Try slots in random order until one has a legal use.
   const order = usable.slice();
   for (let i = order.length - 1; i > 0; i--) {
@@ -201,19 +201,23 @@ function scorePerkOnLane(
       if (enemyPieces === 4) return 45 + blockBonus;
       if (enemyPieces === 3) return 25;
       return 10;
-    case 26: // Mirror: +2 for me when they place here — best where they must place
+    // Conditional triggers all grant +1 now (instant lane win at 4) plus a
+    // 2-turn conditional upside, so they carry a PlaceAnother-shaped floor.
+    case 26: // Mirror: +1 now; +2 for me when they place here
     case 27: // Echo
-      return 14 + enemyPieces * 3;
-    case 28: // Shockwave: they place here, lose 2 elsewhere
-      return 12 + enemyPieces * 4;
-    case 52: // Retaliate
-      return 12 + enemyPieces * 3;
-    case 29: // Hydra — protect my stacked lane from removal
+      if (myPieces === 4) return 100 + winBonus;
+      return 14 + myPieces * 5 + enemyPieces * 4;
+    case 28: // Shockwave: +1 now; they place here, lose 2 elsewhere
+      if (myPieces === 4) return 100 + winBonus;
+      return 12 + myPieces * 5 + enemyPieces * 5;
+    case 52: // Retaliate: +1 now; they place here, raid launched
+      if (myPieces === 4) return 100 + winBonus;
+      return 12 + myPieces * 5 + enemyPieces * 4;
+    case 29: // Hydra — +1 now, and protects my stacked lane from removal
     case 30: // Backfire
     case 46: // Absorb
-      if (myPieces >= 4) return 30;
-      if (myPieces === 3) return 20;
-      return 8;
+      if (myPieces === 4) return 100 + winBonus;
+      return 10 + myPieces * 6 + (myPieces >= 3 ? 8 : 0);
     case 43: // Signal: +1 now (+1 pulled next turn) — instant win at 4, setup at 3
       if (myPieces === 4) return 100 + winBonus;
       if (myPieces === 3) return 60 + winBonus;

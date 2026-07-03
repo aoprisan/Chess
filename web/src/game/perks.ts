@@ -26,24 +26,24 @@ export const PERKS: Record<number, PerkInfo> = {
 
   // Fixed commons (slots 1-2)
   1: p(1, 'PlaceAnother', 'Place 1 piece on any lane', 'offensive'),
-  2: p(2, 'RemoveEnemy', "Remove enemy's frontmost piece", 'offensive'),
+  2: p(2, 'RemoveEnemy', "Remove enemy's frontmost piece, then recharge 1 turn", 'offensive'),
 
   // Slot 3: React & Protect
   4: p(4, 'Freeze', 'Block enemy placement for 1 turn', 'defensive'),
   22: p(22, 'Cloak', 'Hide your pieces for 2 turns', 'defensive', false),
   24: p(24, 'Portal', 'Enemy pieces placed here teleport away', 'defensive'),
   25: p(25, 'Trap', 'Enemy pieces placed here vanish', 'defensive'),
-  26: p(26, 'Mirror', 'Enemy places here, you get +2', 'defensive'),
-  27: p(27, 'Echo', 'Enemy places here, you get +2 random', 'defensive'),
-  28: p(28, 'Shockwave', 'Enemy places here, loses 2 elsewhere', 'offensive'),
-  29: p(29, 'Hydra', 'Piece removed here spawns 2 elsewhere', 'defensive'),
-  30: p(30, 'Backfire', 'Piece removed here costs enemy 2', 'offensive'),
-  46: p(46, 'Absorb', 'Removed piece reappears elsewhere', 'defensive'),
+  26: p(26, 'Mirror', '+1 now; enemy places here, you get +2', 'defensive'),
+  27: p(27, 'Echo', '+1 now; enemy places here, you get +2 random', 'defensive'),
+  28: p(28, 'Shockwave', '+1 now; enemy places here, loses 2 elsewhere', 'offensive'),
+  29: p(29, 'Hydra', '+1 now; piece removed here spawns 2 elsewhere', 'defensive'),
+  30: p(30, 'Backfire', '+1 now; piece removed here costs enemy 2', 'offensive'),
+  46: p(46, 'Absorb', '+1 now; removed piece reappears elsewhere', 'defensive'),
   33: p(33, 'Regroup', 'Swap your pieces between 2 lanes', 'utility'),
   35: p(35, 'Scatter', 'Move your pieces to random lanes', 'utility'),
   43: p(43, 'Signal', '+1 now, pull from most populated next turn', 'utility'),
   49: p(49, 'Sanctuary', 'Losses redirect here for 2 turns', 'defensive'),
-  52: p(52, 'Retaliate', 'Enemy places here, raid their side', 'offensive'),
+  52: p(52, 'Retaliate', '+1 now; enemy places here, raid their side', 'offensive'),
 
   // Slot 4: Act & Disrupt
   13: p(13, 'Scramble', 'Redistribute all enemy pieces', 'offensive', false),
@@ -77,4 +77,6 @@ export interface PerkSlot {
   slotIndex: number;
   perkId: number;
   perkName: string;
+  /** Slot is visible but not selectable this turn (e.g. RemoveEnemy recharging). */
+  disabled?: boolean;
 }
