@@ -129,6 +129,36 @@ button:disabled {
   margin: 4px 0;
 }
 
+/* ---- Boot screen (asset preload progress) ---- */
+.boot-screen {
+  background: var(--cream);
+}
+.boot-title {
+  margin: 0 0 28px;
+  font-size: 34px;
+  color: var(--cocoa);
+}
+.boot-bar {
+  width: min(300px, 70vw);
+  height: 18px;
+  border-radius: 9px;
+  border: 2px solid rgba(93, 64, 55, 0.35);
+  background: rgba(93, 64, 55, 0.12);
+  overflow: hidden;
+}
+.boot-bar-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: var(--gold);
+  transition: width 0.15s ease-out;
+}
+.boot-label {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brown);
+}
+
 .spinner {
   width: 36px;
   height: 36px;
