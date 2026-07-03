@@ -5,6 +5,7 @@ import { journeyById, nextJourney, recordJourneyCompletion } from '../adventure/
 import { HeroType } from '../game/hero';
 import { Combat, CombatResult } from './Combat';
 import { biomeBg, obstacleArt, OBSTACLE_INFO, heroImage, ui } from './assets';
+import { AssetGate } from './AssetGate';
 import { Icon } from './Icons';
 
 // Visuals mirror client/lib/screens/adventure_map_screen.dart:
@@ -233,12 +234,14 @@ export function AdventureMap({
     const node = popup.node;
     const rival = ctrl.rivalForNode(node);
     return (
-      <Combat
-        player1Hero={ctrl.playerHero}
-        player2Hero={rival}
-        aiDifficulty={ctrl.difficultyForNode(node)}
-        onGameEnd={(result) => onFightEnd(node, result)}
-      />
+      <AssetGate groups={['combat']}>
+        <Combat
+          player1Hero={ctrl.playerHero}
+          player2Hero={rival}
+          aiDifficulty={ctrl.difficultyForNode(node)}
+          onGameEnd={(result) => onFightEnd(node, result)}
+        />
+      </AssetGate>
     );
   }
 
