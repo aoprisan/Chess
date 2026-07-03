@@ -1,5 +1,17 @@
 import 'package:flutter/material.dart';
 
+/// Which half of a lane a perk affects (mirrors server PerkTarget)
+enum PerkTargetSide {
+  /// Affects your own half (place/protect/move your pieces)
+  own,
+
+  /// Affects the enemy half (remove/move enemy pieces, watch enemy placement)
+  enemy,
+
+  /// Affects both halves of the lane
+  both,
+}
+
 /// Perk definition for display purposes
 class PerkInfo {
   final int id;
@@ -7,6 +19,7 @@ class PerkInfo {
   final String description;
   final PerkCategory category;
   final bool requiresTarget;
+  final PerkTargetSide targetSide;
 
   const PerkInfo({
     required this.id,
@@ -14,6 +27,7 @@ class PerkInfo {
     required this.description,
     required this.category,
     this.requiresTarget = true,
+    this.targetSide = PerkTargetSide.both,
   });
 
   Color get categoryColor {
@@ -35,6 +49,41 @@ class PerkInfo {
         return Icons.shield;
       case PerkCategory.utility:
         return Icons.build;
+    }
+  }
+
+  /// Color of the lane-half highlight shown while targeting this perk
+  MaterialColor get targetSideColor {
+    switch (targetSide) {
+      case PerkTargetSide.own:
+        return Colors.green;
+      case PerkTargetSide.enemy:
+        return Colors.purple;
+      case PerkTargetSide.both:
+        return Colors.amber;
+    }
+  }
+
+  /// Short kid-friendly label for where the perk lands
+  String get targetSideLabel {
+    switch (targetSide) {
+      case PerkTargetSide.own:
+        return 'Your side';
+      case PerkTargetSide.enemy:
+        return 'Enemy side';
+      case PerkTargetSide.both:
+        return 'Whole lane';
+    }
+  }
+
+  IconData get targetSideIcon {
+    switch (targetSide) {
+      case PerkTargetSide.own:
+        return Icons.person;
+      case PerkTargetSide.enemy:
+        return Icons.gps_fixed;
+      case PerkTargetSide.both:
+        return Icons.swap_horiz;
     }
   }
 }
@@ -59,12 +108,14 @@ class PerkDefinitions {
       name: 'PlaceAnother',
       description: 'Place 1 piece on any lane',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
     2: PerkInfo(
       id: 2,
       name: 'RemoveEnemy',
       description: 'Remove enemy\'s frontmost piece',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Protection & Control (Slot 3)
@@ -73,6 +124,7 @@ class PerkDefinitions {
       name: 'Freeze',
       description: 'Block enemy placement for 1 turn',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     22: PerkInfo(
       id: 22,
@@ -80,6 +132,7 @@ class PerkDefinitions {
       description: 'Hide your pieces for 2 turns',
       category: PerkCategory.defensive,
       requiresTarget: false,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Placement Triggers (Slot 3)
@@ -88,30 +141,35 @@ class PerkDefinitions {
       name: 'Portal',
       description: 'Enemy pieces placed here teleport away',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     25: PerkInfo(
       id: 25,
       name: 'Trap',
       description: 'Enemy pieces placed here vanish',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     26: PerkInfo(
       id: 26,
       name: 'Mirror',
       description: 'Enemy places here, you get +2',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     27: PerkInfo(
       id: 27,
       name: 'Echo',
       description: 'Enemy places here, you get +2 random',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     28: PerkInfo(
       id: 28,
       name: 'Shockwave',
       description: 'Enemy places here, loses 2 elsewhere',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Removal Triggers (Slot 3)
@@ -120,18 +178,21 @@ class PerkDefinitions {
       name: 'Hydra',
       description: 'Piece removed here spawns 2 elsewhere',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.own,
     ),
     30: PerkInfo(
       id: 30,
       name: 'Backfire',
       description: 'Piece removed here costs enemy 2',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
     46: PerkInfo(
       id: 46,
       name: 'Absorb',
       description: 'Removed piece reappears elsewhere',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Repositioning - Your Pieces (Slot 3)
@@ -140,18 +201,21 @@ class PerkDefinitions {
       name: 'Regroup',
       description: 'Swap your pieces between 2 lanes',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
     35: PerkInfo(
       id: 35,
       name: 'Scatter',
       description: 'Move your pieces to random lanes',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
     43: PerkInfo(
       id: 43,
       name: 'Signal',
       description: '+1 now, pull from most populated next turn',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Duration Perks (Slot 3)
@@ -160,12 +224,14 @@ class PerkDefinitions {
       name: 'Sanctuary',
       description: 'Losses redirect here for 2 turns',
       category: PerkCategory.defensive,
+      targetSide: PerkTargetSide.own,
     ),
     52: PerkInfo(
       id: 52,
       name: 'Retaliate',
       description: 'Enemy places here, raid their side',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Slot 4: Act & Disrupt
@@ -175,6 +241,7 @@ class PerkDefinitions {
       description: 'Redistribute all enemy pieces',
       category: PerkCategory.offensive,
       requiresTarget: false,
+      targetSide: PerkTargetSide.enemy,
     ),
     23: PerkInfo(
       id: 23,
@@ -182,6 +249,7 @@ class PerkDefinitions {
       description: 'Hide enemy pieces for 2 turns',
       category: PerkCategory.offensive,
       requiresTarget: false,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Conversion Perks (Slot 4)
@@ -190,12 +258,14 @@ class PerkDefinitions {
       name: 'Split',
       description: 'Sacrifice 1, gain 2 elsewhere',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
     32: PerkInfo(
       id: 32,
       name: 'Kamikaze',
       description: 'Sacrifice 1, enemy loses 2',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Repositioning - Enemy Pieces (Slot 4)
@@ -204,12 +274,14 @@ class PerkDefinitions {
       name: 'Disrupt',
       description: 'Swap enemy pieces between 2 lanes',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
     36: PerkInfo(
       id: 36,
       name: 'Disperse',
       description: 'Move enemy pieces to random lanes',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Trade Perks (Slot 4)
@@ -232,6 +304,7 @@ class PerkDefinitions {
       name: 'Rush',
       description: 'Both +2 on lane, you -1 elsewhere',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.both,
     ),
 
     // Deferred Perks (Slot 4)
@@ -240,18 +313,21 @@ class PerkDefinitions {
       name: 'Enlist',
       description: '+1 now, capture enemy next turn',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
     41: PerkInfo(
       id: 41,
       name: 'Ambush',
       description: '+1 now, remove enemy next turn',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
     42: PerkInfo(
       id: 42,
       name: 'Reinforce',
       description: '+1 now, +1 more next turn',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Duration Perks (Slot 4)
@@ -260,6 +336,7 @@ class PerkDefinitions {
       name: 'Capture',
       description: 'Removed enemies become yours here',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.own,
     ),
 
     // Raid Perks (Slot 4)
@@ -268,6 +345,7 @@ class PerkDefinitions {
       name: 'Raid',
       description: 'Place on enemy side, roll next turn',
       category: PerkCategory.offensive,
+      targetSide: PerkTargetSide.enemy,
     ),
 
     // Counter Perk (Slot 4)
@@ -276,10 +354,35 @@ class PerkDefinitions {
       name: 'Nullify',
       description: 'Cancel all triggers on your lane',
       category: PerkCategory.utility,
+      targetSide: PerkTargetSide.own,
     ),
   };
 
   static PerkInfo? getPerk(int id) => perks[id];
+
+  /// Icon shown in the lane highlight pill while targeting a perk
+  static IconData getTargetingIcon(int perkId) {
+    switch (perkId) {
+      case 4:
+        return Icons.ac_unit;
+      case 24:
+        return Icons.swap_horiz;
+      case 25:
+        return Icons.dangerous;
+      case 26:
+        return Icons.flip;
+      case 27:
+        return Icons.surround_sound;
+      case 28:
+        return Icons.waves;
+      case 50:
+        return Icons.catching_pokemon;
+      case 52:
+        return Icons.gps_fixed;
+      default:
+        return getPerk(perkId)?.categoryIcon ?? Icons.flash_on;
+    }
+  }
 
   /// Get display name for a perk by name string (used by lane effect indicators)
   static String getDisplayName(String perkName) {

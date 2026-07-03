@@ -210,10 +210,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onPressed: () => _startAdventure(context),
                   ),
                   const SizedBox(height: 16),
-                  // Play with Friend button
+                  // 1 vs 1 on this device (pass-and-play)
                   _StyledButton(
-                    text: 'Play with Friend',
-                    onPressed: () => _showFriendModeDialog(context),
+                    text: '2 Players',
+                    onPressed: () => _navigateToHeroSelection(context,
+                        mode: GameMode.localMultiplayer),
+                  ),
+                  const SizedBox(height: 16),
+                  // Online multiplayer button
+                  _StyledButton(
+                    text: 'Play Online',
+                    onPressed: () => _navigateToHeroSelection(context,
+                        mode: GameMode.online),
                   ),
                 ],
               ),
@@ -247,52 +255,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
-  void _showFriendModeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 280,
-          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5E6D3),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF8D6E63), width: 3),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Play with Friend',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5D4037),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _StyledButton(
-                text: 'Same Device',
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  _navigateToHeroSelection(context, mode: GameMode.localMultiplayer);
-                },
-              ),
-              const SizedBox(height: 12),
-              _StyledButton(
-                text: 'Online',
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  _navigateToHeroSelection(context, mode: GameMode.online);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _ProfileChip extends StatelessWidget {

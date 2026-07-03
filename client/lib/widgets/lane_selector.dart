@@ -325,6 +325,16 @@ class LaneValidator {
         case 25: // Trap - any non-won lane (target enemy field)
           validLanes.add(i);
           break;
+        case 50: // Capture - converted pieces land on your side, so it can't be full
+          if (!lane.isSideFilled(playerSide)) {
+            validLanes.add(i);
+          }
+          break;
+        case 52: // Retaliate - server requires your pieces on the lane
+          if (lane.countPieces(playerSide) > 0) {
+            validLanes.add(i);
+          }
+          break;
         default:
           // Default: any non-won lane
           validLanes.add(i);

@@ -1659,6 +1659,10 @@ class CombatService extends ChangeNotifier {
     if (_gameState == null) return false;
     if (laneIndex < 0 || laneIndex >= 5) return false;
     if (_gameState!.lanes[laneIndex].winner != null) return false;
+    // Server rule: you must have pieces on the lane you're defending
+    if (_gameState!.lanes[laneIndex].countPieces(_gameState!.currentPlayer) == 0) {
+      return false;
+    }
     final lanes = _gameState!.lanes.map((l) => l.copyWith()).toList();
     final ownerInt = _gameState!.currentPlayer == PlayerSide.player1 ? 1 : 2;
     final newTriggers = List<TriggerData>.from(lanes[laneIndex].triggers);
