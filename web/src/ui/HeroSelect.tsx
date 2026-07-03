@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import { ALL_HEROES, HeroType } from '../game/hero';
 import { heroImage } from './assets';
 
-// Replicates client/lib/screens/hero_selection_screen.dart (adventure mode):
-// title pill with Player 1 badge, hero grid, details panel, Back/Start bar.
+// Hero picker: title pill with player badge, hero grid, details panel,
+// Back/Start bar. Reused by Adventure, Play Solo, and 2 Players flows.
 export function HeroSelect({
   onPick,
   onBack,
+  playerLabel = 'Player 1',
+  backLabel = 'Back to menu',
 }: {
   onPick: (hero: HeroType) => void;
   onBack: () => void;
+  playerLabel?: string;
+  backLabel?: string;
 }) {
   const [selected, setSelected] = useState<HeroType | null>(null);
   const [w, setW] = useState(window.innerWidth);
@@ -103,7 +107,7 @@ export function HeroSelect({
             className="hs-player-badge"
             style={{ width: badgeWidth, height: badgeHeight }}
           >
-            <span style={{ fontSize: titleFont * 0.6 }}>Player 1</span>
+            <span style={{ fontSize: titleFont * 0.6 }}>{playerLabel}</span>
           </div>
           <span className="hs-title-text" style={{ fontSize: titleFont }}>
             Choose your hero
@@ -139,7 +143,7 @@ export function HeroSelect({
           style={{ width: buttonWidth, height: buttonHeight, fontSize: btnFont * 0.9 }}
           onClick={onBack}
         >
-          Back to menu
+          {backLabel}
         </button>
         <button
           className="img-btn yellow"
