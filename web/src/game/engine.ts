@@ -68,6 +68,8 @@ export class CombatEngine {
   private isAutoPlacing = false;
   private turnCounter = 0;
   private bonusPieceGranted = false;
+  /** Ply at which each side's RemoveEnemy slot recharges (cooldown after use). */
+  private removeEnemyReadyAt: Record<PlayerSide, number> = { player1: 0, player2: 0 };
 
   constructor(gameId: string, cfg: EngineConfig = {}) {
     this.rng = cfg.rng ?? new MathRandomRNG();
@@ -90,10 +92,19 @@ export class CombatEngine {
 
   // --- Perk slot generation ---
 
+  isRemoveEnemyAvailable(side: PlayerSide): boolean {
+    return this.turnCounter >= this.removeEnemyReadyAt[side];
+  }
+
   generatePerkSlots(): PerkSlot[] {
     const slots: PerkSlot[] = [
       { slotIndex: 0, perkId: 1, perkName: getPerk(1)?.name ?? 'PlaceAnother' },
-      { slotIndex: 1, perkId: 2, perkName: getPerk(2)?.name ?? 'RemoveEnemy' },
+      {
+        slotIndex: 1,
+        perkId: 2,
+        perkName: getPerk(2)?.name ?? 'RemoveEnemy',
+        disabled: !this.isRemoveEnemyAvailable(this.state.currentPlayer),
+      },
     ];
     const slot3Id = SLOT3_POOL[this.rng.nextInt(SLOT3_POOL.length)];
     const slot4Id = SLOT4_POOL[this.rng.nextInt(SLOT4_POOL.length)];
@@ -536,28 +547,47 @@ export class CombatEngine {
 
   // --- Trigger setup perks ---
 
-  private setTrigger(laneIndex: number, type: string): boolean {
+  private setTrigger(
+    laneIndex: number,
+    type: string,
+    opts: { turnsLeft?: number; placeNow?: boolean } = {},
+  ): boolean {
     if (laneIndex < 0 || laneIndex >= LANE_COUNT) return false;
     const lane = this.state.lanes[laneIndex];
     if (lane.winner !== null) return false;
+    // "+1 now" so conditional triggers are never a dead pick (same shape as
+    // deferredPerk). No trigger chaining, matching deferred placements.
+    if (opts.placeNow && !isSideFilled(lane, this.state.currentPlayer)) {
+      this.addPiece(laneIndex, this.state.currentPlayer);
+      this.checkAllLaneWins();
+      // A won lane never fires triggers and endTurn skips its timer
+      // decrement, so don't leave a stale trigger behind.
+      if (lane.winner !== null) return true;
+    }
     lane.triggers.push({
       type,
       owner: ownerInt(this.state.currentPlayer),
-      turnsLeft: 2,
+      turnsLeft: opts.turnsLeft ?? 2,
       orderId: this.nextTriggerOrder++,
     });
     return true;
   }
 
+  // Conditional triggers get +1 now and live two opponent turns. endTurn
+  // decrements on every ply (both players'), so surviving through the owner's
+  // intervening turn to the opponent's 2nd turn takes turnsLeft 4, not 3.
+  // Portal/Trap stay conditional-only for one opponent turn (turnsLeft 2).
+  private static readonly BUFFED_TRIGGER = { turnsLeft: 4, placeNow: true };
+
   setPortalTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'PORTAL'); }
   setTrapTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'TRAP'); }
-  setMirrorTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'MIRROR'); }
-  setEchoTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ECHO'); }
-  setShockwaveTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'SHOCKWAVE'); }
-  setHydraTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'HYDRA'); }
-  setBackfireTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'BACKFIRE'); }
-  setAbsorbTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ABSORB'); }
-  setRetaliateTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'RETALIATE'); }
+  setMirrorTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'MIRROR', CombatEngine.BUFFED_TRIGGER); }
+  setEchoTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ECHO', CombatEngine.BUFFED_TRIGGER); }
+  setShockwaveTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'SHOCKWAVE', CombatEngine.BUFFED_TRIGGER); }
+  setHydraTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'HYDRA', CombatEngine.BUFFED_TRIGGER); }
+  setBackfireTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'BACKFIRE', CombatEngine.BUFFED_TRIGGER); }
+  setAbsorbTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ABSORB', CombatEngine.BUFFED_TRIGGER); }
+  setRetaliateTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'RETALIATE', CombatEngine.BUFFED_TRIGGER); }
 
   // --- Deferred perks (+1 now, effect next turn) ---
 
@@ -1032,7 +1062,17 @@ export class CombatEngine {
   executePerk(perkId: number, targetLane: number, secondLane: number | null = null): void {
     switch (perkId) {
       case 1: if (targetLane >= 0) this.placeOnLane(targetLane); break;
-      case 2: if (targetLane >= 0) this.removeEnemyPiece(targetLane); break;
+      case 2:
+        // Cooldown: a successful removal locks the slot for the player's next
+        // turn (their next perk phase is ply turnCounter+2, ready at +3).
+        if (
+          targetLane >= 0 &&
+          this.isRemoveEnemyAvailable(this.state.currentPlayer) &&
+          this.removeEnemyPiece(targetLane)
+        ) {
+          this.removeEnemyReadyAt[this.state.currentPlayer] = this.turnCounter + 3;
+        }
+        break;
       case 4: if (targetLane >= 0) this.freezeLane(targetLane); break;
       case 13: this.scrambleEnemyPieces(); break;
       case 31: if (targetLane >= 0) this.splitPiece(targetLane); break;

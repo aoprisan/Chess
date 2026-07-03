@@ -213,6 +213,7 @@ export function Combat({
 
   const onPerkClick = (perkId: number) => {
     if (!humanTurn) return;
+    if (engine.currentPerkSlots.some((s) => s.perkId === perkId && s.disabled)) return;
     setSelectedPerkId(perkId);
     setIsSelectingLane(false);
     setFirstSelectedLane(null);
@@ -1046,24 +1047,25 @@ function PerkPanel({
           const category = info?.category ?? 'utility';
           const isAiChoice = aiHighlight === slot.perkId;
           const isSel = selectedPerkId === slot.perkId;
+          const recharging = slot.disabled === true;
           return (
             <button
               key={slot.slotIndex}
-              className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}`}
+              className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}`}
               style={
                 isSel
                   ? { borderColor: CATEGORY_COLOR[category], background: `${CATEGORY_COLOR[category]}4D` }
                   : undefined
               }
-              disabled={disabled}
+              disabled={disabled || recharging}
               onClick={() => onPerk(slot.perkId)}
             >
               <Icon
                 name={CATEGORY_ICON[category]}
                 size={14}
-                color={disabled && !aiMode ? '#757575' : CATEGORY_COLOR[category]}
+                color={(disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category]}
               />
-              {info?.name ?? slot.perkName}
+              {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
             </button>
           );
         })}
