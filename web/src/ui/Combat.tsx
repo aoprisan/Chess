@@ -798,7 +798,7 @@ function GameBoard({
   return (
     <div className="game-field" ref={boardRef} style={{ flex: 1, borderRadius: radius }}>
       <div className="field-inner" style={{ margin: padding }}>
-        {/* Grid lines (painted #E0E0E0, 1px) */}
+        {/* Grid lines — magenta like the neon board concept art */}
         {bw > 0 && (
           <svg
             width={bw}
@@ -812,7 +812,7 @@ function GameBoard({
                 y1={0}
                 x2={(i + 1) * cellW}
                 y2={bh}
-                stroke="rgba(136,153,187,0.28)"
+                stroke="rgba(255,47,214,0.24)"
                 strokeWidth={1}
               />
             ))}
@@ -823,7 +823,7 @@ function GameBoard({
                 y1={(i + 1) * cellH}
                 x2={bw}
                 y2={(i + 1) * cellH}
-                stroke="rgba(136,153,187,0.28)"
+                stroke="rgba(255,47,214,0.24)"
                 strokeWidth={1}
               />
             ))}
@@ -843,7 +843,7 @@ function GameBoard({
                   width: bw,
                   height: cellH,
                   background:
-                    lane.winner === 'player1' ? 'rgba(76,175,80,0.2)' : 'rgba(156,39,176,0.2)',
+                    lane.winner === 'player1' ? 'rgba(0,229,255,0.16)' : 'rgba(255,47,214,0.16)',
                   border: `2px solid ${lane.winner === 'player1' ? '#00e5ff' : '#ff2fd6'}`,
                 }}
               />

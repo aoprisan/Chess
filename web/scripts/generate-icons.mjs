@@ -18,11 +18,12 @@ const publicDir = path.join(root, '..', 'public');
 const DARK = { r: 0x0a, g: 0x0e, b: 0x1a, alpha: 1 }; // manifest background_color
 
 // Neon City mark: a glowing slanted diamond node with an "N" core, echoing
-// the campaign map's system nodes.
+// the campaign map's system nodes. Magenta-to-purple badge with a cyan core,
+// matching the menu-logo concept art.
 const LOGO_SVG = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#00e5ff"/>
+      <stop offset="0" stop-color="#ff2fd6"/>
       <stop offset="1" stop-color="#7b2fff"/>
     </linearGradient>
     <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">

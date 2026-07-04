@@ -2,7 +2,10 @@
    clip-path panels, layered glow shadows, thin gradient borders, and a subtle
    scanline overlay. Palette:
    bg #0A0E1A, panel #131A2E, cyan #00E5FF, magenta #FF2FD6, purple #7B2FFF,
-   lime #3DFF8F, amber #FFD23F, P1 cyan, P2 magenta. */
+   lime #3DFF8F, amber #FFD23F, P1 cyan, P2 magenta.
+   Per the concept art: the combat board is a hot magenta grid on near-black
+   with a cyan energy core; menus lead with magenta; the campaign city map
+   stays cyan (the network). */
 
 :root {
   --bg: #0a0e1a;
@@ -82,17 +85,20 @@ button:disabled {
   flex-direction: column;
 }
 
-/* Neon city backdrop: dark gradient + faint grid + scanlines. */
+/* Neon city backdrop: dark gradient + faint grid + scanlines, with the
+   magenta holo-table glow rising from the bottom edge (per concept art). */
 .doodle-bg {
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 3px),
     linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(123, 47, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse 90% 45% at 50% 108%, rgba(255, 47, 214, 0.14) 0%, transparent 65%),
     radial-gradient(ellipse 120% 70% at 50% -10%, #1a2342 0%, var(--bg) 62%);
   background-size:
     100% 100%,
     44px 44px,
     44px 44px,
+    100% 100%,
     100% 100%;
 }
 
@@ -147,6 +153,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
 }
+/* Magenta-led logo lockup with a cyan sub-line, per the menu mockup. */
 .neon-title {
   font-size: clamp(40px, 9vw, 72px);
   font-weight: 900;
@@ -155,9 +162,9 @@ button:disabled {
   color: var(--text);
   text-align: center;
   text-shadow:
-    0 0 6px var(--cyan),
-    0 0 18px rgba(0, 229, 255, 0.75),
-    0 0 42px rgba(123, 47, 255, 0.6);
+    0 0 6px var(--magenta),
+    0 0 18px rgba(255, 47, 214, 0.7),
+    0 0 42px rgba(123, 47, 255, 0.65);
   animation: neon-flicker 4.2s linear infinite;
 }
 .neon-subtitle {
@@ -165,10 +172,10 @@ button:disabled {
   font-size: 0.3em;
   letter-spacing: 8px;
   font-weight: 700;
-  color: var(--magenta);
+  color: var(--cyan);
   text-shadow:
-    0 0 6px var(--magenta),
-    0 0 18px rgba(255, 47, 214, 0.7);
+    0 0 6px var(--cyan),
+    0 0 18px rgba(0, 229, 255, 0.7);
   margin-top: 4px;
 }
 @keyframes neon-flicker {
@@ -195,6 +202,24 @@ button:disabled {
   width: 230px;
   height: 52px;
   font-size: 18px;
+}
+/* Main-menu primaries take the mockup's hot-magenta highlight band:
+   a translucent panel with a bright magenta core behind white text. */
+.menu-btn.yellow {
+  background: linear-gradient(
+    90deg,
+    rgba(19, 26, 46, 0.78) 0%,
+    rgba(255, 47, 214, 0.55) 18%,
+    rgba(255, 47, 214, 0.72) 50%,
+    rgba(255, 47, 214, 0.55) 82%,
+    rgba(19, 26, 46, 0.78) 100%
+  );
+  border: 1.5px solid var(--magenta);
+  color: #fff;
+  box-shadow:
+    0 0 14px rgba(255, 47, 214, 0.45),
+    inset 0 0 18px rgba(255, 47, 214, 0.18);
+  text-shadow: 0 0 10px rgba(255, 47, 214, 0.8);
 }
 .menu-error {
   color: var(--magenta);
@@ -1142,20 +1167,22 @@ button:disabled {
   box-shadow: 0 0 10px rgba(255, 47, 214, 0.6);
 }
 
-/* Game field */
+/* Game field — the neon board from the concept art: a hot magenta grid on
+   near-black violet, framed in glowing pink, with a cyan energy core. */
 .game-field {
   position: relative;
   background:
-    linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(180deg, #121a30, #0c1122);
+    linear-gradient(rgba(255, 47, 214, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 47, 214, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, #150f2a, #0b081a);
   background-size:
     36px 36px,
     36px 36px,
     100% 100%;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid rgba(255, 47, 214, 0.6);
   box-shadow:
-    inset 0 0 30px rgba(0, 229, 255, 0.06),
+    inset 0 0 30px rgba(255, 47, 214, 0.09),
+    0 0 16px rgba(255, 47, 214, 0.28),
     0 0 14px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
@@ -1168,8 +1195,8 @@ button:disabled {
   top: 0;
   bottom: 0;
   left: 50%;
-  background: rgba(255, 47, 214, 0.55);
-  box-shadow: 0 0 8px rgba(255, 47, 214, 0.7);
+  background: rgba(0, 229, 255, 0.6);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.75);
   border-radius: 2px;
 }
 
