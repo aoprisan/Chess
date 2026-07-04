@@ -406,6 +406,76 @@ describe('RemoveEnemy cooldown', () => {
   });
 });
 
+describe('Blind belief state', () => {
+  it('stores a snapshot for the blinded side and clears it on expiry', () => {
+    const e = engine();
+    expect(e.blindOpponent()).toBe(true); // player1 blinds player2
+    expect(e.beliefStateFor('player1')).toBe(e.state); // sighted: live state
+    expect(e.beliefStateFor('player2')).not.toBe(e.state); // blinded: snapshot
+    e.endTurn(); // counter 2 -> 1
+    expect(e.beliefStateFor('player2')).not.toBe(e.state);
+    e.endTurn(); // counter 1 -> 0, snapshot cleared
+    expect(e.beliefStateFor('player2')).toBe(e.state);
+  });
+
+  it('a blinded AI targets from stale information and the move silently fails', () => {
+    const e = engine(7);
+    e.player2IsAI = true;
+    e.player2AIDifficulty = 'hard';
+    setPieces(e.state.lanes[2], 'player1', 3);
+    e.blindOpponent(); // snapshot: player1 stack on lane 2
+    // Post-snapshot the stack moves to lane 0 — the blinded AI can't see it.
+    setPieces(e.state.lanes[2], 'player1', 0);
+    setPieces(e.state.lanes[0], 'player1', 4);
+    e.endTurn(); // player2's turn, still blinded
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 2, perkName: 'RemoveEnemy' }];
+    const [perkId, target] = chooseAIPerk(e);
+    expect(perkId).toBe(2);
+    expect(target).toBe(2); // the stale lane, not the real threat on lane 0
+    e.executePerk(2, 2);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(4); // board unchanged
+    expect(e.isRemoveEnemyAvailable('player2')).toBe(true); // failed use, no cooldown
+    expect(e.state.currentPlayer).toBe('player1'); // turn still ended
+  });
+
+  it('lanes won after the snapshot stay visible to the blinded player', () => {
+    const e = engine();
+    e.blindOpponent(); // player1 blinds player2
+    setPieces(e.state.lanes[1], 'player1', 4);
+    e.placeOnLane(1); // player1 wins lane 1 post-snapshot
+    const belief = e.beliefStateFor('player2');
+    expect(belief.lanes[1].winner).toBe('player1');
+    expect(belief.player1LanesWon).toBe(1);
+    expect(getValidLanesForPerk(1, belief, 'player2')).not.toContain(1);
+  });
+
+  it('a permanently blinded AI game still reaches a terminal state', () => {
+    const e = new CombatEngine('blind-sim', {
+      player1IsAI: true,
+      player2IsAI: true,
+      player1AIDifficulty: 'hard',
+      player2AIDifficulty: 'hard',
+      rng: new SeededRNG(11),
+    });
+    let guard = 0;
+    while (e.state.status === 'playing' && guard < 2000) {
+      guard++;
+      if (e.state.currentPhase === 'autoPlacement') {
+        const placed = e.autoPlace();
+        if (placed === -1 && e.state.status === 'playing') e.skipTurn();
+      } else {
+        e.blindOpponent(); // keep both sides blinded (self-guards when active)
+        const [perkId, target, second] = chooseAIPerk(e);
+        if (perkId === 0) e.skipTurn();
+        else e.executePerk(perkId, target, second);
+      }
+    }
+    expect(guard).toBeLessThan(2000);
+    expect(e.state.status).toBe('finished');
+  });
+});
+
 describe('AI', () => {
   it('never raids a lane where the enemy has 4 pieces', () => {
     const e = engine(7);

@@ -144,19 +144,16 @@ This document provides the complete rules for the V2 game system, including all 
 | **Duration** | 2 turns |
 | **Effect** | Hide opponent's pieces FROM THEM. Opponent cannot see their own piece positions. Placement still works normally (visual effect only). Won lanes are not affected. **Targeting:** Memory-based - no mechanical targeting restriction. Opponent must remember piece positions to select lanes for perks; all perks still function normally if they remember correctly. |
 
-**AI/Simulation Behavior for Cloak and Blind (design intent — NOT implemented):**
+**AI Behavior for Blind (implemented as a belief state):**
 
-> The shipped engine implements Cloak's targeting restriction (above) and hides
-> pieces in the UI for pass-and-play, but the AI always sees the true board.
-> Blind is therefore purely visual against the AI. The belief-state design below
-> is retained as future work.
-
-- AI maintains a "belief state" (snapshot of board) that freezes when these perks activate
-- While active: AI reasons from stale information, not real board state
-- Won lanes remain visible even when these perks are active
-- Valid moves silently succeed; invalid moves (based on stale belief) silently fail without changing board state
-- AI does not learn whether moves succeeded until the perk expires and a fresh snapshot is obtained
+- When Blind hits an AI player, the engine freezes a snapshot of the full board — the AI's "belief state"
+- While blinded, the AI reasons entirely from that stale snapshot: piece columns, triggers, markers, freeze, and cloak are all as they were at cast time
+- What stays visible: won lanes (and lane win counts), game status, and whose turn it is
+- Choices made from stale information execute against the real board; invalid moves silently fail without changing it, and the turn still ends (a failed RemoveEnemy does not consume its cooldown)
+- Sight is fully restored when the Blind counter expires
 - This creates genuine strategic uncertainty in automated play
+
+*Cloak's belief-state treatment remains future work — its mechanical targeting restriction (above) is the shipped behavior.*
 
 ---
 
@@ -726,7 +723,7 @@ When a lane is won:
 This checklist confirms all ambiguities have been resolved in this document:
 
 - [x] What are perk IDs vs sequential numbers? → Permanent IDs, gaps are intentional
-- [x] How does Cloak/Blind affect targeting? → Cloak blocks RemoveEnemy/Disrupt/Disperse targeting; Blind is visual-only
+- [x] How does Cloak/Blind affect targeting? → Cloak blocks RemoveEnemy/Disrupt/Disperse targeting; Blind gives the AI a frozen belief state (visual-only for pass-and-play humans)
 - [x] What order do triggers fire when multiple exist? → FIFO by placement order
 - [x] What can Nullify target? → Your lane only (defensive perk)
 - [x] Who wins if both fill a lane simultaneously? → First to fill / action order

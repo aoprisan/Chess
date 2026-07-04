@@ -90,6 +90,15 @@ export class CombatEngine {
   private bonusPieceGranted = false;
   /** Ply at which each side's RemoveEnemy slot recharges (cooldown after use). */
   private removeEnemyReadyAt: Record<PlayerSide, number> = { player1: 0, player2: 0 };
+  /**
+   * Board snapshot frozen the moment each side was Blinded — the "belief
+   * state" that a blinded AI reasons from (see beliefStateFor). Engine-level
+   * on purpose: the UI and persistence only ever read CombatGameState.
+   */
+  private blindSnapshots: Record<PlayerSide, CombatGameState | null> = {
+    player1: null,
+    player2: null,
+  };
 
   constructor(gameId: string, cfg: EngineConfig = {}) {
     this.rng = cfg.rng ?? new MathRandomRNG();
@@ -500,7 +509,37 @@ export class CombatEngine {
     if (isBlinded(this.state, opponent)) return false;
     if (opponent === 'player1') this.state.player1Blinded = 2;
     else this.state.player2Blinded = 2;
+    // Freeze what the blinded player believes the board looks like.
+    this.blindSnapshots[opponent] = structuredClone(this.state);
     return true;
+  }
+
+  /**
+   * The board as `player` perceives it. Sighted players get the live state.
+   * A blinded player gets the snapshot taken when Blind hit them, overlaid
+   * with what stays visible per the rules: won lanes (replaced whole), lane
+   * win counts, game status, and whose turn it is. Everything else — columns,
+   * triggers, markers, freeze, cloak — stays stale. Choices made from stale
+   * information execute against the real board and silently no-op when
+   * invalid (every perk handler guards and the turn always ends).
+   */
+  beliefStateFor(player: PlayerSide): CombatGameState {
+    const snapshot = this.blindSnapshots[player];
+    if (!isBlinded(this.state, player) || snapshot === null) return this.state;
+
+    const belief = structuredClone(snapshot);
+    for (let i = 0; i < LANE_COUNT; i++) {
+      if (this.state.lanes[i].winner !== null) {
+        belief.lanes[i] = structuredClone(this.state.lanes[i]);
+      }
+    }
+    belief.player1LanesWon = this.state.player1LanesWon;
+    belief.player2LanesWon = this.state.player2LanesWon;
+    belief.status = this.state.status;
+    belief.gameWinner = this.state.gameWinner;
+    belief.currentPlayer = this.state.currentPlayer;
+    belief.currentPhase = this.state.currentPhase;
+    return belief;
   }
 
   gambitPieces(): boolean {
@@ -1228,6 +1267,8 @@ export class CombatEngine {
     this.state.player2Cloaked = Math.max(0, this.state.player2Cloaked - 1);
     this.state.player1Blinded = Math.max(0, this.state.player1Blinded - 1);
     this.state.player2Blinded = Math.max(0, this.state.player2Blinded - 1);
+    if (this.state.player1Blinded === 0) this.blindSnapshots.player1 = null;
+    if (this.state.player2Blinded === 0) this.blindSnapshots.player2 = null;
 
     // Decrement trigger timers, drop expired
     for (let i = 0; i < LANE_COUNT; i++) {

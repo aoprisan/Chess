@@ -20,8 +20,11 @@ const MEDIUM_MISTAKE_RATE = 0.25;
 const EASY_PASS_RATE = 0.3;
 
 export function chooseAIPerk(engine: CombatEngine): AIChoice {
-  const state = engine.state;
-  const player = state.currentPlayer;
+  const player = engine.state.currentPlayer;
+  // A blinded AI reasons from the snapshot taken when Blind hit it (won
+  // lanes and turn info stay live). Stale choices execute against the real
+  // engine and silently no-op.
+  const state = engine.beliefStateFor(player);
   const opponent = opponentOf(player);
   const difficulty = player === 'player1' ? engine.player1AIDifficulty : engine.player2AIDifficulty;
   const rng = engine.rng;
@@ -254,8 +257,8 @@ function scoreAutoTargetPerk(
     }
     case 22: // Cloak: shields my stacked lanes from targeted removal
       return maxLanePieces(state, player) >= 3 ? 25 : 8;
-    case 23: // Blind
-      return 12;
+    case 23: // Blind: degrades the AI's targeting — worth more against a developed board
+      return totalPieces(state, opponent) >= 6 ? 16 : 8;
     case 37: // Gambit: 3-for-2 in the enemy's favor
       return 6;
     case 38: // Steal
