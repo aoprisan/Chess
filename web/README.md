@@ -53,8 +53,8 @@ scripts/
 The map plays like a quest, not a level select: tap anywhere on the trail (or
 any marker, however far) and the hero roams there hop-by-hop along the dashed
 trails, camera following. Movement is BFS pathfinding over the maze graph —
-only cleared nodes can be walked *through*; an uncleared obstacle, rival, or
-treasure can be walked *to* but blocks travel beyond it until dealt with, and
+only cleared nodes can be walked _through_; an uncleared obstacle, rival, or
+treasure can be walked _to_ but blocks travel beyond it until dealt with, and
 standing on one you may only retreat onto trail you have already explored.
 
 There are **5 levels**, each a bigger map than the last (30 → 81 nodes, taller
@@ -77,7 +77,7 @@ Balance is tuned and locked in with seeded AI-vs-AI simulation
 
 - **Seat fairness** — player 1 always moves first, which is worth a lot on a
   race-to-fill-lanes board (~64% win rate in identical-AI mirror matches). The
-  engine compensates with a *fair-start rule*: player 1's opening turn is
+  engine compensates with a _fair-start rule_: player 1's opening turn is
   auto-placement only, with no perk (`firstMoveCompensation: 'skipFirstPerk'`,
   configurable on `CombatEngine`). Mirror matches now land at ~53% for either
   seat, with the small residual favoring the human (always player 1).

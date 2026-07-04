@@ -62,7 +62,12 @@ describe('level unlock progression', () => {
   it('players who beat the original journey before levels existed start with level 2 open', () => {
     localStorage.setItem(
       journeyStorageKey('journey_1'),
-      JSON.stringify({ mapId: 'journey_1', heroType: 'panda', currentNodeId: 'finish', completed: true }),
+      JSON.stringify({
+        mapId: 'journey_1',
+        heroType: 'panda',
+        currentNodeId: 'finish',
+        completed: true,
+      }),
     );
     expect(unlockedLevel()).toBe(2);
   });

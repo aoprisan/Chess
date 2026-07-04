@@ -5,15 +5,10 @@ import { chooseAIPerk } from '../game/ai';
 import { getValidLanesForPerk, perkRequiresTarget } from '../game/targeting';
 import { getPerk, PerkCategory, PerkInfo, PerkSlot, PerkTargetSide } from '../game/perks';
 import { Hero } from '../game/hero';
-import {
-  CombatGameState,
-  Lane,
-  PlayerSide,
-  isCloaked,
-  isBlinded,
-} from '../game/state';
+import { CombatGameState, Lane, PlayerSide, isCloaked, isBlinded } from '../game/state';
 import { heroImage, ui } from './assets';
 import { Icon, IconName } from './Icons';
+import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
 
 // Mirrors client/lib/screens/combat_screen.dart: landscape board with 5
 // horizontal lanes x 10 columns (P1 left/green, P2 right/purple), doodle
@@ -24,17 +19,6 @@ import { Icon, IconName } from './Icons';
 const DUAL_LANE_PERKS = new Set([33, 34]);
 const FREEZE_PERK = 4;
 
-const CATEGORY_COLOR: Record<PerkCategory, string> = {
-  offensive: '#EF5350', // red.shade400
-  defensive: '#42A5F5', // blue.shade400
-  utility: '#FFCA28', // amber.shade400
-};
-const CATEGORY_ICON: Record<PerkCategory, IconName> = {
-  offensive: 'flash',
-  defensive: 'shield',
-  utility: 'build',
-};
-
 // Lane-half highlight palette while targeting: green = your half, purple =
 // enemy half, amber = whole lane; Freeze keeps its signature ice-blue.
 interface SideStyle {
@@ -44,9 +28,24 @@ interface SideStyle {
   label: string;
 }
 const SIDE_STYLE: Record<PerkTargetSide, SideStyle> = {
-  own: { fill: 'rgba(76,175,80,0.35)', border: '#66BB6A', pill: 'rgba(56,142,60,0.9)', label: 'Your side' },
-  enemy: { fill: 'rgba(156,39,176,0.35)', border: '#AB47BC', pill: 'rgba(123,31,162,0.9)', label: 'Enemy side' },
-  both: { fill: 'rgba(255,193,7,0.3)', border: '#FFCA28', pill: 'rgba(255,160,0,0.9)', label: 'Whole lane' },
+  own: {
+    fill: 'rgba(76,175,80,0.35)',
+    border: '#66BB6A',
+    pill: 'rgba(56,142,60,0.9)',
+    label: 'Your side',
+  },
+  enemy: {
+    fill: 'rgba(156,39,176,0.35)',
+    border: '#AB47BC',
+    pill: 'rgba(123,31,162,0.9)',
+    label: 'Enemy side',
+  },
+  both: {
+    fill: 'rgba(255,193,7,0.3)',
+    border: '#FFCA28',
+    pill: 'rgba(255,160,0,0.9)',
+    label: 'Whole lane',
+  },
 };
 const FREEZE_STYLE: SideStyle = {
   fill: 'rgba(33,150,243,0.35)',
@@ -68,15 +67,24 @@ function sideStyleFor(perkId: number, info: PerkInfo | undefined): SideStyle {
 /** Icon shown in the lane pill (and targeting hint) for a perk. */
 function targetingIcon(perkId: number): IconName {
   switch (perkId) {
-    case 4: return 'snowflake';
-    case 24: return 'swap';
-    case 25: return 'warning';
-    case 26: return 'flip';
-    case 27: return 'surround';
-    case 28: return 'warning';
-    case 50: return 'capture';
-    case 51: return 'raid';
-    case 52: return 'raid';
+    case 4:
+      return 'snowflake';
+    case 24:
+      return 'swap';
+    case 25:
+      return 'warning';
+    case 26:
+      return 'flip';
+    case 27:
+      return 'surround';
+    case 28:
+      return 'warning';
+    case 50:
+      return 'capture';
+    case 51:
+      return 'raid';
+    case 52:
+      return 'raid';
     default: {
       const info = getPerk(perkId);
       return info ? CATEGORY_ICON[info.category] : 'flash';
@@ -175,51 +183,66 @@ export function Combat({
 
   // --- Turn loop -----------------------------------------------------------
 
-  const tick = useCallback(function tickFn() {
-    const s = engine.state;
-    if (s.status !== 'playing') { bump(); return; }
-    if (showTurnDialogRef.current) return; // paused while the turn dialog is up
-
-    if (s.currentPhase === 'autoPlacement') {
-      later(() => {
-        if (showTurnDialogRef.current) return;
-        if (engine.state.currentPhase !== 'autoPlacement') { tickFn(); return; }
-        const placer = engine.state.currentPlayer;
-        const placed = engine.autoPlace();
-        if (placed >= 0) {
-          lastPlacement.current = {
-            lane: placed,
-            player: placer,
-            counter: (lastPlacement.current?.counter ?? 0) + 1,
-          };
-        }
-        if (placed === -1 && engine.state.status === 'playing' && engine.state.currentPhase === 'autoPlacement') {
-          engine.skipTurn();
-        }
-        afterMutation();
-      }, 300);
-      return;
-    }
-
-    if (s.currentPhase === 'perkSelection' && engine.isCurrentPlayerAI) {
-      if (aiPerkInProgress.current) return;
-      aiPerkInProgress.current = true;
-      later(() => {
-        const [perkId, target, second] = chooseAIPerk(engine);
-        engine.lastAIPerkId = perkId > 0 ? perkId : null;
+  const tick = useCallback(
+    function tickFn() {
+      const s = engine.state;
+      if (s.status !== 'playing') {
         bump();
+        return;
+      }
+      if (showTurnDialogRef.current) return; // paused while the turn dialog is up
+
+      if (s.currentPhase === 'autoPlacement') {
         later(() => {
-          engine.lastAIPerkId = null;
-          aiPerkInProgress.current = false;
-          if (perkId === 0) engine.passTurn();
-          else engine.executePerk(perkId, target, second);
+          if (showTurnDialogRef.current) return;
+          if (engine.state.currentPhase !== 'autoPlacement') {
+            tickFn();
+            return;
+          }
+          const placer = engine.state.currentPlayer;
+          const placed = engine.autoPlace();
+          if (placed >= 0) {
+            lastPlacement.current = {
+              lane: placed,
+              player: placer,
+              counter: (lastPlacement.current?.counter ?? 0) + 1,
+            };
+          }
+          if (
+            placed === -1 &&
+            engine.state.status === 'playing' &&
+            engine.state.currentPhase === 'autoPlacement'
+          ) {
+            engine.skipTurn();
+          }
           afterMutation();
-        }, 650);
-      }, 400);
-    }
-    // Human perk selection: wait for input.
+        }, 300);
+        return;
+      }
+
+      if (s.currentPhase === 'perkSelection' && engine.isCurrentPlayerAI) {
+        if (aiPerkInProgress.current) return;
+        aiPerkInProgress.current = true;
+        later(() => {
+          const [perkId, target, second] = chooseAIPerk(engine);
+          engine.lastAIPerkId = perkId > 0 ? perkId : null;
+          bump();
+          later(() => {
+            engine.lastAIPerkId = null;
+            aiPerkInProgress.current = false;
+            if (perkId === 0) engine.passTurn();
+            else engine.executePerk(perkId, target, second);
+            afterMutation();
+          }, 650);
+        }, 400);
+      }
+      // Human perk selection: wait for input.
+    },
+    // afterMutation is intentionally omitted: it and tick are mutually
+    // recursive, and both are stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, bump, later]);
+    [engine, bump, later],
+  );
 
   /** After any engine mutation: detect turn changes (turn dialog) and resume the loop. */
   const afterMutation = useCallback(() => {
@@ -245,7 +268,6 @@ export function Combat({
     }
     bump();
     tick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, bump, later, tick, setTurnDialog, player2IsAI]);
 
   useEffect(() => {
@@ -291,7 +313,12 @@ export function Combat({
 
   const onLaneClick = (laneIndex: number) => {
     if (!isSelectingLane || selectedPerkId === null) return;
-    const validLanes = getValidLanesForPerk(selectedPerkId, state, state.currentPlayer, firstSelectedLane);
+    const validLanes = getValidLanesForPerk(
+      selectedPerkId,
+      state,
+      state.currentPlayer,
+      firstSelectedLane,
+    );
     if (!validLanes.includes(laneIndex)) return;
 
     if (DUAL_LANE_PERKS.has(selectedPerkId)) {
@@ -383,7 +410,9 @@ export function Combat({
       <div style={{ height: gap }} />
 
       {/* Game field */}
-      <div style={{ flex: 1, minHeight: 0, padding: `0 ${clamp(W * 0.02, 8, 20)}px`, display: 'flex' }}>
+      <div
+        style={{ flex: 1, minHeight: 0, padding: `0 ${clamp(W * 0.02, 8, 20)}px`, display: 'flex' }}
+      >
         <GameBoard
           W={W}
           state={state}
@@ -437,7 +466,10 @@ export function Combat({
           </button>
         </div>
       ) : state.currentPhase === 'autoPlacement' && !showTurnDialog ? (
-        <div className="placing-row" style={{ paddingBottom: H * 0.01, fontSize: clamp(W * 0.016, 12, 20) }}>
+        <div
+          className="placing-row"
+          style={{ paddingBottom: H * 0.01, fontSize: clamp(W * 0.016, 12, 20) }}
+        >
           <span
             className="spinner small"
             style={{
@@ -453,7 +485,10 @@ export function Combat({
         engine.isCurrentPlayerAI && engine.lastAIPerkId === null ? (
           <div style={{ paddingBottom: H * 0.01, display: 'flex', justifyContent: 'center' }}>
             <div className="waiting-pill">
-              <span className="spinner small" style={{ borderColor: 'rgba(189,189,189,0.3)', borderTopColor: '#BDBDBD' }} />
+              <span
+                className="spinner small"
+                style={{ borderColor: 'rgba(189,189,189,0.3)', borderTopColor: '#BDBDBD' }}
+              />
               Opponent&apos;s turn
             </div>
           </div>
@@ -571,14 +606,22 @@ function PlayerHeaders({
   return (
     <div className="player-headers" style={{ padding: `0 ${clamp(W * 0.02, 8, 20)}px` }}>
       <div className="player-panel p1">
-        <img className="pp-avatar" src={heroImage(player1Hero.imagePath)} alt={player1Hero.name} style={{ width: avatarW, height: avatarH }} />
+        <img
+          className="pp-avatar"
+          src={heroImage(player1Hero.imagePath)}
+          alt={player1Hero.name}
+          style={{ width: avatarW, height: avatarH }}
+        />
         <span style={{ width: spacing }} />
         {title('player1', player1Hero)}
-        {score('player1', state.player1Pieces)}
+        {score('player1', state.player1LanesWon)}
       </div>
 
       <div className="flag-indicator" style={{ width: indicatorW, height: indicatorH }}>
-        <div className="flag-pole" style={{ top: indicatorH * 0.2, width: poleW, height: indicatorH * 0.8 }} />
+        <div
+          className="flag-pole"
+          style={{ top: indicatorH * 0.2, width: poleW, height: indicatorH * 0.8 }}
+        />
         <img
           className="flag-img"
           src={ui.turnFlag}
@@ -594,10 +637,15 @@ function PlayerHeaders({
       </div>
 
       <div className="player-panel p2">
-        {score('player2', state.player2Pieces)}
+        {score('player2', state.player2LanesWon)}
         {title('player2', player2Hero)}
         <span style={{ width: spacing }} />
-        <img className="pp-avatar" src={heroImage(player2Hero.imagePath)} alt={player2Hero.name} style={{ width: avatarW, height: avatarH }} />
+        <img
+          className="pp-avatar"
+          src={heroImage(player2Hero.imagePath)}
+          alt={player2Hero.name}
+          style={{ width: avatarW, height: avatarH }}
+        />
       </div>
     </div>
   );
@@ -681,7 +729,11 @@ function GameBoard({
           const slideDist = side === 'player1' ? x + pieceSize : bw - x;
           pieces.push(
             <div
-              key={isNewest ? `${side}-${laneIndex}-${c}-anim${lastPlacement.counter}` : `${side}-${laneIndex}-${c}`}
+              key={
+                isNewest
+                  ? `${side}-${laneIndex}-${c}-anim${lastPlacement.counter}`
+                  : `${side}-${laneIndex}-${c}`
+              }
               className={`piece${isNewest ? (side === 'player1' ? ' slide-left' : ' slide-right') : ''}`}
               style={
                 {
@@ -707,12 +759,32 @@ function GameBoard({
       <div className="field-inner" style={{ margin: padding }}>
         {/* Grid lines (painted #E0E0E0, 1px) */}
         {bw > 0 && (
-          <svg width={bw} height={bh} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <svg
+            width={bw}
+            height={bh}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          >
             {Array.from({ length: 9 }, (_, i) => (
-              <line key={`v${i}`} x1={(i + 1) * cellW} y1={0} x2={(i + 1) * cellW} y2={bh} stroke="#E0E0E0" strokeWidth={1} />
+              <line
+                key={`v${i}`}
+                x1={(i + 1) * cellW}
+                y1={0}
+                x2={(i + 1) * cellW}
+                y2={bh}
+                stroke="#E0E0E0"
+                strokeWidth={1}
+              />
             ))}
             {Array.from({ length: 4 }, (_, i) => (
-              <line key={`h${i}`} x1={0} y1={(i + 1) * cellH} x2={bw} y2={(i + 1) * cellH} stroke="#E0E0E0" strokeWidth={1} />
+              <line
+                key={`h${i}`}
+                x1={0}
+                y1={(i + 1) * cellH}
+                x2={bw}
+                y2={(i + 1) * cellH}
+                stroke="#E0E0E0"
+                strokeWidth={1}
+              />
             ))}
           </svg>
         )}
@@ -729,7 +801,8 @@ function GameBoard({
                   top: i * cellH,
                   width: bw,
                   height: cellH,
-                  background: lane.winner === 'player1' ? 'rgba(76,175,80,0.2)' : 'rgba(156,39,176,0.2)',
+                  background:
+                    lane.winner === 'player1' ? 'rgba(76,175,80,0.2)' : 'rgba(156,39,176,0.2)',
                   border: `2px solid ${lane.winner === 'player1' ? '#4CAF50' : '#9C27B0'}`,
                 }}
               />
@@ -775,8 +848,12 @@ function GameBoard({
         {pieces}
 
         {/* Fog banners over halves hidden by Cloak/Blind */}
-        {bw > 0 && hideP1 && p1FogLabel && <FogOverlay left={0} width={halfW} height={bh} label={p1FogLabel} />}
-        {bw > 0 && hideP2 && p2FogLabel && <FogOverlay left={halfW} width={halfW} height={bh} label={p2FogLabel} />}
+        {bw > 0 && hideP1 && p1FogLabel && (
+          <FogOverlay left={0} width={halfW} height={bh} label={p1FogLabel} />
+        )}
+        {bw > 0 && hideP2 && p2FogLabel && (
+          <FogOverlay left={halfW} width={halfW} height={bh} label={p2FogLabel} />
+        )}
 
         {/* Lane selection highlights */}
         {bw > 0 && isSelectingLane && selectedPerkId !== null && (
@@ -838,13 +915,25 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     const sancs = side === 'player1' ? state.player1Sanctuaries : state.player2Sanctuaries;
     for (const s of sancs) {
       if (s.lane === laneIndex) {
-        entries.push({ name: 'Sanctuary', icon: 'heart', category: 'defensive', turnsLeft: s.turnsLeft, owner: side });
+        entries.push({
+          name: 'Sanctuary',
+          icon: 'heart',
+          category: 'defensive',
+          turnsLeft: s.turnsLeft,
+          owner: side,
+        });
       }
     }
     const caps = side === 'player1' ? state.player1Captures : state.player2Captures;
     for (const c of caps) {
       if (c.lane === laneIndex) {
-        entries.push({ name: 'Capture', icon: 'crosshair', category: 'offensive', turnsLeft: c.turnsLeft, owner: side });
+        entries.push({
+          name: 'Capture',
+          icon: 'crosshair',
+          category: 'offensive',
+          turnsLeft: c.turnsLeft,
+          owner: side,
+        });
       }
     }
   });
@@ -862,7 +951,15 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   return entries;
 }
 
-function LaneEffects({ state, cellH, halfW }: { state: CombatGameState; cellH: number; halfW: number }) {
+function LaneEffects({
+  state,
+  cellH,
+  halfW,
+}: {
+  state: CombatGameState;
+  cellH: number;
+  halfW: number;
+}) {
   const out: ReactNode[] = [];
   state.lanes.forEach((lane, i) => {
     if (lane.winner) return;
@@ -891,7 +988,11 @@ function LaneEffects({ state, cellH, halfW }: { state: CombatGameState; cellH: n
             </span>
           ) : (
             effects.map((e, j) => (
-              <span key={j} className="effect-pill" style={{ background: `${base}33`, color: base }}>
+              <span
+                key={j}
+                className="effect-pill"
+                style={{ background: `${base}33`, color: base }}
+              >
                 <Icon name={e.icon} size={10} color={base} />
                 {e.name}
                 {e.turnsLeft > 0 && (
@@ -939,9 +1040,15 @@ function LaneSelection({
 
   // Player 1 always owns the left half of the board, player 2 the right.
   const highlightLeft =
-    side === 'own' ? (me === 'player1' ? 0 : halfW)
-    : side === 'enemy' ? (me === 'player1' ? halfW : 0)
-    : 0;
+    side === 'own'
+      ? me === 'player1'
+        ? 0
+        : halfW
+      : side === 'enemy'
+        ? me === 'player1'
+          ? halfW
+          : 0
+        : 0;
   const highlightWidth = side === 'both' ? bw : halfW;
 
   return (
@@ -980,7 +1087,13 @@ function LaneSelection({
             <div
               key={i}
               className="lane-overlay"
-              style={{ left: 0, top: i * cellH, width: bw, height: cellH, background: 'rgba(158,158,158,0.15)' }}
+              style={{
+                left: 0,
+                top: i * cellH,
+                width: bw,
+                height: cellH,
+                background: 'rgba(158,158,158,0.15)',
+              }}
             />
           );
         }
@@ -1031,9 +1144,11 @@ function TargetingHint({
 }) {
   const style = sideStyleFor(perkId, info);
   const where =
-    info.targetSide === 'own' ? 'on your side'
-    : info.targetSide === 'enemy' ? 'on the enemy side'
-    : 'on the board';
+    info.targetSide === 'own'
+      ? 'on your side'
+      : info.targetSide === 'enemy'
+        ? 'on the enemy side'
+        : 'on the board';
   const instruction = DUAL_LANE_PERKS.has(perkId)
     ? firstSelectedLane === null
       ? `Tap the first lane ${where}`
@@ -1051,8 +1166,13 @@ function TargetingHint({
     >
       <Icon name={targetingIcon(perkId)} size={clamp(W * 0.022, 16, 24)} color={style.border} />
       <div className="info">
-        <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>{info.name}</span>
-        <span className="hint" style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.85, color: style.border }}>
+        <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>
+          {info.name}
+        </span>
+        <span
+          className="hint"
+          style={{ fontSize: clamp(W * 0.016, 12, 18) * 0.85, color: style.border }}
+        >
           {instruction}
         </span>
       </div>
@@ -1093,19 +1213,31 @@ function PerkPanel({
       {/* Inline explanation of the selected perk, right where the player
           tapped — no separate top-of-screen confirmation bar. */}
       {!aiMode && selectedInfo && (
-        <div className="perk-explain" style={{ borderColor: CATEGORY_COLOR[selectedInfo.category] }}>
-          <Icon name={CATEGORY_ICON[selectedInfo.category]} size={20} color={CATEGORY_COLOR[selectedInfo.category]} />
+        <div
+          className="perk-explain"
+          style={{ borderColor: CATEGORY_COLOR[selectedInfo.category] }}
+        >
+          <Icon
+            name={CATEGORY_ICON[selectedInfo.category]}
+            size={20}
+            color={CATEGORY_COLOR[selectedInfo.category]}
+          />
           <div className="info">
             <span className="row">
               <span className="name">{selectedInfo.name}</span>
               {/* Where the perk lands, matching the lane highlight color */}
-              <span className="side-chip" style={{ background: SIDE_CHIP_COLOR[selectedInfo.targetSide] }}>
+              <span
+                className="side-chip"
+                style={{ background: SIDE_CHIP_COLOR[selectedInfo.targetSide] }}
+              >
                 <Icon name={targetingIcon(selectedInfo.id)} size={10} color="#fff" />
                 {sideStyleFor(selectedInfo.id, selectedInfo).label}
               </span>
             </span>
             <span className="desc">
-              {selectedInfo.requiresTarget ? `${selectedInfo.description}. Next: tap a lane.` : selectedInfo.description}
+              {selectedInfo.requiresTarget
+                ? `${selectedInfo.description}. Next: tap a lane.`
+                : selectedInfo.description}
             </span>
           </div>
           <button
@@ -1142,7 +1274,10 @@ function PerkPanel({
                 className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}`}
                 style={
                   isSel
-                    ? { borderColor: CATEGORY_COLOR[category], background: `${CATEGORY_COLOR[category]}4D` }
+                    ? {
+                        borderColor: CATEGORY_COLOR[category],
+                        background: `${CATEGORY_COLOR[category]}4D`,
+                      }
                     : undefined
                 }
                 disabled={disabled || recharging}
@@ -1169,7 +1304,17 @@ function PerkPanel({
 
 // --- Fog overlay (Cloak/Blind) ------------------------------------------------------
 
-function FogOverlay({ left, width, height, label }: { left: number; width: number; height: number; label: string }) {
+function FogOverlay({
+  left,
+  width,
+  height,
+  label,
+}: {
+  left: number;
+  width: number;
+  height: number;
+  label: string;
+}) {
   return (
     <div className="fog-overlay" style={{ left, top: 0, width, height }}>
       <span className="fog-pill">
@@ -1209,7 +1354,9 @@ function MoveLogOverlay({
           </button>
         </div>
         <div className="move-log-list" ref={listRef}>
-          {entries.length === 0 && <span className="move-log-empty">Nothing has happened yet!</span>}
+          {entries.length === 0 && (
+            <span className="move-log-empty">Nothing has happened yet!</span>
+          )}
           {entries.map((e, i) => {
             const hero = e.side === 'player1' ? player1Hero : player2Hero;
             const color = e.side === 'player1' ? '#81C784' : '#CE93D8';
@@ -1264,9 +1411,15 @@ function TurnDialog({
           alignItems: 'center',
         }}
       >
-        <img src={heroImage(hero.imagePath)} alt={hero.name} style={{ width: avatarSize, height: avatarSize, objectFit: 'contain' }} />
+        <img
+          src={heroImage(hero.imagePath)}
+          alt={hero.name}
+          style={{ width: avatarSize, height: avatarSize, objectFit: 'contain' }}
+        />
         <div style={{ height: padding * 0.5 }} />
-        <span style={{ fontSize: clamp(W * 0.028, 18, 32), fontWeight: 700, color: playerColor }}>{hero.name}</span>
+        <span style={{ fontSize: clamp(W * 0.028, 18, 32), fontWeight: 700, color: playerColor }}>
+          {hero.name}
+        </span>
         <div style={{ height: padding * 0.25 }} />
         <span style={{ fontSize: clamp(W * 0.02, 14, 24), fontWeight: 500, color: '#fff' }}>
           Your Turn!

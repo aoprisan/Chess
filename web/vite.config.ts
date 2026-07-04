@@ -16,7 +16,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'assets/**/*'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'assets/**/*'],
       workbox: {
         // Adventure art (14MB of PNGs) plus the app shell — precache everything
         // so a full journey is playable offline once installed.
@@ -26,14 +26,20 @@ export default defineConfig({
       manifest: {
         name: 'Kiddie Chess Adventure',
         short_name: 'Kiddie Chess',
-        description: 'A kid-friendly lane-battle adventure. Traverse the maze, clear obstacles, and beat the rival heroes!',
+        description:
+          'A kid-friendly lane-battle adventure. Traverse the maze, clear obstacles, and beat the rival heroes!',
         theme_color: '#8D6E63',
         background_color: '#F5E6D3',
         display: 'standalone',
-        orientation: 'portrait',
+        // The adventure map is portrait-friendly but the combat board is
+        // landscape, so defer to device rotation rather than locking either.
+        orientation: 'any',
+        // Generated from character art by scripts/generate-icons.mjs (npm run icons).
         icons: [
-          { src: 'assets/images/characters/gnom.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'assets/images/characters/gnom.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

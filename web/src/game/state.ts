@@ -59,8 +59,6 @@ export interface CombatGameState {
   lanes: Lane[];
   currentPlayer: PlayerSide;
   currentPhase: TurnPhase;
-  player1Pieces: number;
-  player2Pieces: number;
   player1LanesWon: number;
   player2LanesWon: number;
   status: CombatStatus;
@@ -105,8 +103,6 @@ export function initialState(
     lanes: Array.from({ length: LANE_COUNT }, emptyLane),
     currentPlayer: 'player1',
     currentPhase: 'autoPlacement',
-    player1Pieces: 40,
-    player2Pieces: 40,
     player1LanesWon: 0,
     player2LanesWon: 0,
     status: 'playing',
@@ -152,10 +148,6 @@ export function getNextEmptyColumn(lane: Lane, side: PlayerSide): number {
 
 // --- State helpers ---
 
-export function getRemainingPieces(s: CombatGameState, side: PlayerSide): number {
-  return side === 'player1' ? s.player1Pieces : s.player2Pieces;
-}
-
 export function getLanesWon(s: CombatGameState, side: PlayerSide): number {
   return side === 'player1' ? s.player1LanesWon : s.player2LanesWon;
 }
@@ -173,7 +165,11 @@ export function isBlinded(s: CombatGameState, side: PlayerSide): boolean {
 }
 
 /** A lane is frozen for the opponent of whoever froze it. */
-export function isLaneFrozenFor(s: CombatGameState, laneIndex: number, player: PlayerSide): boolean {
+export function isLaneFrozenFor(
+  s: CombatGameState,
+  laneIndex: number,
+  player: PlayerSide,
+): boolean {
   const frozenBy = s.frozenLanes[laneIndex];
   if (frozenBy === undefined) return false;
   return frozenBy !== player;

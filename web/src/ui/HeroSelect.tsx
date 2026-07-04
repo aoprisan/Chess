@@ -2,18 +2,33 @@ import { useEffect, useState } from 'react';
 import { ALL_HEROES, HeroType } from '../game/hero';
 import { heroImage } from './assets';
 
+export const AI_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+export type AIDifficulty = (typeof AI_DIFFICULTIES)[number];
+
+const DIFFICULTY_LABELS: Record<AIDifficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
+
 // Hero picker: title pill with player badge, hero grid, details panel,
 // Back/Start bar. Reused by Adventure, Play Solo, and 2 Players flows.
+// Play Solo also passes difficulty/onDifficultyChange to show the AI
+// difficulty chips above the bottom bar.
 export function HeroSelect({
   onPick,
   onBack,
   playerLabel = 'Player 1',
   backLabel = 'Back to menu',
+  difficulty,
+  onDifficultyChange,
 }: {
   onPick: (hero: HeroType) => void;
   onBack: () => void;
   playerLabel?: string;
   backLabel?: string;
+  difficulty?: AIDifficulty;
+  onDifficultyChange?: (difficulty: AIDifficulty) => void;
 }) {
   const [selected, setSelected] = useState<HeroType | null>(null);
   const [w, setW] = useState(window.innerWidth);
@@ -99,14 +114,8 @@ export function HeroSelect({
     <div className="screen doodle-bg">
       {/* Title bar */}
       <div className="hs-titlebar">
-        <div
-          className="hs-title-pill"
-          style={{ width: titleWidth, height: titleHeight }}
-        >
-          <div
-            className="hs-player-badge"
-            style={{ width: badgeWidth, height: badgeHeight }}
-          >
+        <div className="hs-title-pill" style={{ width: titleWidth, height: titleHeight }}>
+          <div className="hs-player-badge" style={{ width: badgeWidth, height: badgeHeight }}>
             <span style={{ fontSize: titleFont * 0.6 }}>{playerLabel}</span>
           </div>
           <span className="hs-title-text" style={{ fontSize: titleFont }}>
@@ -117,22 +126,33 @@ export function HeroSelect({
 
       {/* Content */}
       {isWide ? (
-        <div
-          className="hs-content wide"
-          style={{ padding: `8px ${w * 0.02}px` }}
-        >
+        <div className="hs-content wide" style={{ padding: `8px ${w * 0.02}px` }}>
           <div style={{ width: w * 0.42, flexShrink: 0 }}>{grid}</div>
           <div style={{ width: w * 0.02, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}>{detailsPanel}</div>
         </div>
       ) : (
-        <div
-          className="hs-content narrow"
-          style={{ padding: `8px ${w * 0.02}px` }}
-        >
+        <div className="hs-content narrow" style={{ padding: `8px ${w * 0.02}px` }}>
           {grid}
           <div style={{ height: 16 }} />
           <div style={{ height: '50vh' }}>{detailsPanel}</div>
+        </div>
+      )}
+
+      {/* Difficulty chips (Play Solo only) */}
+      {difficulty && onDifficultyChange && (
+        <div className="hs-difficulty" role="radiogroup" aria-label="Rival difficulty">
+          {AI_DIFFICULTIES.map((d) => (
+            <button
+              key={d}
+              className={`chip selectable${difficulty === d ? ' selected' : ''}`}
+              role="radio"
+              aria-checked={difficulty === d}
+              onClick={() => onDifficultyChange(d)}
+            >
+              {DIFFICULTY_LABELS[d]}
+            </button>
+          ))}
         </div>
       )}
 

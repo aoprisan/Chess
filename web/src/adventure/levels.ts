@@ -84,6 +84,7 @@ export function recordJourneyCompletion(id: string, stars: number): void {
   const state = loadState();
   const meta = journeyById(id);
   state.bestStars[id] = Math.max(state.bestStars[id] ?? 0, stars);
-  if (meta) state.unlockedLevel = Math.max(state.unlockedLevel, Math.min(meta.level + 1, JOURNEYS.length));
+  if (meta)
+    state.unlockedLevel = Math.max(state.unlockedLevel, Math.min(meta.level + 1, JOURNEYS.length));
   saveState(state);
 }

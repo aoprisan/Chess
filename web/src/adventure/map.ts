@@ -91,7 +91,10 @@ export class AdventureMapDef {
   }
 }
 
-export async function loadAdventureMap(baseUrl: string, mapId = 'journey_1'): Promise<AdventureMapDef> {
+export async function loadAdventureMap(
+  baseUrl: string,
+  mapId = 'journey_1',
+): Promise<AdventureMapDef> {
   const res = await fetch(`${baseUrl}assets/maps/${mapId}.json`);
   if (!res.ok) throw new Error(`Failed to load adventure map ${mapId}: ${res.status}`);
   const json = (await res.json()) as AdventureMapJson;

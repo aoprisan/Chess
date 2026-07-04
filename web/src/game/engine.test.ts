@@ -76,17 +76,39 @@ describe('removal & redirects', () => {
     expect(countPieces(e.state.lanes[2], 'player2')).toBe(1);
   });
 
-  it('Sanctuary redirects owner losses when no capture applies', () => {
+  it('Sanctuary rescues pieces from Kamikaze kills', () => {
     const e = engine();
-    // Kamikaze removes enemy pieces with no remover-capture; give player2 a sanctuary.
     e.state.player2Sanctuaries.push({ lane: 0, turnsLeft: 4 });
     setPieces(e.state.lanes[1], 'player1', 1); // sacrifice fodder
     setPieces(e.state.lanes[2], 'player2', 2);
-    // Kamikaze: no remover passed to removePieceWithRedirects for enemy removal,
-    // so sanctuary does NOT trigger for kamikaze (uses removeFront directly).
     e.kamikazePiece(1);
-    // enemy lost pieces via plain removeFront (kamikaze), sanctuary untouched
-    expect(countPieces(e.state.lanes[2], 'player2')).toBeLessThan(2);
+    // Both kills redirect to the sanctuary (a kill landing on the sanctuary
+    // lane itself redirects back onto it), so player2's total is conserved.
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    expect(totalP2).toBe(2);
+    expect(countPieces(e.state.lanes[1], 'player1')).toBe(0); // sacrifice still paid
+  });
+
+  it("Steal converts the stolen piece via the stealer's Capture zone", () => {
+    const e = engine();
+    e.state.player1Captures.push({ lane: 4, turnsLeft: 3 });
+    setPieces(e.state.lanes[2], 'player2', 1);
+    expect(e.stealPiece()).toBe(true);
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    const totalP1 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player1'), 0);
+    expect(totalP2).toBe(0); // stolen piece gone from player2
+    expect(countPieces(e.state.lanes[4], 'player1')).toBeGreaterThanOrEqual(1); // converted
+    expect(totalP1).toBe(2); // capture conversion + Steal's unconditional +1
+  });
+
+  it('a raid placeholder is NOT rescued by Sanctuary when the raid resolves', () => {
+    const e = engine(5);
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    setPieces(e.state.lanes[0], 'player2', 1); // the raid placeholder
+    e.state.pendingRaids = [{ owner: 1, lane: 0, turnsUntilResolve: 0, source: 'RAID' }];
+    e.autoPlace(); // resolves the raid at player1's turn start
+    // All four roll branches remove the placeholder outright — never redirected.
+    expect(countPieces(e.state.lanes[3], 'player2')).toBe(0);
   });
 });
 
@@ -98,6 +120,15 @@ describe('placement triggers', () => {
     e.placeOnLane(0);
     // The just-placed player1 piece is removed by trap.
     expect(countPieces(e.state.lanes[0], 'player1')).toBe(0);
+  });
+
+  it("Trap owner's Capture converts the trapped piece", () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'TRAP', owner: 2, turnsLeft: 2, orderId: 0 });
+    e.state.player2Captures.push({ lane: 4, turnsLeft: 3 });
+    e.placeOnLane(0);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(0); // trapped
+    expect(countPieces(e.state.lanes[4], 'player2')).toBe(1); // converted, not vanished
   });
 
   it('Mirror grants the owner +2 when enemy places on the lane', () => {
@@ -158,6 +189,26 @@ describe('placement triggers', () => {
     expect(e.state.lanes[0].triggers).toHaveLength(0);
   });
 
+  it('Retaliate spawns a raid piece on the placer side', () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'RETALIATE', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[0], 'player1', 1);
+    e.placeOnLane(0); // player1's 2nd piece fires the trigger
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(3); // 2 placed + raid piece
+    expect(e.state.pendingRaids).toHaveLength(1);
+    expect(e.state.pendingRaids[0]).toMatchObject({ owner: 2, lane: 0, source: 'RETALIATE' });
+  });
+
+  it('Retaliate fizzles instead of winning the lane for the placer', () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'RETALIATE', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[0], 'player1', 3);
+    e.placeOnLane(0); // player1 now has 4; a raid piece would be their winning 5th
+    expect(e.state.lanes[0].winner).toBeNull();
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(4);
+    expect(e.state.pendingRaids).toHaveLength(0);
+  });
+
   it('trigger chaining respects depth guard (no infinite loop)', () => {
     const e = engine();
     // Portal on every lane owned by player2; player1 placement bounces around.
@@ -166,6 +217,42 @@ describe('placement triggers', () => {
     }
     // Should terminate without throwing.
     expect(() => e.placeOnLane(0)).not.toThrow();
+  });
+});
+
+describe('removal triggers', () => {
+  it("Ambush fires the victim's Hydra on the hit lane", () => {
+    const e = engine(3);
+    // player1 owns a pending Ambush on lane 1; player2 has pieces only there,
+    // protected by their Hydra trigger.
+    e.state.lanes[1].deferred.push({ type: 'AMBUSH', owner: 1, targetLane: 1 });
+    e.state.lanes[1].triggers.push({ type: 'HYDRA', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[1], 'player2', 2);
+    e.autoPlace(); // player1 turn start resolves the deferred Ambush
+    expect(countPieces(e.state.lanes[1], 'player2')).toBe(1); // lost 1 to the ambush
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    expect(totalP2).toBe(3); // Hydra spawned 2 elsewhere: net +1
+    expect(e.state.lanes[1].triggers).toHaveLength(0); // one-shot, consumed
+  });
+
+  it('Backfire-vs-Backfire chains terminate within the depth guard', () => {
+    const e = engine(9);
+    for (let i = 0; i < 5; i++) {
+      setPieces(e.state.lanes[i], 'player1', 3);
+      setPieces(e.state.lanes[i], 'player2', 3);
+      e.state.lanes[i].triggers.push({ type: 'BACKFIRE', owner: 1, turnsLeft: 4, orderId: i * 2 });
+      e.state.lanes[i].triggers.push({
+        type: 'BACKFIRE',
+        owner: 2,
+        turnsLeft: 4,
+        orderId: i * 2 + 1,
+      });
+    }
+    expect(() => e.removeEnemyPiece(0)).not.toThrow();
+    for (const lane of e.state.lanes) {
+      expect(countPieces(lane, 'player1')).toBeLessThanOrEqual(5);
+      expect(countPieces(lane, 'player2')).toBeLessThanOrEqual(5);
+    }
   });
 });
 
@@ -204,9 +291,16 @@ describe('turn end decrements timers', () => {
     e.freezeLane(3); // player1 freezes lane 3 -> blocks player2
     e.endTurn();
     expect(e.state.currentPlayer).toBe('player2');
-    // lane 3 frozen for player2
-    const availableForP2 = getValidLanesForPerk(1, e.state, 'player2');
-    expect(availableForP2).toContain(3); // PlaceAnother validity ignores freeze; freeze checked in autoPlace
+    // lane 3 frozen for player2: chosen placements are blocked
+    expect(getValidLanesForPerk(1, e.state, 'player2')).not.toContain(3);
+    expect(getValidLanesForPerk(39, e.state, 'player2')).not.toContain(3);
+    expect(e.placeOnLane(3)).toBe(false);
+    expect(e.rushLane(3)).toBe(false);
+    // ...but not the freezer's own
+    expect(getValidLanesForPerk(1, e.state, 'player1')).toContain(3);
+    // freeze expires after the frozen player's turn
+    e.endTurn();
+    expect(getValidLanesForPerk(1, e.state, 'player2')).toContain(3);
   });
 });
 
@@ -217,6 +311,47 @@ describe('targeting', () => {
     e.state.player2Cloaked = 2;
     const valid = getValidLanesForPerk(2, e.state, 'player1');
     expect(valid.length).toBe(0);
+  });
+
+  it('Raid excludes lanes where the raid piece would win the lane for the enemy', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 4); // raid piece would be their 5th
+    setPieces(e.state.lanes[1], 'player2', 3);
+    const valid = getValidLanesForPerk(51, e.state, 'player1');
+    expect(valid).not.toContain(0);
+    expect(valid).toEqual([1, 2, 3, 4]);
+  });
+
+  it('Disrupt still requires enemy pieces on the first lane but allows an empty destination', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 4);
+    expect(getValidLanesForPerk(34, e.state, 'player1')).toEqual([0]);
+    expect(getValidLanesForPerk(34, e.state, 'player1', 0)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('Nullify', () => {
+  it('clears triggers, deferred, raids, markers and freeze on the lane only', () => {
+    const e = engine();
+    e.state.lanes[2].triggers.push({ type: 'PORTAL', owner: 2, turnsLeft: 2, orderId: 0 });
+    e.state.lanes[2].deferred.push({ type: 'SIGNAL', owner: 2, targetLane: 2 });
+    e.state.pendingRaids.push({ owner: 2, lane: 2, turnsUntilResolve: 1, source: 'RAID' });
+    e.state.player1Captures.push({ lane: 2, turnsLeft: 3 });
+    e.state.player2Sanctuaries.push({ lane: 2, turnsLeft: 4 });
+    e.state.frozenLanes[2] = 'player2';
+    // Control markers on lane 3 must survive.
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    e.state.frozenLanes[3] = 'player2';
+
+    expect(e.nullifyLane(2)).toBe(true);
+
+    expect(e.state.lanes[2].triggers).toHaveLength(0);
+    expect(e.state.lanes[2].deferred).toHaveLength(0);
+    expect(e.state.pendingRaids).toHaveLength(0);
+    expect(e.state.player1Captures).toHaveLength(0);
+    expect(e.state.player2Sanctuaries).toEqual([{ lane: 3, turnsLeft: 4 }]);
+    expect(e.state.frozenLanes[2]).toBeUndefined();
+    expect(e.state.frozenLanes[3]).toBe('player2');
   });
 });
 
@@ -271,7 +406,107 @@ describe('RemoveEnemy cooldown', () => {
   });
 });
 
+describe('Blind belief state', () => {
+  it('stores a snapshot for the blinded side and clears it on expiry', () => {
+    const e = engine();
+    expect(e.blindOpponent()).toBe(true); // player1 blinds player2
+    expect(e.beliefStateFor('player1')).toBe(e.state); // sighted: live state
+    expect(e.beliefStateFor('player2')).not.toBe(e.state); // blinded: snapshot
+    e.endTurn(); // counter 2 -> 1
+    expect(e.beliefStateFor('player2')).not.toBe(e.state);
+    e.endTurn(); // counter 1 -> 0, snapshot cleared
+    expect(e.beliefStateFor('player2')).toBe(e.state);
+  });
+
+  it('a blinded AI targets from stale information and the move silently fails', () => {
+    const e = engine(7);
+    e.player2IsAI = true;
+    e.player2AIDifficulty = 'hard';
+    setPieces(e.state.lanes[2], 'player1', 3);
+    e.blindOpponent(); // snapshot: player1 stack on lane 2
+    // Post-snapshot the stack moves to lane 0 — the blinded AI can't see it.
+    setPieces(e.state.lanes[2], 'player1', 0);
+    setPieces(e.state.lanes[0], 'player1', 4);
+    e.endTurn(); // player2's turn, still blinded
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 2, perkName: 'RemoveEnemy' }];
+    const [perkId, target] = chooseAIPerk(e);
+    expect(perkId).toBe(2);
+    expect(target).toBe(2); // the stale lane, not the real threat on lane 0
+    e.executePerk(2, 2);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(4); // board unchanged
+    expect(e.isRemoveEnemyAvailable('player2')).toBe(true); // failed use, no cooldown
+    expect(e.state.currentPlayer).toBe('player1'); // turn still ended
+  });
+
+  it('lanes won after the snapshot stay visible to the blinded player', () => {
+    const e = engine();
+    e.blindOpponent(); // player1 blinds player2
+    setPieces(e.state.lanes[1], 'player1', 4);
+    e.placeOnLane(1); // player1 wins lane 1 post-snapshot
+    const belief = e.beliefStateFor('player2');
+    expect(belief.lanes[1].winner).toBe('player1');
+    expect(belief.player1LanesWon).toBe(1);
+    expect(getValidLanesForPerk(1, belief, 'player2')).not.toContain(1);
+  });
+
+  it('a permanently blinded AI game still reaches a terminal state', () => {
+    const e = new CombatEngine('blind-sim', {
+      player1IsAI: true,
+      player2IsAI: true,
+      player1AIDifficulty: 'hard',
+      player2AIDifficulty: 'hard',
+      rng: new SeededRNG(11),
+    });
+    let guard = 0;
+    while (e.state.status === 'playing' && guard < 2000) {
+      guard++;
+      if (e.state.currentPhase === 'autoPlacement') {
+        const placed = e.autoPlace();
+        if (placed === -1 && e.state.status === 'playing') e.skipTurn();
+      } else {
+        e.blindOpponent(); // keep both sides blinded (self-guards when active)
+        const [perkId, target, second] = chooseAIPerk(e);
+        if (perkId === 0) e.skipTurn();
+        else e.executePerk(perkId, target, second);
+      }
+    }
+    expect(guard).toBeLessThan(2000);
+    expect(e.state.status).toBe('finished');
+  });
+});
+
 describe('AI', () => {
+  it('never raids a lane where the enemy has 4 pieces', () => {
+    const e = engine(7);
+    e.player1IsAI = true;
+    e.player1AIDifficulty = 'hard';
+    setPieces(e.state.lanes[0], 'player2', 4);
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 51, perkName: 'Raid' }];
+    const [perkId, target] = chooseAIPerk(e);
+    expect(perkId).toBe(51);
+    expect(target).not.toBe(0);
+  });
+
+  it('drags a stacked enemy lane onto an empty one with Disrupt', () => {
+    const e = engine(7);
+    e.player1IsAI = true;
+    e.player1AIDifficulty = 'hard';
+    setPieces(e.state.lanes[0], 'player2', 4);
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 34, perkName: 'Disrupt' }];
+    const [perkId, target, second] = chooseAIPerk(e);
+    expect(perkId).toBe(34);
+    expect(second).not.toBeNull();
+    const lanes = [target, second as number];
+    expect(lanes).toContain(0);
+    const destination = lanes.find((l) => l !== 0) as number;
+    e.executePerk(perkId, target, second);
+    expect(countPieces(e.state.lanes[0], 'player2')).toBe(0);
+    expect(countPieces(e.state.lanes[destination], 'player2')).toBe(4);
+  });
+
   it('returns a legal choice and never throws', () => {
     const e = engine(7);
     e.player2IsAI = true;

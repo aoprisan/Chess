@@ -59,7 +59,11 @@ export function LevelSelect({
                     <span className="level-stars">{best}</span>
                   </>
                 ) : heroType ? (
-                  <img className="level-hero" src={heroImage(heroByType(heroType).imagePath)} alt="" />
+                  <img
+                    className="level-hero"
+                    src={heroImage(heroByType(heroType).imagePath)}
+                    alt=""
+                  />
                 ) : (
                   <Icon name="sparkle" size={22} color="#8D6E63" />
                 )}

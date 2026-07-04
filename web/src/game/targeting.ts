@@ -7,7 +7,9 @@ import {
   countPieces,
   isSideFilled,
   isCloaked,
+  isLaneFrozenFor,
   LANE_COUNT,
+  SLOTS_PER_SIDE,
 } from './state';
 import { getPerk } from './perks';
 
@@ -25,8 +27,13 @@ export function getValidLanesForPerk(
     if (lane.winner !== null) continue;
 
     switch (perkId) {
-      case 1: // PlaceAnother - your lane not full
-        if (!isSideFilled(lane, playerSide)) validLanes.push(i);
+      case 1: // PlaceAnother - your lane not full (or frozen against you)
+        if (!isSideFilled(lane, playerSide) && !isLaneFrozenFor(gameState, i, playerSide)) {
+          validLanes.push(i);
+        }
+        break;
+      case 39: // Rush - places on the chosen lane, so freeze blocks it too
+        if (!isLaneFrozenFor(gameState, i, playerSide)) validLanes.push(i);
         break;
       case 2: // RemoveEnemy
       case 36: // Disperse
@@ -53,12 +60,17 @@ export function getValidLanesForPerk(
         if (firstSelectedLane === null) {
           if (countPieces(lane, opponent) > 0) validLanes.push(i);
         } else {
-          if (i !== firstSelectedLane && countPieces(lane, opponent) > 0) validLanes.push(i);
+          // Destination may be empty — dumping a stacked enemy lane onto an
+          // empty one is the perk's main play (mirrors Regroup above).
+          if (i !== firstSelectedLane) validLanes.push(i);
         }
         break;
       case 24: // Portal
       case 25: // Trap
         validLanes.push(i);
+        break;
+      case 51: // Raid — the raid piece lands on the ENEMY side; never let it complete their lane
+        if (countPieces(lane, opponent) < SLOTS_PER_SIDE - 1) validLanes.push(i);
         break;
       default:
         validLanes.push(i);

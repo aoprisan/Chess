@@ -44,7 +44,12 @@ describe('difficulty ladder', () => {
 });
 
 describe('pacing and perk diversity (mirror medium)', () => {
-  const r = playSeries({ games: N, player1Difficulty: 'medium', player2Difficulty: 'medium', seed: 44 });
+  const r = playSeries({
+    games: N,
+    player1Difficulty: 'medium',
+    player2Difficulty: 'medium',
+    seed: 44,
+  });
 
   it('games always finish (no turn-cap stalemates)', () => {
     // Pre-rework the AI spammed RemoveEnemy and ~14% of games hit the cap.
@@ -69,7 +74,12 @@ describe('pacing and perk diversity (mirror medium)', () => {
 
 describe('trigger viability and RemoveEnemy cap (mirror hard)', () => {
   // Hard has no random-mistake noise, so uses here are genuine greedy picks.
-  const r = playSeries({ games: N, player1Difficulty: 'hard', player2Difficulty: 'hard', seed: 44 });
+  const r = playSeries({
+    games: N,
+    player1Difficulty: 'hard',
+    player2Difficulty: 'hard',
+    seed: 44,
+  });
   const total = Object.values(r.perkStats).reduce((acc, s) => acc + s.uses, 0);
 
   it('conditional trigger perks are worth picking', () => {

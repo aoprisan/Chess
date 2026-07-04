@@ -124,7 +124,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane |
 | **Timing** | Duration |
 | **Duration** | 1 turn |
-| **Effect** | Place a freeze marker on your side of the lane. Opponent cannot place pieces on this lane for 1 turn. Auto-placement skips frozen lanes. **Scope:** Freeze ONLY blocks piece placement. It does not affect, pause, or cancel any other active effects on the lane (triggers, Sanctuary, Capture, deferred pieces, etc.). |
+| **Effect** | Place a freeze marker on your side of the lane. Opponent cannot place pieces on this lane for 1 turn: auto-placement skips frozen lanes, and their chosen placements there (PlaceAnother, Rush) are blocked. Random-destination effects (Split, Scatter, Echo, etc.) and trigger rewards can still land pieces on a frozen lane. **Scope:** Freeze ONLY blocks piece placement. It does not affect, pause, or cancel any other active effects on the lane (triggers, Sanctuary, Capture, deferred pieces, etc.). |
 
 #### #22 Cloak
 | | |
@@ -133,7 +133,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your pieces (all lanes) |
 | **Timing** | Duration |
 | **Duration** | 2 turns |
-| **Effect** | Hide ALL your pieces from opponent's view. Opponent cannot see your piece positions. Placement still works normally (visual effect only). Won lanes are not affected. **Targeting:** Memory-based - no mechanical targeting restriction. Opponent must remember piece positions to select lanes for perks; all perks still function normally if they remember correctly. Cloaked pieces are fully targetable by all perks including random selection effects. |
+| **Effect** | Hide ALL your pieces from opponent's view. Opponent cannot see your piece positions. Placement still works normally. Won lanes are not affected. **Targeting:** While your pieces are cloaked, the opponent's targeted enemy-piece perks — RemoveEnemy (#2), Disrupt (#34), and Disperse (#36) — have NO valid lanes. Untargeted and area effects (Scramble, Kamikaze, Shockwave, Steal, raids, etc.) still work normally. |
 
 #### #23 Blind
 | | |
@@ -144,19 +144,24 @@ This document provides the complete rules for the V2 game system, including all 
 | **Duration** | 2 turns |
 | **Effect** | Hide opponent's pieces FROM THEM. Opponent cannot see their own piece positions. Placement still works normally (visual effect only). Won lanes are not affected. **Targeting:** Memory-based - no mechanical targeting restriction. Opponent must remember piece positions to select lanes for perks; all perks still function normally if they remember correctly. |
 
-**AI/Simulation Behavior for Cloak and Blind:**
-- AI maintains a "belief state" (snapshot of board) that freezes when these perks activate
-- While active: AI reasons from stale information, not real board state
-- Won lanes remain visible even when these perks are active
-- Valid moves silently succeed; invalid moves (based on stale belief) silently fail without changing board state
-- AI does not learn whether moves succeeded until the perk expires and a fresh snapshot is obtained
+**AI Behavior for Blind (implemented as a belief state):**
+
+- When Blind hits an AI player, the engine freezes a snapshot of the full board — the AI's "belief state"
+- While blinded, the AI reasons entirely from that stale snapshot: piece columns, triggers, markers, freeze, and cloak are all as they were at cast time
+- What stays visible: won lanes (and lane win counts), game status, and whose turn it is
+- Choices made from stale information execute against the real board; invalid moves silently fail without changing it, and the turn still ends (a failed RemoveEnemy does not consume its cooldown)
+- Sight is fully restored when the Blind counter expires
 - This creates genuine strategic uncertainty in automated play
+
+*Cloak's belief-state treatment remains future work — its mechanical targeting restriction (above) is the shipped behavior.*
 
 ---
 
 ### Placement Triggers
 
 *These perks are set on a lane. They trigger when opponent PLACES a piece there. All triggers are VISIBLE to opponent.*
+
+> **Shipped balance buff:** Mirror, Echo, Shockwave, and Retaliate also place **+1 of your pieces on the target lane immediately when cast** (if that +1 wins the lane, no trigger is set), and the trigger then waits up to **2 opponent turns**. Portal and Trap have no cast bonus and wait 1 opponent turn.
 
 #### #24 Portal
 | | |
@@ -182,7 +187,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Defensive |
 | **Target** | Enemy side of chosen lane |
 | **Timing** | Trigger (on enemy placement) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy places a piece on this lane, YOU get 2 pieces on the SAME lane (your side, front positions). Enemy piece stays. If your side fills after the first piece, the second piece is lost. |
 
 #### #27 Echo
@@ -191,7 +196,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Defensive |
 | **Target** | Enemy side of chosen lane |
 | **Timing** | Trigger (on enemy placement) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy places a piece on this lane, YOU get 2 pieces on RANDOM lanes. Uses source exclusion. Enemy piece stays. |
 
 #### #28 Shockwave
@@ -200,7 +205,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Offensive |
 | **Target** | Enemy side of chosen lane |
 | **Timing** | Trigger (on enemy placement) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy places a piece on this lane, enemy loses 2 pieces from OTHER lanes (random selection from non-empty lanes, frontmost pieces). Placed piece stays. |
 
 ---
@@ -209,13 +214,17 @@ This document provides the complete rules for the V2 game system, including all 
 
 *These perks are set on YOUR lane. They trigger when opponent REMOVES your piece from there. All triggers are VISIBLE to opponent.*
 
+> **Shipped balance buff:** Hydra, Backfire, and Absorb also place **+1 of your pieces on the target lane immediately when cast** (if that +1 wins the lane, no trigger is set), and the trigger then waits up to **2 opponent turns**.
+>
+> **Scope:** removal triggers fire on ANY enemy-caused removal on the lane — RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, Trap, Shockwave, and Backfire — including when the removed piece is redirected by Sanctuary or Capture. They do NOT fire on your own sacrifices (Split, Kamikaze's own piece, Rush's cost), repositioning effects (Scramble, Disperse, Disrupt, Regroup, Portal), or raid placeholder cleanup. Trigger chains (e.g. Backfire firing another Backfire) share the placement-trigger depth cap of 10.
+
 #### #29 Hydra
 | | |
 |---|---|
 | **Category** | Defensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Trigger (on enemy removal) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy removes your piece from this lane, you get 2 pieces on RANDOM lanes. Uses source exclusion. Net effect: you lose 1, gain 2 = +1 piece. |
 
 #### #30 Backfire
@@ -224,7 +233,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Offensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Trigger (on enemy removal) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy removes your piece from this lane, enemy loses 2 pieces (random selection from their non-empty lanes, frontmost pieces). Net effect: you lose 1, they lose 2. |
 
 #### #46 Absorb
@@ -233,7 +242,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Defensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Trigger (on enemy removal) |
-| **Duration** | 1 turn |
+| **Duration** | 2 opponent turns |
 | **Effect** | When enemy removes your piece from this lane, that piece reappears on a random AVAILABLE lane (your side). Net effect: piece is not lost, just repositioned. Uses source exclusion. |
 
 ---
@@ -354,7 +363,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Offensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Deferred |
-| **Effect** | Place 1 of your pieces on lane X. At START of your NEXT turn: take 1 enemy piece from lane X (if available) and move BOTH pieces (yours and captured enemy) to your LEAST populated available lane. If tied for least populated, random selection among ties. If no enemy piece on X, only your piece moves. If destination lane is full when effect resolves, pieces are removed. |
+| **Effect** | Place 1 of your pieces on lane X. At START of your NEXT turn: take 1 enemy piece from lane X (if available) and move BOTH pieces (yours and captured enemy) to your LEAST populated available lane. If tied for least populated, random selection among ties. If no enemy piece on X, only your piece moves. If destination lane is full when effect resolves, pieces are removed. The capture bonus applies only when the enemy piece was actually removed or converted — if their Sanctuary rescues it, only your own piece moves. |
 
 #### #41 Ambush
 | | |
@@ -383,7 +392,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane (marker) |
 | **Timing** | Duration |
 | **Duration** | 2 turns |
-| **Effect** | Mark 1 lane as sanctuary. While active, your pieces removed from ANY lane go to the sanctuary lane instead of being lost. Stops if lane is won. If sanctuary lane is full, pieces are lost as normal. Multiple Sanctuary markers may be active simultaneously; when a piece is removed, one active Sanctuary is selected randomly to receive it. |
+| **Effect** | Mark 1 lane as sanctuary. While active, your pieces removed by ANY enemy-caused effect (RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, Trap, Shockwave, Backfire) go to the sanctuary lane instead of being lost. Your own sacrifices (Split, Kamikaze's own piece, Rush's cost, Enlist's consumed piece, Signal's move) and raid placeholder cleanup are NOT redirected — a Sanctuary never voids a cost. Stops if lane is won. If sanctuary lane is full, pieces are lost as normal. Multiple Sanctuary markers may be active simultaneously; the earliest-placed active Sanctuary receives the piece. |
 
 #### #50 Capture
 | | |
@@ -392,7 +401,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane (marker) |
 | **Timing** | Duration |
 | **Duration** | 2 turns |
-| **Effect** | Mark 1 lane as capture zone. While active, enemy pieces YOU remove (via any method) become YOUR pieces and go to this lane. Stops if lane is won. If lane is full, capture fails and enemy piece is removed normally (not converted). Multiple Capture markers may be active simultaneously; when an enemy piece is removed, one active Capture zone is selected randomly to receive it. |
+| **Effect** | Mark 1 lane as capture zone. While active, enemy pieces YOU remove via ANY of your removal effects (RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, and your Trap/Shockwave/Backfire triggers) become YOUR pieces and go to this lane. Repositioning effects (Scramble, Disperse, Disrupt) move pieces rather than remove them and are not captured. Stops if lane is won. If lane is full, capture fails and enemy piece is removed normally (not converted). Multiple Capture markers may be active simultaneously; the earliest-placed active Capture zone receives the piece. Capture is checked before the opponent's Sanctuary. Note: Steal's +1 bonus is granted even when the stolen piece is Captured (a Steal into your own Capture zone nets +2). |
 
 ---
 
@@ -409,14 +418,16 @@ This document provides the complete rules for the V2 game system, including all 
 | Outcome | Probability | Result |
 |---------|-------------|--------|
 | Lost | 10% | Piece is removed, nothing returns |
-| +2 Recruits | 15% | Piece returns to your side with 2 enemy pieces converted to yours |
-| +1 Recruit | 30% | Piece returns to your side with 1 enemy piece converted to yours |
+| +2 Recruits | 15% | Piece returns to your side with 2 bonus pieces |
+| +1 Recruit | 30% | Piece returns to your side with 1 bonus piece |
 | Alone | 45% | Piece returns safely to your side, no recruits |
+
+*Recruits are new pieces added to your side of the lane; they do not remove pieces from the enemy's side.*
 
 **Raid Piece Mechanics:**
 - Raid piece is **mechanically the enemy's piece** once placed on their side
 - For lane win calculations: counts as THEIR piece
-  - If enemy is 1 piece from winning that lane and you Raid there → ENEMY WINS that lane
+  - Lane targeting excludes lanes where the enemy already has 4 pieces, so a Raid can never hand the enemy a lane win
   - Placing Raid on your own near-win lane (enemy's side) does NOT win for you
 - For targeting: all perks treat it as enemy's piece
   - YOUR RemoveEnemy CAN target it (it's enemy's piece from your perspective)
@@ -457,7 +468,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Offensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Trigger (on enemy placement) → creates Raid piece |
-| **Duration** | 1 turn (triggers once) |
+| **Duration** | 2 opponent turns (triggers once) |
 | **Effect** | Set on your lane. When enemy PLACES a piece on this lane, a NEW piece of yours appears on ENEMY's side of the SAME lane as a Raid piece. That Raid piece follows normal Raid timing: |
 
 **Retaliate → Raid Timeline (Confirmed: 2 full turns after trigger):**
@@ -471,6 +482,7 @@ Note: This means 2 full turns pass before resolution, giving opponent time to re
 **Retaliate-Spawned Raid Piece Ownership:**
 - Same mechanics as regular Raid: piece is **mechanically enemy's piece** once on their side
 - Counts toward enemy's lane win, targetable as enemy piece (see Raid Mechanics above)
+- If the placer already has 4 pieces on the lane after their placement, the retaliation **fizzles** (no raid piece) — it would otherwise win the lane for them, mirroring Raid's lane-targeting guard
 
 ---
 
@@ -482,7 +494,7 @@ Note: This means 2 full turns pass before resolution, giving opponent time to re
 | **Category** | Utility |
 | **Target** | Your side of chosen lane |
 | **Timing** | Instant |
-| **Effect** | Cancel and remove ALL triggers/markers on YOUR side of the chosen lane, regardless of who placed them. Removes: placement triggers (Portal, Trap, Mirror, Echo, Shockwave), removal triggers (Hydra, Backfire, Absorb), deferred effects (not the pieces themselves), and duration markers. **Primary use:** Defensive - clear opponent's traps and triggers from your lane. **Side effect:** Your own effects on that lane are also removed. **Raid/Deferred pieces:** Nullify removes the pending effect but the piece itself stays on the lane as a normal piece. |
+| **Effect** | Cancel and remove ALL effects on the chosen lane, regardless of who placed them. Removes: placement triggers (Portal, Trap, Mirror, Echo, Shockwave, Retaliate), removal triggers (Hydra, Backfire, Absorb), deferred effects (not the pieces themselves), pending Raids targeting the lane, Freeze on the lane, and both players' Sanctuary/Capture markers on the lane. **Primary use:** Defensive - clear opponent's traps and triggers from your lane. **Side effect:** Your own effects on that lane are also removed. **Raid/Deferred pieces:** Nullify removes the pending effect but the piece itself stays on the lane as a normal piece. |
 
 ---
 
@@ -624,7 +636,7 @@ When both players fill their side of a lane on the same action (rare, but possib
 - CAN be removed by RemoveEnemy or other removal effects
 - If removed before resolution, deferred effect is cancelled
 - Removal triggers (Hydra, Backfire, Absorb) mark LANES, not pieces
-- Removal of any piece on a marked lane triggers the effect
+- Any enemy-caused removal of a piece on a marked lane triggers the effect (see the scope note under Removal Triggers)
 - **Example:** If an Enlist piece is removed and Hydra is on that lane, Hydra fires (you get +2 pieces on random lanes)
 
 **Nullify interaction:** When Nullify targets a lane with deferred pieces, the deferred EFFECT is cancelled but the piece itself remains as a normal piece. This differs from opponent removal (which removes both piece and effect). This asymmetry is intentional - Nullify has a "softer" cost when used on your own effects.
@@ -698,7 +710,7 @@ When a lane is won:
 | 40 | Enlist | Offensive | Choose your lane | Deferred | Capture + relocate enemy piece |
 | 41 | Ambush | Offensive | Choose your lane | Deferred | Remove enemy from lane/adjacent |
 | 42 | Reinforce | Utility | Choose your lane | Deferred | +1 bonus piece next turn |
-| 48 | Nullify | Utility | Choose your lane | Instant | Cancel opponent's triggers on your lane |
+| 48 | Nullify | Utility | Choose your lane | Instant | Cancel all triggers & markers on a lane |
 | 50 | Capture | Offensive | Choose your lane | Duration | Removed enemies become yours |
 | 51 | Raid | Offensive | Choose enemy lane | Deferred | Place on enemy side, roll for recruits |
 
@@ -711,7 +723,7 @@ When a lane is won:
 This checklist confirms all ambiguities have been resolved in this document:
 
 - [x] What are perk IDs vs sequential numbers? → Permanent IDs, gaps are intentional
-- [x] How does Cloak/Blind affect targeting? → Memory-based, no mechanical restriction
+- [x] How does Cloak/Blind affect targeting? → Cloak blocks RemoveEnemy/Disrupt/Disperse targeting; Blind gives the AI a frozen belief state (visual-only for pass-and-play humans)
 - [x] What order do triggers fire when multiple exist? → FIFO by placement order
 - [x] What can Nullify target? → Your lane only (defensive perk)
 - [x] Who wins if both fill a lane simultaneously? → First to fill / action order
