@@ -1,31 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
-import { AdventureMapDef, loadAdventureMap } from '../adventure/map';
-import { JourneyMeta, nextJourney } from '../adventure/levels';
-import { hasSavedJourney } from '../adventure/progress';
-import { ALL_HEROES, HeroType, heroByType } from '../game/hero';
-import { BASE_URL, ui } from './assets';
+import { CHARACTERS, CharacterId, characterById } from '../game/characters';
+import { CampaignMapDef, CampaignMapId, loadAllCampaignMaps } from '../campaign/model';
+import { CampaignController } from '../campaign/controller';
+import { BASE_URL } from './assets';
 import { preloadGameImages } from './preload';
-import { AI_DIFFICULTIES, AIDifficulty, HeroSelect } from './HeroSelect';
-import { AdventureMap } from './AdventureMap';
+import { AI_DIFFICULTIES, AIDifficulty, CharacterSelect } from './CharacterSelect';
+import { CampaignMap } from './CampaignMap';
+import { MapSelect } from './MapSelect';
+import { Roster } from './Roster';
 import { HowToPlay } from './HowToPlay';
-import { LevelSelect } from './LevelSelect';
 import { Combat } from './Combat';
 
 type View =
   | { name: 'home' }
   | { name: 'howto' }
-  | { name: 'levels' }
-  | { name: 'heroSelect'; journeyId: string }
-  | { name: 'adventure'; journeyId: string; newJourneyHero?: HeroType }
-  // Standalone battles (outside Adventure)
-  | { name: 'soloHeroSelect' }
-  | { name: 'duelHeroSelect'; p1?: HeroType }
-  | { name: 'battle'; p1: HeroType; p2: HeroType; vsAI: boolean; difficulty: AIDifficulty };
+  // Campaign
+  | { name: 'mapSelect' }
+  | { name: 'roster' }
+  | { name: 'campaign'; mapId: CampaignMapId }
+  // Standalone battles (outside the campaign)
+  | { name: 'quickCharSelect' }
+  | { name: 'duelCharSelect'; p1?: CharacterId }
+  | { name: 'battle'; p1: CharacterId; p2: CharacterId; vsAI: boolean; difficulty: AIDifficulty };
 
-/** Rival for a solo battle: a random hero other than the player's pick. */
-function randomRival(p1: HeroType): HeroType {
-  const others = ALL_HEROES.filter((h) => h.type !== p1);
-  return others[Math.floor(Math.random() * others.length)].type;
+/** Rival for a quick match: any character other than the player's pick. */
+function randomRival(p1: CharacterId): CharacterId {
+  const others = CHARACTERS.filter((c) => c.id !== p1);
+  return others[Math.floor(Math.random() * others.length)].id;
 }
 
 const SOLO_DIFFICULTY_KEY = 'solo_difficulty_v1';
@@ -54,67 +55,54 @@ export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
   const [soloDifficulty, setSoloDifficulty] = useState<AIDifficulty>(loadSoloDifficulty);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // All game art loads up front behind a progress bar, so no screen ever
-  // paints with half-loaded images (the adventure map used to swap biome
-  // backgrounds mid-scroll while they streamed in).
+  // Game art loads up front behind a progress bar so no screen paints with
+  // half-loaded images; the three campaign map JSONs ride along (they are
+  // tiny and the controller needs all of them for cross-map withdrawal).
   const [assetProgress, setAssetProgress] = useState(0);
   const [assetsReady, setAssetsReady] = useState(false);
-  // Journey maps load on demand (bigger levels shouldn't delay first paint)
-  // and are cached for the session.
-  const mapsRef = useRef<Map<string, AdventureMapDef>>(new Map());
-  const [, setLoadedCount] = useState(0);
-
-  const journeyId = view.name === 'adventure' ? view.journeyId : null;
-  const map = journeyId ? mapsRef.current.get(journeyId) : undefined;
+  const controllerRef = useRef<CampaignController | null>(null);
 
   useEffect(() => {
     let stale = false;
-    void preloadGameImages((fraction) => {
+    const images = preloadGameImages((fraction) => {
       if (!stale) setAssetProgress(fraction);
-    }).then(() => {
-      if (!stale) setAssetsReady(true);
     });
-    return () => {
-      stale = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!journeyId || mapsRef.current.has(journeyId)) return;
-    let stale = false;
-    loadAdventureMap(BASE_URL, journeyId)
-      .then((loaded) => {
+    const maps = loadAllCampaignMaps(BASE_URL);
+    Promise.all([images, maps])
+      .then(([, loadedMaps]: [unknown, Record<CampaignMapId, CampaignMapDef>]) => {
         if (stale) return;
-        mapsRef.current.set(journeyId, loaded);
-        setLoadedCount((c) => c + 1);
+        controllerRef.current = new CampaignController(loadedMaps);
+        setAssetsReady(true);
       })
       .catch((e) => !stale && setLoadError(String(e)));
     return () => {
       stale = true;
     };
-  }, [journeyId]);
+  }, []);
 
-  if (!assetsReady) {
-    const percent = Math.round(assetProgress * 100);
-    return (
-      <div className="app screen menu-home boot-screen">
-        <h1 className="boot-title">Kiddie Chess</h1>
-        <div className="boot-bar">
-          <div className="boot-bar-fill" style={{ width: `${percent}%` }} />
-        </div>
-        <p className="boot-label">Loading… {percent}%</p>
-      </div>
-    );
-  }
+  const controller = controllerRef.current;
 
   if (loadError) {
     return (
       <div className="app screen doodle-bg menu-home">
         <h1 className="menu-error">Oops!</h1>
-        <p className="menu-error-detail">Could not load the adventure map.</p>
+        <p className="menu-error-detail">Could not load Neon City.</p>
         <p className="menu-error-detail" style={{ fontSize: 12 }}>
           {loadError}
         </p>
+      </div>
+    );
+  }
+
+  if (!assetsReady || !controller) {
+    const percent = Math.round(assetProgress * 100);
+    return (
+      <div className="app screen menu-home boot-screen">
+        <h1 className="boot-title neon-title">NEON CITY</h1>
+        <div className="boot-bar">
+          <div className="boot-bar-fill" style={{ width: `${percent}%` }} />
+        </div>
+        <p className="boot-label">Booting… {percent}%</p>
       </div>
     );
   }
@@ -127,46 +115,57 @@ export function App() {
     );
   }
 
-  if (view.name === 'levels') {
+  if (view.name === 'mapSelect') {
     return (
       <div className="app">
-        <LevelSelect
+        <MapSelect
+          controller={controller}
           onBack={() => setView({ name: 'home' })}
-          onPick={(journey: JourneyMeta) => setView({ name: 'adventure', journeyId: journey.id })}
+          onRoster={() => setView({ name: 'roster' })}
+          onPick={(mapId) => setView({ name: 'campaign', mapId })}
         />
       </div>
     );
   }
 
-  if (view.name === 'heroSelect') {
+  if (view.name === 'roster') {
     return (
       <div className="app">
-        <HeroSelect
-          onBack={() => setView({ name: 'levels' })}
-          onPick={(hero) =>
-            setView({ name: 'adventure', journeyId: view.journeyId, newJourneyHero: hero })
-          }
+        <Roster controller={controller} onBack={() => setView({ name: 'mapSelect' })} />
+      </div>
+    );
+  }
+
+  if (view.name === 'campaign') {
+    return (
+      <div className="app">
+        <CampaignMap
+          key={view.mapId}
+          controller={controller}
+          mapId={view.mapId}
+          onExit={() => setView({ name: 'mapSelect' })}
+          onOpenMap={(mapId) => setView({ name: 'campaign', mapId })}
         />
       </div>
     );
   }
 
-  // Play Solo: pick your hero and rival difficulty, then fight a random rival.
-  if (view.name === 'soloHeroSelect') {
+  // Quick Match: pick your character and rival difficulty, then fight.
+  if (view.name === 'quickCharSelect') {
     return (
       <div className="app">
-        <HeroSelect
+        <CharacterSelect
           onBack={() => setView({ name: 'home' })}
           difficulty={soloDifficulty}
           onDifficultyChange={(d) => {
             setSoloDifficulty(d);
             saveSoloDifficulty(d);
           }}
-          onPick={(hero) =>
+          onPick={(id) =>
             setView({
               name: 'battle',
-              p1: hero,
-              p2: randomRival(hero),
+              p1: id,
+              p2: randomRival(id),
               vsAI: true,
               difficulty: soloDifficulty,
             })
@@ -176,23 +175,23 @@ export function App() {
     );
   }
 
-  // 2 Players (same device): each player picks a hero, then pass-and-play.
-  if (view.name === 'duelHeroSelect') {
+  // 2 Players (same device): each player picks a character, then pass-and-play.
+  if (view.name === 'duelCharSelect') {
     const pickingP1 = view.p1 === undefined;
     return (
       <div className="app">
-        <HeroSelect
+        <CharacterSelect
           key={pickingP1 ? 'p1' : 'p2'}
           playerLabel={pickingP1 ? 'Player 1' : 'Player 2'}
           backLabel={pickingP1 ? 'Back to menu' : 'Back'}
-          onBack={() => setView(pickingP1 ? { name: 'home' } : { name: 'duelHeroSelect' })}
-          onPick={(hero) =>
+          onBack={() => setView(pickingP1 ? { name: 'home' } : { name: 'duelCharSelect' })}
+          onPick={(id) =>
             pickingP1
-              ? setView({ name: 'duelHeroSelect', p1: hero })
+              ? setView({ name: 'duelCharSelect', p1: id })
               : setView({
                   name: 'battle',
                   p1: view.p1!,
-                  p2: hero,
+                  p2: id,
                   vsAI: false,
                   difficulty: 'medium',
                 })
@@ -207,8 +206,8 @@ export function App() {
       <div className="app">
         <Combat
           key={`${view.p1}-${view.p2}-${view.vsAI}-${view.difficulty}`}
-          player1Hero={heroByType(view.p1)}
-          player2Hero={heroByType(view.p2)}
+          player1Team={[characterById(view.p1)]}
+          player2Team={[characterById(view.p2)]}
           aiDifficulty={view.difficulty}
           player2IsAI={view.vsAI}
           exitLabel="Back to Menu"
@@ -218,68 +217,28 @@ export function App() {
     );
   }
 
-  if (view.name === 'adventure') {
-    if (!map) {
-      return (
-        <div className="app screen doodle-bg menu-home">
-          <div className="spinner" />
-        </div>
-      );
-    }
-    // Picking a level with no saved journey goes to hero selection first.
-    if (!view.newJourneyHero && !hasSavedJourney(map.id)) {
-      return (
-        <div className="app">
-          <HeroSelect
-            onBack={() => setView({ name: 'levels' })}
-            onPick={(hero) =>
-              setView({ name: 'adventure', journeyId: map.id, newJourneyHero: hero })
-            }
-          />
-        </div>
-      );
-    }
-    return (
-      <div className="app">
-        <AdventureMap
-          key={`${map.id}:${view.newJourneyHero ?? 'resume'}`}
-          map={map}
-          newJourneyHero={view.newJourneyHero}
-          onExit={() => setView({ name: 'levels' })}
-          onNewJourney={() => setView({ name: 'heroSelect', journeyId: map.id })}
-          onNextLevel={(hero) => {
-            const next = nextJourney(map.id);
-            if (next) setView({ name: 'adventure', journeyId: next.id, newJourneyHero: hero });
-          }}
-        />
-      </div>
-    );
-  }
-
-  // Home — logo + the three game modes.
+  // Home — neon logo + the three game modes.
   return (
     <div className="app screen doodle-bg menu-home">
-      <img
-        className="menu-logo"
-        src={ui.logo}
-        alt="Kiddie Chess"
-        onError={(e) => (e.currentTarget.style.display = 'none')}
-      />
-      <div style={{ height: 48 }} />
+      <h1 className="neon-title menu-logo-text">
+        NEON CITY
+        <span className="neon-subtitle">Bug Busters</span>
+      </h1>
+      <div style={{ height: 40 }} />
+      <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'mapSelect' })}>
+        Campaign
+      </button>
+      <div style={{ height: 16 }} />
       <button
         className="img-btn yellow menu-btn"
-        onClick={() => setView({ name: 'soloHeroSelect' })}
+        onClick={() => setView({ name: 'quickCharSelect' })}
       >
-        Play Solo
-      </button>
-      <div style={{ height: 16 }} />
-      <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'levels' })}>
-        Adventure
+        Quick Match
       </button>
       <div style={{ height: 16 }} />
       <button
         className="img-btn yellow menu-btn"
-        onClick={() => setView({ name: 'duelHeroSelect' })}
+        onClick={() => setView({ name: 'duelCharSelect' })}
       >
         2 Players
       </button>

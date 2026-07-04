@@ -8,8 +8,25 @@
 
 import { describe, it, expect } from 'vitest';
 import { playSeries } from './simulate';
+import { buildPerkPools } from './characters';
 
 const N = 600;
+
+describe('character-bound pools stay playable', () => {
+  it('a 3-starter team vs a 3-defender crew finishes without stalling', () => {
+    const r = playSeries({
+      games: 200,
+      player1Difficulty: 'medium',
+      player2Difficulty: 'medium',
+      seed: 55,
+      player1PerkPools: buildPerkPools(['bitzy', 'pixel', 'sparky']),
+      player2PerkPools: buildPerkPools(['popcorn', 'swipe', 'static']),
+    });
+    expect(r.draws).toBe(0);
+    expect(r.avgTurns).toBeLessThan(80);
+    expect(r.player1Wins + r.player2Wins).toBe(200);
+  });
+});
 
 describe('seat fairness (first-mover compensation)', () => {
   it.each(['easy', 'medium', 'hard'])('mirror %s is near 50/50', (diff) => {

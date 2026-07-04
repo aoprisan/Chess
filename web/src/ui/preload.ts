@@ -1,38 +1,16 @@
 // Boot-time image preloader. Screens paint their art the moment they mount,
-// so any PNG still in flight pops in visibly — the adventure map's biome
-// panels and node art swapped mid-scroll on slow connections. Loading every
-// gameplay image behind the boot progress bar (see App.tsx) guarantees each
-// screen paints complete on its first frame. The PWA service worker precaches
-// the same files for offline play, but the very first visit still streams
-// them from the network — this makes that first load explicit instead of
-// letting it happen mid-game.
+// so any image still in flight pops in visibly. Loading every gameplay image
+// behind the boot progress bar (see App.tsx) guarantees each screen paints
+// complete on its first frame. The UI chrome is CSS-drawn, so the only art
+// is the character portraits; missing files resolve instantly and the
+// CharacterPortrait fallback tile takes over.
 
-import { Biome, ObstacleType } from '../adventure/map';
-import { ALL_HEROES } from '../game/hero';
-import { biomeBg, heroImage, obstacleArt, ui } from './assets';
+import { CHARACTERS } from '../game/characters';
+import { asset } from './assets';
 
-const BIOMES: Biome[] = ['meadow', 'forest', 'peaks'];
-
-const OBSTACLES: ObstacleType[] = [
-  'fallenLog',
-  'riverRaft',
-  'sleepingCub',
-  'tangledVines',
-  'ropeBridge',
-  'snowballBoulder',
-  'icePatch',
-];
-
-/** Every image the game can show: UI chrome, biome panels, obstacles, heroes. */
+/** Every image the game can show: the character portraits. */
 export function gameImageUrls(): string[] {
-  return [
-    ...new Set([
-      ...Object.values(ui),
-      ...BIOMES.map(biomeBg),
-      ...OBSTACLES.map(obstacleArt),
-      ...ALL_HEROES.map((h) => heroImage(h.imagePath)),
-    ]),
-  ];
+  return [...new Set(CHARACTERS.map((c) => asset(c.portrait)))];
 }
 
 // Keep loaded images referenced for the whole session so the browser
@@ -49,7 +27,7 @@ function loadImage(url: string): Promise<void> {
     load = new Promise<void>((resolve) => {
       const img = new Image();
       // A missing or broken file must never block the game from starting;
-      // it just falls back to today's pop-in behavior for that one image.
+      // portraits without art fall back to the CSS placeholder tile.
       img.onload = () => resolve();
       img.onerror = () => resolve();
       img.src = url;

@@ -26,6 +26,7 @@ import {
 } from './state';
 import { RNG, MathRandomRNG } from './rng';
 import { PerkSlot, getPerk, SLOT3_POOL, SLOT4_POOL } from './perks';
+import type { PerkPools } from './characters';
 
 export interface EngineConfig {
   player1Hero?: string | null;
@@ -34,6 +35,13 @@ export interface EngineConfig {
   player2IsAI?: boolean;
   player1AIDifficulty?: string;
   player2AIDifficulty?: string;
+  /**
+   * Per-side perk pools for slots 3/4, built from the characters present in
+   * the battle (see buildPerkPools). Omitted → full catalog pools (quick
+   * match, 2-player, and all pre-campaign behavior — byte-identical rolls).
+   */
+  player1PerkPools?: PerkPools;
+  player2PerkPools?: PerkPools;
   rng?: RNG;
   /**
    * Compensation for the first-mover advantage (player1 always moves first).
@@ -84,6 +92,9 @@ export class CombatEngine {
 
   firstMoveCompensation: 'none' | 'skipFirstPerk' | 'bonusPiece';
 
+  /** Slot 3/4 pools per side; defaults to the full catalog pools. */
+  private perkPools: Record<PlayerSide, PerkPools>;
+
   private nextTriggerOrder = 0;
   private isAutoPlacing = false;
   private turnCounter = 0;
@@ -107,6 +118,10 @@ export class CombatEngine {
     this.player2IsAI = cfg.player2IsAI ?? false;
     this.player1AIDifficulty = cfg.player1AIDifficulty ?? 'medium';
     this.player2AIDifficulty = cfg.player2AIDifficulty ?? 'medium';
+    this.perkPools = {
+      player1: cfg.player1PerkPools ?? { slot3: SLOT3_POOL, slot4: SLOT4_POOL },
+      player2: cfg.player2PerkPools ?? { slot3: SLOT3_POOL, slot4: SLOT4_POOL },
+    };
     this.state = initialState(gameId, cfg.player1Hero ?? null, cfg.player2Hero ?? null);
     this.currentPerkSlots = this.generatePerkSlots();
   }
@@ -139,8 +154,13 @@ export class CombatEngine {
         disabled: !this.isRemoveEnemyAvailable(this.state.currentPlayer),
       },
     ];
-    const slot3Id = SLOT3_POOL[this.rng.nextInt(SLOT3_POOL.length)];
-    const slot4Id = SLOT4_POOL[this.rng.nextInt(SLOT4_POOL.length)];
+    // Character-bound pools; an empty side falls back to the full catalog
+    // pool so a battle can never run out of slot options.
+    const pools = this.perkPools[this.state.currentPlayer];
+    const pool3 = pools.slot3.length > 0 ? pools.slot3 : SLOT3_POOL;
+    const pool4 = pools.slot4.length > 0 ? pools.slot4 : SLOT4_POOL;
+    const slot3Id = pool3[this.rng.nextInt(pool3.length)];
+    const slot4Id = pool4[this.rng.nextInt(pool4.length)];
     slots.push({
       slotIndex: 2,
       perkId: slot3Id,
@@ -1068,7 +1088,7 @@ export class CombatEngine {
       const laneIdx = raid.lane;
       if (this.state.lanes[laneIdx].winner !== null) continue;
       const roll = this.rng.nextInt(100);
-      const label = raid.source === 'RAID' ? 'Raid' : 'Retaliate raid';
+      const label = raid.source === 'RAID' ? 'Probe' : 'Bounce Back probe';
 
       if (roll < 10) {
         // 10% lost

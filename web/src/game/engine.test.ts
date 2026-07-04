@@ -27,6 +27,58 @@ describe('perk catalog', () => {
   });
 });
 
+describe('character-bound perk pools', () => {
+  it('slots 3/4 draw only from each side\'s own pools across many turns', () => {
+    const e = new CombatEngine('test', {
+      rng: new SeededRNG(7),
+      player1PerkPools: { slot3: [4, 26], slot4: [42, 39] },
+      player2PerkPools: { slot3: [25], slot4: [38, 13, 31] },
+    });
+    for (let i = 0; i < 60; i++) {
+      const slots = e.generatePerkSlots();
+      expect(slots[0].perkId).toBe(1);
+      expect(slots[1].perkId).toBe(2);
+      if (e.state.currentPlayer === 'player1') {
+        expect([4, 26]).toContain(slots[2].perkId);
+        expect([42, 39]).toContain(slots[3].perkId);
+      } else {
+        expect(slots[2].perkId).toBe(25); // 1-perk pool always offers the signature
+        expect([38, 13, 31]).toContain(slots[3].perkId);
+      }
+      e.state.currentPlayer = e.state.currentPlayer === 'player1' ? 'player2' : 'player1';
+    }
+  });
+
+  it('an empty side-pool falls back to the full catalog pool', () => {
+    const e = new CombatEngine('test', {
+      rng: new SeededRNG(3),
+      player1PerkPools: { slot3: [4, 26, 49], slot4: [] },
+    });
+    const seen = new Set<number>();
+    for (let i = 0; i < 80; i++) {
+      const slots = e.generatePerkSlots();
+      expect([4, 26, 49]).toContain(slots[2].perkId);
+      expect(SLOT4_POOL).toContain(slots[3].perkId);
+      seen.add(slots[3].perkId);
+    }
+    expect(seen.size).toBeGreaterThan(3); // genuinely sampling the full pool
+  });
+
+  it('omitted pools reproduce legacy full-catalog rolls (regression)', () => {
+    const legacy = new CombatEngine('test', { rng: new SeededRNG(42) });
+    const explicit = new CombatEngine('test', {
+      rng: new SeededRNG(42),
+      player1PerkPools: { slot3: SLOT3_POOL, slot4: SLOT4_POOL },
+      player2PerkPools: { slot3: SLOT3_POOL, slot4: SLOT4_POOL },
+    });
+    for (let i = 0; i < 40; i++) {
+      expect(explicit.generatePerkSlots().map((s) => s.perkId)).toEqual(
+        legacy.generatePerkSlots().map((s) => s.perkId),
+      );
+    }
+  });
+});
+
 describe('basic placement & win detection', () => {
   it('placeOnLane fills columns front-first', () => {
     const e = engine();

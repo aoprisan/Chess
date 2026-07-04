@@ -1,0 +1,392 @@
+{
+  "id": "map_1",
+  "name": "Street Grid",
+  "heightFactor": 2.4,
+  "entryNodeId": "n02",
+  "nodes": [
+    {
+      "id": "n01",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "popcorn",
+        "forky"
+      ],
+      "difficulty": "medium",
+      "x": 0.148,
+      "y": 0.945,
+      "district": "neon-strip",
+      "connections": [
+        "n02",
+        "n04"
+      ]
+    },
+    {
+      "id": "n02",
+      "kind": "entry",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.502,
+      "y": 0.943,
+      "district": "neon-strip",
+      "connections": [
+        "n01",
+        "n03"
+      ]
+    },
+    {
+      "id": "n03",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "reverb",
+        "scatterbug"
+      ],
+      "difficulty": "medium",
+      "x": 0.828,
+      "y": 0.944,
+      "district": "neon-strip",
+      "connections": [
+        "n02",
+        "n06"
+      ]
+    },
+    {
+      "id": "n04",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.171,
+      "y": 0.826,
+      "district": "neon-strip",
+      "connections": [
+        "n01",
+        "n07"
+      ]
+    },
+    {
+      "id": "n05",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.486,
+      "y": 0.809,
+      "district": "neon-strip",
+      "connections": [
+        "n06",
+        "n08"
+      ]
+    },
+    {
+      "id": "n06",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "swipe",
+        "forky",
+        "popcorn"
+      ],
+      "difficulty": "medium",
+      "x": 0.828,
+      "y": 0.823,
+      "district": "neon-strip",
+      "connections": [
+        "n03",
+        "n05",
+        "n09"
+      ]
+    },
+    {
+      "id": "n07",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "recruta",
+        "popcorn"
+      ],
+      "difficulty": "medium",
+      "x": 0.161,
+      "y": 0.702,
+      "district": "neon-strip",
+      "connections": [
+        "n04",
+        "n10"
+      ]
+    },
+    {
+      "id": "n08",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.499,
+      "y": 0.686,
+      "district": "neon-strip",
+      "connections": [
+        "n05",
+        "n11"
+      ]
+    },
+    {
+      "id": "n09",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "popcorn"
+      ],
+      "difficulty": "easy",
+      "x": 0.811,
+      "y": 0.693,
+      "district": "neon-strip",
+      "connections": [
+        "n06",
+        "n12"
+      ]
+    },
+    {
+      "id": "n10",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.143,
+      "y": 0.565,
+      "district": "market",
+      "connections": [
+        "n07",
+        "n11",
+        "n13"
+      ]
+    },
+    {
+      "id": "n11",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "forky",
+        "swipe"
+      ],
+      "difficulty": "medium",
+      "x": 0.513,
+      "y": 0.567,
+      "district": "market",
+      "connections": [
+        "n08",
+        "n10",
+        "n12",
+        "n14"
+      ]
+    },
+    {
+      "id": "n12",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "scatterbug",
+        "recruta"
+      ],
+      "difficulty": "medium",
+      "x": 0.811,
+      "y": 0.574,
+      "district": "market",
+      "connections": [
+        "n09",
+        "n11",
+        "n15"
+      ]
+    },
+    {
+      "id": "n13",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.144,
+      "y": 0.45,
+      "district": "market",
+      "connections": [
+        "n10",
+        "n16"
+      ]
+    },
+    {
+      "id": "n14",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "popcorn",
+        "swipe"
+      ],
+      "difficulty": "medium",
+      "x": 0.478,
+      "y": 0.447,
+      "district": "market",
+      "connections": [
+        "n11",
+        "n15",
+        "n17"
+      ]
+    },
+    {
+      "id": "n15",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.851,
+      "y": 0.447,
+      "district": "market",
+      "connections": [
+        "n12",
+        "n14",
+        "n18"
+      ]
+    },
+    {
+      "id": "n16",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "forky",
+        "recruta"
+      ],
+      "difficulty": "medium",
+      "x": 0.179,
+      "y": 0.334,
+      "district": "market",
+      "connections": [
+        "n13",
+        "n19"
+      ]
+    },
+    {
+      "id": "n17",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "scatterbug"
+      ],
+      "difficulty": "easy",
+      "x": 0.506,
+      "y": 0.317,
+      "district": "market",
+      "connections": [
+        "n14",
+        "n20"
+      ]
+    },
+    {
+      "id": "n18",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.816,
+      "y": 0.319,
+      "district": "market",
+      "connections": [
+        "n15",
+        "n21"
+      ]
+    },
+    {
+      "id": "n19",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "reverb",
+        "forky"
+      ],
+      "difficulty": "medium",
+      "x": 0.167,
+      "y": 0.193,
+      "district": "arcade",
+      "connections": [
+        "n16",
+        "n22"
+      ]
+    },
+    {
+      "id": "n20",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "forky",
+        "recruta"
+      ],
+      "difficulty": "medium",
+      "x": 0.507,
+      "y": 0.195,
+      "district": "arcade",
+      "connections": [
+        "n17",
+        "n23"
+      ]
+    },
+    {
+      "id": "n21",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "swipe"
+      ],
+      "difficulty": "easy",
+      "x": 0.817,
+      "y": 0.194,
+      "district": "arcade",
+      "connections": [
+        "n18",
+        "n24"
+      ]
+    },
+    {
+      "id": "n22",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "reverb",
+        "scatterbug"
+      ],
+      "difficulty": "medium",
+      "x": 0.19,
+      "y": 0.079,
+      "district": "arcade",
+      "connections": [
+        "n19"
+      ]
+    },
+    {
+      "id": "n23",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "swipe",
+        "popcorn",
+        "forky"
+      ],
+      "difficulty": "hard",
+      "x": 0.482,
+      "y": 0.085,
+      "district": "arcade",
+      "connections": [
+        "n20"
+      ]
+    },
+    {
+      "id": "n24",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.825,
+      "y": 0.085,
+      "district": "arcade",
+      "connections": [
+        "n21"
+      ]
+    }
+  ]
+}

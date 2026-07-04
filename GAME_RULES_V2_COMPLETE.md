@@ -2,6 +2,8 @@
 
 This document provides the complete rules for the V2 game system, including all 32 perks.
 
+> **Neon City note:** the shipped game ("Neon City: Bug Busters") uses these exact mechanics with reflavored perk names (e.g. Freeze→Lockdown, Trap→Honeypot, RemoveEnemy→Debug Zap; full mapping in `web/src/game/perks.ts`, keyed by the same permanent perk IDs used below). In campaign battles, slots 3 and 4 draw only from the perks owned by the characters present in the battle, on both sides.
+
 ---
 
 ## 1. Core Rules
