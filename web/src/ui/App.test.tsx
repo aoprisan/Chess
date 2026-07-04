@@ -14,7 +14,7 @@ vi.mock('./preload', () => ({
 }));
 
 beforeAll(() => {
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
   // Combat and AdventureMap measure themselves and honor reduced motion.
   globalThis.ResizeObserver = class {
     observe() {}
