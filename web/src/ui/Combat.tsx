@@ -798,35 +798,147 @@ function GameBoard({
   return (
     <div className="game-field" ref={boardRef} style={{ flex: 1, borderRadius: radius }}>
       <div className="field-inner" style={{ margin: padding }}>
-        {/* Grid lines — magenta like the neon board concept art */}
+        {/* Cyan energy core rising from the board center (concept art) */}
+        <div className="field-core" />
+
+        {/* Neon grid — hot magenta major lines with bloom over a faint
+            sub-grid, lit junctions, and cyan connector details, matching
+            the pink holo-board concept art. */}
         {bw > 0 && (
           <svg
             width={bw}
             height={bh}
             style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
           >
-            {Array.from({ length: 9 }, (_, i) => (
+            {/* faint sub-grid at half-cell pitch */}
+            {Array.from({ length: 10 }, (_, i) => (
               <line
-                key={`v${i}`}
-                x1={(i + 1) * cellW}
+                key={`mv${i}`}
+                x1={(i + 0.5) * cellW}
                 y1={0}
-                x2={(i + 1) * cellW}
+                x2={(i + 0.5) * cellW}
                 y2={bh}
-                stroke="rgba(255,47,214,0.24)"
+                stroke="rgba(255,47,214,0.1)"
                 strokeWidth={1}
               />
+            ))}
+            {Array.from({ length: 5 }, (_, i) => (
+              <line
+                key={`mh${i}`}
+                x1={0}
+                y1={(i + 0.5) * cellH}
+                x2={bw}
+                y2={(i + 0.5) * cellH}
+                stroke="rgba(255,47,214,0.1)"
+                strokeWidth={1}
+              />
+            ))}
+            {/* major lines: wide glow pass + bright core pass */}
+            {Array.from({ length: 9 }, (_, i) => (
+              <g key={`v${i}`}>
+                <line
+                  x1={(i + 1) * cellW}
+                  y1={0}
+                  x2={(i + 1) * cellW}
+                  y2={bh}
+                  stroke="rgba(255,47,214,0.4)"
+                  strokeWidth={5}
+                />
+                <line
+                  x1={(i + 1) * cellW}
+                  y1={0}
+                  x2={(i + 1) * cellW}
+                  y2={bh}
+                  stroke="rgba(255,150,238,0.95)"
+                  strokeWidth={1.5}
+                />
+              </g>
             ))}
             {Array.from({ length: 4 }, (_, i) => (
-              <line
-                key={`h${i}`}
-                x1={0}
-                y1={(i + 1) * cellH}
-                x2={bw}
-                y2={(i + 1) * cellH}
-                stroke="rgba(255,47,214,0.24)"
-                strokeWidth={1}
+              <g key={`h${i}`}>
+                <line
+                  x1={0}
+                  y1={(i + 1) * cellH}
+                  x2={bw}
+                  y2={(i + 1) * cellH}
+                  stroke="rgba(255,47,214,0.4)"
+                  strokeWidth={5}
+                />
+                <line
+                  x1={0}
+                  y1={(i + 1) * cellH}
+                  x2={bw}
+                  y2={(i + 1) * cellH}
+                  stroke="rgba(255,150,238,0.95)"
+                  strokeWidth={1.5}
+                />
+              </g>
+            ))}
+            {/* lit junction nodes at major intersections */}
+            {Array.from({ length: 9 }, (_, c) =>
+              Array.from({ length: 4 }, (_, r) => (
+                <g key={`j${c}-${r}`}>
+                  <circle
+                    cx={(c + 1) * cellW}
+                    cy={(r + 1) * cellH}
+                    r={4}
+                    fill="rgba(255,47,214,0.3)"
+                  />
+                  <circle
+                    cx={(c + 1) * cellW}
+                    cy={(r + 1) * cellH}
+                    r={1.7}
+                    fill="rgba(255,190,244,0.95)"
+                  />
+                </g>
+              )),
+            )}
+            {/* cyan corner brackets */}
+            {(
+              [
+                [4, 4, 1, 1],
+                [bw - 4, 4, -1, 1],
+                [4, bh - 4, 1, -1],
+                [bw - 4, bh - 4, -1, -1],
+              ] as const
+            ).map(([x, y, sx, sy], i) => (
+              <path
+                key={`cb${i}`}
+                d={`M ${x + sx * 16} ${y} L ${x} ${y} L ${x} ${y + sy * 16}`}
+                fill="none"
+                stroke="rgba(0,229,255,0.8)"
+                strokeWidth={2.5}
               />
             ))}
+            {/* cyan connector chips at the mid-edges */}
+            {(
+              [
+                [bw / 2 - 14, 1.5, 28, 4],
+                [bw / 2 - 14, bh - 5.5, 28, 4],
+                [1.5, bh / 2 - 14, 4, 28],
+                [bw - 5.5, bh / 2 - 14, 4, 28],
+              ] as const
+            ).map(([x, y, w, h], i) => (
+              <rect
+                key={`ec${i}`}
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                fill="rgba(0,229,255,0.55)"
+              />
+            ))}
+            {/* center emblem on the median line */}
+            <g>
+              <circle cx={bw / 2} cy={bh / 2} r={13} fill="rgba(0,229,255,0.12)" />
+              <path
+                d={`M ${bw / 2} ${bh / 2 - 9} L ${bw / 2 + 7} ${bh / 2} L ${bw / 2} ${bh / 2 + 9} L ${bw / 2 - 7} ${bh / 2} Z`}
+                fill="rgba(10,14,26,0.85)"
+                stroke="rgba(0,229,255,0.9)"
+                strokeWidth={1.5}
+              />
+              <circle cx={bw / 2} cy={bh / 2} r={2} fill="#00e5ff" />
+            </g>
           </svg>
         )}
 
