@@ -1,0 +1,802 @@
+{
+  "id": "map_2",
+  "name": "Metro Net",
+  "heightFactor": 4.8,
+  "entryNodeId": "n03",
+  "nodes": [
+    {
+      "id": "n01",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "sparkplug",
+        "warp",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.106,
+      "y": 0.949,
+      "district": "platform",
+      "connections": [
+        "n02",
+        "n05"
+      ]
+    },
+    {
+      "id": "n02",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.361,
+      "y": 0.94,
+      "district": "platform",
+      "connections": [
+        "n01",
+        "n06"
+      ]
+    },
+    {
+      "id": "n03",
+      "kind": "entry",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.618,
+      "y": 0.936,
+      "district": "platform",
+      "connections": [
+        "n07"
+      ]
+    },
+    {
+      "id": "n04",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "warp"
+      ],
+      "difficulty": "easy",
+      "x": 0.874,
+      "y": 0.937,
+      "district": "platform",
+      "connections": [
+        "n08"
+      ]
+    },
+    {
+      "id": "n05",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.114,
+      "y": 0.854,
+      "district": "platform",
+      "connections": [
+        "n01",
+        "n06",
+        "n09"
+      ]
+    },
+    {
+      "id": "n06",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "reverb",
+        "swipe",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.36,
+      "y": 0.865,
+      "district": "platform",
+      "connections": [
+        "n02",
+        "n05",
+        "n07",
+        "n10"
+      ]
+    },
+    {
+      "id": "n07",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.631,
+      "y": 0.866,
+      "district": "platform",
+      "connections": [
+        "n03",
+        "n06",
+        "n11"
+      ]
+    },
+    {
+      "id": "n08",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "twinsy",
+        "recruta",
+        "beacon"
+      ],
+      "difficulty": "hard",
+      "x": 0.863,
+      "y": 0.862,
+      "district": "platform",
+      "connections": [
+        "n04",
+        "n12"
+      ]
+    },
+    {
+      "id": "n09",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "shuffle",
+        "reverb",
+        "twinsy"
+      ],
+      "difficulty": "hard",
+      "x": 0.106,
+      "y": 0.792,
+      "district": "platform",
+      "connections": [
+        "n05",
+        "n13"
+      ]
+    },
+    {
+      "id": "n10",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "sparkplug",
+        "static",
+        "twinsy",
+        "warp"
+      ],
+      "difficulty": "hard",
+      "x": 0.367,
+      "y": 0.777,
+      "district": "platform",
+      "connections": [
+        "n06",
+        "n14"
+      ]
+    },
+    {
+      "id": "n11",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "beacon"
+      ],
+      "difficulty": "easy",
+      "x": 0.639,
+      "y": 0.776,
+      "district": "platform",
+      "connections": [
+        "n07",
+        "n12",
+        "n15"
+      ]
+    },
+    {
+      "id": "n12",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "warp",
+        "forky",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.874,
+      "y": 0.783,
+      "district": "platform",
+      "connections": [
+        "n08",
+        "n11",
+        "n16"
+      ]
+    },
+    {
+      "id": "n13",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "static"
+      ],
+      "difficulty": "easy",
+      "x": 0.136,
+      "y": 0.697,
+      "district": "tunnel",
+      "connections": [
+        "n09",
+        "n14",
+        "n17"
+      ]
+    },
+    {
+      "id": "n14",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "beacon"
+      ],
+      "difficulty": "easy",
+      "x": 0.394,
+      "y": 0.712,
+      "district": "tunnel",
+      "connections": [
+        "n10",
+        "n13",
+        "n15",
+        "n18"
+      ]
+    },
+    {
+      "id": "n15",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.632,
+      "y": 0.713,
+      "district": "tunnel",
+      "connections": [
+        "n11",
+        "n14",
+        "n19"
+      ]
+    },
+    {
+      "id": "n16",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.858,
+      "y": 0.707,
+      "district": "tunnel",
+      "connections": [
+        "n12",
+        "n20"
+      ]
+    },
+    {
+      "id": "n17",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.114,
+      "y": 0.637,
+      "district": "tunnel",
+      "connections": [
+        "n13",
+        "n18",
+        "n21"
+      ]
+    },
+    {
+      "id": "n18",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.356,
+      "y": 0.623,
+      "district": "tunnel",
+      "connections": [
+        "n14",
+        "n17"
+      ]
+    },
+    {
+      "id": "n19",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "sparkplug",
+        "popcorn",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.618,
+      "y": 0.636,
+      "district": "tunnel",
+      "connections": [
+        "n15",
+        "n20",
+        "n23"
+      ]
+    },
+    {
+      "id": "n20",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.89,
+      "y": 0.63,
+      "district": "tunnel",
+      "connections": [
+        "n16",
+        "n19"
+      ]
+    },
+    {
+      "id": "n21",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "beacon"
+      ],
+      "difficulty": "easy",
+      "x": 0.139,
+      "y": 0.549,
+      "district": "tunnel",
+      "connections": [
+        "n17",
+        "n25"
+      ]
+    },
+    {
+      "id": "n22",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "static",
+        "swipe",
+        "reverb",
+        "sparkplug"
+      ],
+      "difficulty": "hard",
+      "x": 0.362,
+      "y": 0.54,
+      "district": "tunnel",
+      "connections": [
+        "n23",
+        "n26"
+      ]
+    },
+    {
+      "id": "n23",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "twinsy",
+        "shuffle",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.634,
+      "y": 0.55,
+      "district": "tunnel",
+      "connections": [
+        "n19",
+        "n22",
+        "n27"
+      ]
+    },
+    {
+      "id": "n24",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.897,
+      "y": 0.557,
+      "district": "tunnel",
+      "connections": [
+        "n28"
+      ]
+    },
+    {
+      "id": "n25",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.108,
+      "y": 0.477,
+      "district": "junction",
+      "connections": [
+        "n21",
+        "n29"
+      ]
+    },
+    {
+      "id": "n26",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "shuffle",
+        "static",
+        "beacon"
+      ],
+      "difficulty": "hard",
+      "x": 0.352,
+      "y": 0.48,
+      "district": "junction",
+      "connections": [
+        "n22"
+      ]
+    },
+    {
+      "id": "n27",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.63,
+      "y": 0.468,
+      "district": "junction",
+      "connections": [
+        "n23",
+        "n28"
+      ]
+    },
+    {
+      "id": "n28",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.878,
+      "y": 0.479,
+      "district": "junction",
+      "connections": [
+        "n24",
+        "n27",
+        "n32"
+      ]
+    },
+    {
+      "id": "n29",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.149,
+      "y": 0.398,
+      "district": "junction",
+      "connections": [
+        "n25",
+        "n30",
+        "n33"
+      ]
+    },
+    {
+      "id": "n30",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "reverb",
+        "twinsy",
+        "swipe",
+        "sparkplug"
+      ],
+      "difficulty": "hard",
+      "x": 0.38,
+      "y": 0.389,
+      "district": "junction",
+      "connections": [
+        "n29",
+        "n34"
+      ]
+    },
+    {
+      "id": "n31",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "twinsy"
+      ],
+      "difficulty": "easy",
+      "x": 0.62,
+      "y": 0.399,
+      "district": "junction",
+      "connections": [
+        "n35"
+      ]
+    },
+    {
+      "id": "n32",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "warp",
+        "shuffle",
+        "forky"
+      ],
+      "difficulty": "hard",
+      "x": 0.872,
+      "y": 0.4,
+      "district": "junction",
+      "connections": [
+        "n28"
+      ]
+    },
+    {
+      "id": "n33",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "twinsy",
+        "swipe",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.121,
+      "y": 0.322,
+      "district": "junction",
+      "connections": [
+        "n29",
+        "n37"
+      ]
+    },
+    {
+      "id": "n34",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.381,
+      "y": 0.321,
+      "district": "junction",
+      "connections": [
+        "n30",
+        "n35"
+      ]
+    },
+    {
+      "id": "n35",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "sparkplug",
+        "static"
+      ],
+      "difficulty": "medium",
+      "x": 0.639,
+      "y": 0.318,
+      "district": "junction",
+      "connections": [
+        "n31",
+        "n34",
+        "n36",
+        "n39"
+      ]
+    },
+    {
+      "id": "n36",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.894,
+      "y": 0.319,
+      "district": "junction",
+      "connections": [
+        "n35",
+        "n40"
+      ]
+    },
+    {
+      "id": "n37",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "popcorn",
+        "warp",
+        "reverb",
+        "sparkplug"
+      ],
+      "difficulty": "hard",
+      "x": 0.133,
+      "y": 0.228,
+      "district": "depot",
+      "connections": [
+        "n33",
+        "n41"
+      ]
+    },
+    {
+      "id": "n38",
+      "kind": "junction",
+      "critical": false,
+      "defenders": [],
+      "difficulty": "easy",
+      "x": 0.375,
+      "y": 0.239,
+      "district": "depot",
+      "connections": [
+        "n39",
+        "n42"
+      ]
+    },
+    {
+      "id": "n39",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "forky",
+        "recruta",
+        "static"
+      ],
+      "difficulty": "hard",
+      "x": 0.645,
+      "y": 0.236,
+      "district": "depot",
+      "connections": [
+        "n35",
+        "n38",
+        "n40",
+        "n43"
+      ]
+    },
+    {
+      "id": "n40",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "beacon",
+        "swipe"
+      ],
+      "difficulty": "medium",
+      "x": 0.9,
+      "y": 0.232,
+      "district": "depot",
+      "connections": [
+        "n36",
+        "n39",
+        "n44"
+      ]
+    },
+    {
+      "id": "n41",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "twinsy",
+        "warp",
+        "sparkplug"
+      ],
+      "difficulty": "hard",
+      "x": 0.137,
+      "y": 0.167,
+      "district": "depot",
+      "connections": [
+        "n37",
+        "n45"
+      ]
+    },
+    {
+      "id": "n42",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "swipe"
+      ],
+      "difficulty": "easy",
+      "x": 0.388,
+      "y": 0.153,
+      "district": "depot",
+      "connections": [
+        "n38",
+        "n43",
+        "n46"
+      ]
+    },
+    {
+      "id": "n43",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "warp",
+        "forky",
+        "popcorn",
+        "swipe"
+      ],
+      "difficulty": "hard",
+      "x": 0.635,
+      "y": 0.149,
+      "district": "depot",
+      "connections": [
+        "n39",
+        "n42",
+        "n44",
+        "n47"
+      ]
+    },
+    {
+      "id": "n44",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "recruta",
+        "beacon"
+      ],
+      "difficulty": "medium",
+      "x": 0.862,
+      "y": 0.153,
+      "district": "depot",
+      "connections": [
+        "n40",
+        "n43",
+        "n48"
+      ]
+    },
+    {
+      "id": "n45",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "static"
+      ],
+      "difficulty": "easy",
+      "x": 0.108,
+      "y": 0.078,
+      "district": "depot",
+      "connections": [
+        "n41"
+      ]
+    },
+    {
+      "id": "n46",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "sparkplug",
+        "forky"
+      ],
+      "difficulty": "medium",
+      "x": 0.383,
+      "y": 0.088,
+      "district": "depot",
+      "connections": [
+        "n42"
+      ]
+    },
+    {
+      "id": "n47",
+      "kind": "system",
+      "critical": true,
+      "defenders": [
+        "reverb",
+        "static",
+        "twinsy"
+      ],
+      "difficulty": "hard",
+      "x": 0.609,
+      "y": 0.082,
+      "district": "depot",
+      "connections": [
+        "n43"
+      ]
+    },
+    {
+      "id": "n48",
+      "kind": "system",
+      "critical": false,
+      "defenders": [
+        "warp",
+        "reverb"
+      ],
+      "difficulty": "medium",
+      "x": 0.867,
+      "y": 0.079,
+      "district": "depot",
+      "connections": [
+        "n44"
+      ]
+    }
+  ]
+}
