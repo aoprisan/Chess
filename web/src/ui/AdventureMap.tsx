@@ -99,6 +99,10 @@ export function AdventureMap({
 
   const mapHeight = dims.height * map.heightFactor;
   const nodeSize = Math.max(52, Math.min(100, dims.width * 0.15));
+  // How far the lower biome's artwork fades up over the one above it, and how
+  // tall the cloud drift that sits on each seam is.
+  const seamFade = Math.max(90, Math.min(180, dims.height * 0.16));
+  const seamBand = Math.max(70, Math.min(130, dims.height * 0.12));
 
   // Center the camera on the hero after each (re)mount — both first load and
   // returning from a battle. This must wait until dims are measured and the
@@ -246,13 +250,35 @@ export function AdventureMap({
     <div className="screen">
       <div className="adv-scroll" ref={attachScroll}>
         <div className="adv-map" style={{ height: mapHeight }} onClick={onMapTap}>
-          {/* Biome backgrounds: peaks top, meadow bottom */}
+          {/* Biome backgrounds: peaks top, meadow bottom. The lower panels
+              extend up over the one above with a faded top edge so the
+              artworks cross-blend instead of cutting hard at the seam. */}
           <BiomePanel biome="peaks" top={0} height={mapHeight / 3} />
-          <BiomePanel biome="forest" top={mapHeight / 3} height={mapHeight / 3} />
-          <BiomePanel biome="meadow" top={(mapHeight / 3) * 2} height={mapHeight / 3} />
+          <BiomePanel biome="forest" top={mapHeight / 3} height={mapHeight / 3} fadeTop={seamFade} />
+          <BiomePanel biome="meadow" top={(mapHeight / 3) * 2} height={mapHeight / 3} fadeTop={seamFade} />
+
+          {/* A soft drift of clouds sits on each seam to hide the blend */}
+          {dims.width > 0 &&
+            SEAM_FRACTIONS.map((frac, i) => (
+              <CloudBand key={i} seed={(i + 1) * 37} width={dims.width} y={frac * mapHeight} height={seamBand} />
+            ))}
 
           {/* Dashed trails */}
           {dims.width > 0 && <Edges map={map} ctrl={ctrl} width={dims.width} height={mapHeight} />}
+
+          {/* Glowing portals where the trail crosses into the next biome */}
+          {dims.width > 0 &&
+            SEAM_FRACTIONS.flatMap((frac, i) =>
+              seamCrossings(map, frac).map((fx, j) => (
+                <PortalGate
+                  key={`${i}-${j}`}
+                  id={`${i}-${j}`}
+                  x={fx * dims.width}
+                  y={frac * mapHeight}
+                  size={nodeSize * 1.5}
+                />
+              )),
+            )}
 
           {/* Nodes */}
           {dims.width > 0 &&
@@ -363,12 +389,127 @@ export function AdventureMap({
   );
 }
 
-function BiomePanel({ biome, top, height }: { biome: Biome; top: number; height: number }) {
+function BiomePanel({
+  biome,
+  top,
+  height,
+  fadeTop = 0,
+}: {
+  biome: Biome;
+  top: number;
+  height: number;
+  /** Extend the panel this many px up over the previous one, fading in. */
+  fadeTop?: number;
+}) {
+  const mask = fadeTop > 0 ? `linear-gradient(to bottom, transparent 0, #000 ${fadeTop}px)` : undefined;
   return (
     <div
       className="biome-panel"
-      style={{ top, height, backgroundImage: `url(${biomeBg(biome)})` }}
+      style={{
+        top: top - fadeTop,
+        height: height + fadeTop,
+        backgroundImage: `url(${biomeBg(biome)})`,
+        WebkitMaskImage: mask,
+        maskImage: mask,
+      }}
     />
+  );
+}
+
+/** The map is split into three biome panels; these are the two seams. */
+const SEAM_FRACTIONS = [1 / 3, 2 / 3];
+
+/**
+ * Where the trail crosses a biome seam, as x fractions of map width —
+ * interpolated along each edge that straddles the seam, deduped so parallel
+ * branches crossing close together share one portal.
+ */
+function seamCrossings(map: AdventureMapDef, yFrac: number): number[] {
+  const xs: number[] = [];
+  for (const [a, b] of map.edges) {
+    const na = map.nodeById(a);
+    const nb = map.nodeById(b);
+    const [lo, hi] = na.y <= nb.y ? [na, nb] : [nb, na];
+    if (lo.y > yFrac || hi.y < yFrac || hi.y === lo.y) continue;
+    const t = (yFrac - lo.y) / (hi.y - lo.y);
+    const x = lo.x + (hi.x - lo.x) * t;
+    if (!xs.some((seen) => Math.abs(seen - x) < 0.08)) xs.push(x);
+  }
+  return xs;
+}
+
+/** Deterministic pseudo-random in [0,1) so cloud puffs keep their shape across re-renders. */
+function jitter(n: number): number {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** A blurred strip of cloud puffs laid across a biome seam. */
+function CloudBand({ seed, width, y, height }: { seed: number; width: number; y: number; height: number }) {
+  const step = height * 0.9;
+  const count = Math.ceil(width / step) + 2;
+  return (
+    <svg className="seam-clouds" width={width} height={height * 2} style={{ top: y - height }} aria-hidden>
+      <defs>
+        <filter id={`seam-blur-${seed}`} x="-20%" y="-50%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation={height * 0.14} />
+        </filter>
+      </defs>
+      <g filter={`url(#seam-blur-${seed})`} fill="#fff">
+        {Array.from({ length: count }, (_, i) => (
+          <ellipse
+            key={i}
+            cx={(i - 0.5) * step + jitter(seed + i) * step * 0.6}
+            cy={height + (jitter(seed + i + 40) - 0.5) * height * 0.5}
+            rx={height * (0.5 + jitter(seed + i + 80) * 0.4)}
+            ry={height * (0.22 + jitter(seed + i + 120) * 0.16)}
+            opacity={0.3 + jitter(seed + i + 160) * 0.25}
+          />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/** A glowing archway on the trail marking the doorway into the next biome. */
+function PortalGate({ id, x, y, size }: { id: string; x: number; y: number; size: number }) {
+  const h = size * 1.25;
+  return (
+    <div className="biome-portal" style={{ left: x - size / 2, top: y - h / 2, width: size, height: h }}>
+      <svg viewBox="0 0 100 125" width="100%" height="100%">
+        <defs>
+          <radialGradient id={`portal-glow-${id}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#FFF3C4" stopOpacity="0.7" />
+            <stop offset="60%" stopColor="#FFE082" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#FFE082" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={`portal-core-${id}`} cx="50%" cy="45%" r="65%">
+            <stop offset="0%" stopColor="#FFFDF4" stopOpacity="0.95" />
+            <stop offset="55%" stopColor="#FFECB3" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#FFD54F" stopOpacity="0.25" />
+          </radialGradient>
+        </defs>
+        <ellipse className="portal-halo" cx="50" cy="62" rx="48" ry="60" fill={`url(#portal-glow-${id})`} />
+        <ellipse cx="50" cy="62" rx="30" ry="44" fill={`url(#portal-core-${id})`} />
+        <ellipse cx="50" cy="62" rx="30" ry="44" fill="none" stroke="#FFC107" strokeWidth="5" />
+        <ellipse
+          className="portal-swirl"
+          cx="50"
+          cy="62"
+          rx="37"
+          ry="52"
+          fill="none"
+          stroke="#FFE082"
+          strokeWidth="3"
+          strokeDasharray="14 11"
+          strokeLinecap="round"
+        />
+        <circle className="portal-spark s1" cx="24" cy="30" r="3" fill="#FFF6D8" />
+        <circle className="portal-spark s2" cx="80" cy="46" r="2.5" fill="#FFF6D8" />
+        <circle className="portal-spark s3" cx="20" cy="86" r="2.5" fill="#FFF6D8" />
+        <circle className="portal-spark s4" cx="78" cy="96" r="3" fill="#FFF6D8" />
+      </svg>
+    </div>
   );
 }
 
