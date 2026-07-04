@@ -2,18 +2,33 @@ import { useEffect, useState } from 'react';
 import { ALL_HEROES, HeroType } from '../game/hero';
 import { heroImage } from './assets';
 
+export const AI_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+export type AIDifficulty = (typeof AI_DIFFICULTIES)[number];
+
+const DIFFICULTY_LABELS: Record<AIDifficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
+
 // Hero picker: title pill with player badge, hero grid, details panel,
 // Back/Start bar. Reused by Adventure, Play Solo, and 2 Players flows.
+// Play Solo also passes difficulty/onDifficultyChange to show the AI
+// difficulty chips above the bottom bar.
 export function HeroSelect({
   onPick,
   onBack,
   playerLabel = 'Player 1',
   backLabel = 'Back to menu',
+  difficulty,
+  onDifficultyChange,
 }: {
   onPick: (hero: HeroType) => void;
   onBack: () => void;
   playerLabel?: string;
   backLabel?: string;
+  difficulty?: AIDifficulty;
+  onDifficultyChange?: (difficulty: AIDifficulty) => void;
 }) {
   const [selected, setSelected] = useState<HeroType | null>(null);
   const [w, setW] = useState(window.innerWidth);
@@ -133,6 +148,23 @@ export function HeroSelect({
           {grid}
           <div style={{ height: 16 }} />
           <div style={{ height: '50vh' }}>{detailsPanel}</div>
+        </div>
+      )}
+
+      {/* Difficulty chips (Play Solo only) */}
+      {difficulty && onDifficultyChange && (
+        <div className="hs-difficulty" role="radiogroup" aria-label="Rival difficulty">
+          {AI_DIFFICULTIES.map((d) => (
+            <button
+              key={d}
+              className={`chip selectable${difficulty === d ? ' selected' : ''}`}
+              role="radio"
+              aria-checked={difficulty === d}
+              onClick={() => onDifficultyChange(d)}
+            >
+              {DIFFICULTY_LABELS[d]}
+            </button>
+          ))}
         </div>
       )}
 

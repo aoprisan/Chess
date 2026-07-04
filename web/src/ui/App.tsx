@@ -5,20 +5,22 @@ import { hasSavedJourney } from '../adventure/progress';
 import { ALL_HEROES, HeroType, heroByType } from '../game/hero';
 import { BASE_URL, ui } from './assets';
 import { preloadGameImages } from './preload';
-import { HeroSelect } from './HeroSelect';
+import { AI_DIFFICULTIES, AIDifficulty, HeroSelect } from './HeroSelect';
 import { AdventureMap } from './AdventureMap';
+import { HowToPlay } from './HowToPlay';
 import { LevelSelect } from './LevelSelect';
 import { Combat } from './Combat';
 
 type View =
   | { name: 'home' }
+  | { name: 'howto' }
   | { name: 'levels' }
   | { name: 'heroSelect'; journeyId: string }
   | { name: 'adventure'; journeyId: string; newJourneyHero?: HeroType }
   // Standalone battles (outside Adventure)
   | { name: 'soloHeroSelect' }
   | { name: 'duelHeroSelect'; p1?: HeroType }
-  | { name: 'battle'; p1: HeroType; p2: HeroType; vsAI: boolean };
+  | { name: 'battle'; p1: HeroType; p2: HeroType; vsAI: boolean; difficulty: AIDifficulty };
 
 /** Rival for a solo battle: a random hero other than the player's pick. */
 function randomRival(p1: HeroType): HeroType {
@@ -26,8 +28,31 @@ function randomRival(p1: HeroType): HeroType {
   return others[Math.floor(Math.random() * others.length)].type;
 }
 
+const SOLO_DIFFICULTY_KEY = 'solo_difficulty_v1';
+
+function loadSoloDifficulty(): AIDifficulty {
+  try {
+    const stored = localStorage.getItem(SOLO_DIFFICULTY_KEY);
+    if (stored && (AI_DIFFICULTIES as readonly string[]).includes(stored)) {
+      return stored as AIDifficulty;
+    }
+  } catch {
+    // localStorage unavailable (private mode etc.) — fall back to default.
+  }
+  return 'medium';
+}
+
+function saveSoloDifficulty(difficulty: AIDifficulty) {
+  try {
+    localStorage.setItem(SOLO_DIFFICULTY_KEY, difficulty);
+  } catch {
+    // Persisting is best-effort.
+  }
+}
+
 export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
+  const [soloDifficulty, setSoloDifficulty] = useState<AIDifficulty>(loadSoloDifficulty);
   const [loadError, setLoadError] = useState<string | null>(null);
   // All game art loads up front behind a progress bar, so no screen ever
   // paints with half-loaded images (the adventure map used to swap biome
@@ -92,6 +117,14 @@ export function App() {
     );
   }
 
+  if (view.name === 'howto') {
+    return (
+      <div className="app">
+        <HowToPlay onBack={() => setView({ name: 'home' })} />
+      </div>
+    );
+  }
+
   if (view.name === 'levels') {
     return (
       <div className="app">
@@ -114,13 +147,20 @@ export function App() {
     );
   }
 
-  // Play Solo: pick your hero, then fight a random rival at medium difficulty.
+  // Play Solo: pick your hero and rival difficulty, then fight a random rival.
   if (view.name === 'soloHeroSelect') {
     return (
       <div className="app">
         <HeroSelect
           onBack={() => setView({ name: 'home' })}
-          onPick={(hero) => setView({ name: 'battle', p1: hero, p2: randomRival(hero), vsAI: true })}
+          difficulty={soloDifficulty}
+          onDifficultyChange={(d) => {
+            setSoloDifficulty(d);
+            saveSoloDifficulty(d);
+          }}
+          onPick={(hero) =>
+            setView({ name: 'battle', p1: hero, p2: randomRival(hero), vsAI: true, difficulty: soloDifficulty })
+          }
         />
       </div>
     );
@@ -139,7 +179,7 @@ export function App() {
           onPick={(hero) =>
             pickingP1
               ? setView({ name: 'duelHeroSelect', p1: hero })
-              : setView({ name: 'battle', p1: view.p1!, p2: hero, vsAI: false })
+              : setView({ name: 'battle', p1: view.p1!, p2: hero, vsAI: false, difficulty: 'medium' })
           }
         />
       </div>
@@ -150,10 +190,10 @@ export function App() {
     return (
       <div className="app">
         <Combat
-          key={`${view.p1}-${view.p2}-${view.vsAI}`}
+          key={`${view.p1}-${view.p2}-${view.vsAI}-${view.difficulty}`}
           player1Hero={heroByType(view.p1)}
           player2Hero={heroByType(view.p2)}
-          aiDifficulty="medium"
+          aiDifficulty={view.difficulty}
           player2IsAI={view.vsAI}
           exitLabel="Back to Menu"
           onGameEnd={() => setView({ name: 'home' })}
@@ -213,6 +253,10 @@ export function App() {
       <div style={{ height: 16 }} />
       <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'duelHeroSelect' })}>
         2 Players
+      </button>
+      <div style={{ height: 16 }} />
+      <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'howto' })}>
+        How to Play
       </button>
     </div>
   );

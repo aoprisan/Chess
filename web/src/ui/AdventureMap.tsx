@@ -114,17 +114,20 @@ export function AdventureMap({
     el.scrollTo({ top: Math.max(0, ctrl.currentNode.y * mapHeight - dims.height / 2) });
   });
 
+  const scrollBehavior = (): ScrollBehavior =>
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
   const scrollToCurrent = () => {
     const node = ctrl.currentNode;
     const target = node.y * mapHeight - dims.height / 2;
-    scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+    scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: scrollBehavior() });
   };
 
   // Keep the camera on the hero while they roam the trails.
   const followHero = useCallback(
     (node: AdventureNode) => {
       const target = node.y * mapHeight - dims.height / 2;
-      scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+      scrollRef.current?.scrollTo({ top: Math.max(0, target), behavior: scrollBehavior() });
     },
     [mapHeight, dims.height],
   );
@@ -322,12 +325,16 @@ export function AdventureMap({
           {journeyById(map.id) ? `Level ${journeyById(map.id)!.level}` : map.name}
         </span>
         <span style={{ flex: 1 }} />
-        <button className="chip" onClick={scrollToCurrent}>
+        <button
+          className="chip"
+          aria-label={`${ctrl.totalStars} of ${ctrl.maxStars} stars — scroll to current level`}
+          onClick={scrollToCurrent}
+        >
           <Icon name="star" size={20} color="#FFC107" />
           {ctrl.totalStars} / {ctrl.maxStars}
         </button>
         <span style={{ width: 8 }} />
-        <button className="chip" onClick={() => setPopup({ kind: 'startOver' })}>
+        <button className="chip" aria-label="Start over" onClick={() => setPopup({ kind: 'startOver' })}>
           <Icon name="refresh" size={20} color="#5D4037" />
         </button>
       </div>

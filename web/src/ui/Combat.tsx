@@ -14,6 +14,7 @@ import {
 } from '../game/state';
 import { heroImage, ui } from './assets';
 import { Icon, IconName } from './Icons';
+import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
 
 // Mirrors client/lib/screens/combat_screen.dart: landscape board with 5
 // horizontal lanes x 10 columns (P1 left/green, P2 right/purple), doodle
@@ -23,17 +24,6 @@ import { Icon, IconName } from './Icons';
 
 const DUAL_LANE_PERKS = new Set([33, 34]);
 const FREEZE_PERK = 4;
-
-const CATEGORY_COLOR: Record<PerkCategory, string> = {
-  offensive: '#EF5350', // red.shade400
-  defensive: '#42A5F5', // blue.shade400
-  utility: '#FFCA28', // amber.shade400
-};
-const CATEGORY_ICON: Record<PerkCategory, IconName> = {
-  offensive: 'flash',
-  defensive: 'shield',
-  utility: 'build',
-};
 
 // Lane-half highlight palette while targeting: green = your half, purple =
 // enemy half, amber = whole lane; Freeze keeps its signature ice-blue.
