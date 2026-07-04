@@ -218,6 +218,47 @@ describe('targeting', () => {
     const valid = getValidLanesForPerk(2, e.state, 'player1');
     expect(valid.length).toBe(0);
   });
+
+  it('Raid excludes lanes where the raid piece would win the lane for the enemy', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 4); // raid piece would be their 5th
+    setPieces(e.state.lanes[1], 'player2', 3);
+    const valid = getValidLanesForPerk(51, e.state, 'player1');
+    expect(valid).not.toContain(0);
+    expect(valid).toEqual([1, 2, 3, 4]);
+  });
+
+  it('Disrupt still requires enemy pieces on the first lane but allows an empty destination', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 4);
+    expect(getValidLanesForPerk(34, e.state, 'player1')).toEqual([0]);
+    expect(getValidLanesForPerk(34, e.state, 'player1', 0)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('Nullify', () => {
+  it('clears triggers, deferred, raids, markers and freeze on the lane only', () => {
+    const e = engine();
+    e.state.lanes[2].triggers.push({ type: 'PORTAL', owner: 2, turnsLeft: 2, orderId: 0 });
+    e.state.lanes[2].deferred.push({ type: 'SIGNAL', owner: 2, targetLane: 2 });
+    e.state.pendingRaids.push({ owner: 2, lane: 2, turnsUntilResolve: 1, source: 'RAID' });
+    e.state.player1Captures.push({ lane: 2, turnsLeft: 3 });
+    e.state.player2Sanctuaries.push({ lane: 2, turnsLeft: 4 });
+    e.state.frozenLanes[2] = 'player2';
+    // Control markers on lane 3 must survive.
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    e.state.frozenLanes[3] = 'player2';
+
+    expect(e.nullifyLane(2)).toBe(true);
+
+    expect(e.state.lanes[2].triggers).toHaveLength(0);
+    expect(e.state.lanes[2].deferred).toHaveLength(0);
+    expect(e.state.pendingRaids).toHaveLength(0);
+    expect(e.state.player1Captures).toHaveLength(0);
+    expect(e.state.player2Sanctuaries).toEqual([{ lane: 3, turnsLeft: 4 }]);
+    expect(e.state.frozenLanes[2]).toBeUndefined();
+    expect(e.state.frozenLanes[3]).toBe('player2');
+  });
 });
 
 describe('RemoveEnemy cooldown', () => {
@@ -272,6 +313,36 @@ describe('RemoveEnemy cooldown', () => {
 });
 
 describe('AI', () => {
+  it('never raids a lane where the enemy has 4 pieces', () => {
+    const e = engine(7);
+    e.player1IsAI = true;
+    e.player1AIDifficulty = 'hard';
+    setPieces(e.state.lanes[0], 'player2', 4);
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 51, perkName: 'Raid' }];
+    const [perkId, target] = chooseAIPerk(e);
+    expect(perkId).toBe(51);
+    expect(target).not.toBe(0);
+  });
+
+  it('drags a stacked enemy lane onto an empty one with Disrupt', () => {
+    const e = engine(7);
+    e.player1IsAI = true;
+    e.player1AIDifficulty = 'hard';
+    setPieces(e.state.lanes[0], 'player2', 4);
+    e.state.currentPhase = 'perkSelection';
+    e.currentPerkSlots = [{ slotIndex: 0, perkId: 34, perkName: 'Disrupt' }];
+    const [perkId, target, second] = chooseAIPerk(e);
+    expect(perkId).toBe(34);
+    expect(second).not.toBeNull();
+    const lanes = [target, second as number];
+    expect(lanes).toContain(0);
+    const destination = lanes.find((l) => l !== 0) as number;
+    e.executePerk(perkId, target, second);
+    expect(countPieces(e.state.lanes[0], 'player2')).toBe(0);
+    expect(countPieces(e.state.lanes[destination], 'player2')).toBe(4);
+  });
+
   it('returns a legal choice and never throws', () => {
     const e = engine(7);
     e.player2IsAI = true;

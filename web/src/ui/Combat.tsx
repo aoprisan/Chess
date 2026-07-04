@@ -574,7 +574,7 @@ function PlayerHeaders({
         <img className="pp-avatar" src={heroImage(player1Hero.imagePath)} alt={player1Hero.name} style={{ width: avatarW, height: avatarH }} />
         <span style={{ width: spacing }} />
         {title('player1', player1Hero)}
-        {score('player1', state.player1Pieces)}
+        {score('player1', state.player1LanesWon)}
       </div>
 
       <div className="flag-indicator" style={{ width: indicatorW, height: indicatorH }}>
@@ -594,7 +594,7 @@ function PlayerHeaders({
       </div>
 
       <div className="player-panel p2">
-        {score('player2', state.player2Pieces)}
+        {score('player2', state.player2LanesWon)}
         {title('player2', player2Hero)}
         <span style={{ width: spacing }} />
         <img className="pp-avatar" src={heroImage(player2Hero.imagePath)} alt={player2Hero.name} style={{ width: avatarW, height: avatarH }} />

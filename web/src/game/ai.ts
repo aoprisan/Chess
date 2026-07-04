@@ -236,8 +236,8 @@ function scorePerkOnLane(
       return totalPieces(state, player) >= 6 ? 18 : 8;
     case 50: // Capture: future removals land on my side
       return totalPieces(state, opponent) >= 4 ? 20 : 10;
-    case 51: // Raid
-      return 14;
+    case 51: // Raid: the raid piece lands on the enemy side — raiding a 3-stack gifts them a 4th piece
+      return enemyPieces >= 3 ? 6 : 14;
     default:
       return 10;
   }

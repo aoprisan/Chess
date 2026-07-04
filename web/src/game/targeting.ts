@@ -8,6 +8,7 @@ import {
   isSideFilled,
   isCloaked,
   LANE_COUNT,
+  SLOTS_PER_SIDE,
 } from './state';
 import { getPerk } from './perks';
 
@@ -53,12 +54,17 @@ export function getValidLanesForPerk(
         if (firstSelectedLane === null) {
           if (countPieces(lane, opponent) > 0) validLanes.push(i);
         } else {
-          if (i !== firstSelectedLane && countPieces(lane, opponent) > 0) validLanes.push(i);
+          // Destination may be empty — dumping a stacked enemy lane onto an
+          // empty one is the perk's main play (mirrors Regroup above).
+          if (i !== firstSelectedLane) validLanes.push(i);
         }
         break;
       case 24: // Portal
       case 25: // Trap
         validLanes.push(i);
+        break;
+      case 51: // Raid — the raid piece lands on the ENEMY side; never let it complete their lane
+        if (countPieces(lane, opponent) < SLOTS_PER_SIDE - 1) validLanes.push(i);
         break;
       default:
         validLanes.push(i);

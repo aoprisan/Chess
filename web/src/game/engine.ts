@@ -18,7 +18,6 @@ import {
   isLaneFrozenFor,
   isCloaked,
   isBlinded,
-  getRemainingPieces,
   columnsFor,
   initialState,
   LANE_COUNT,
@@ -254,7 +253,6 @@ export class CombatEngine {
     if (this.state.status !== 'playing') return false;
     if (laneIndex < 0 || laneIndex >= LANE_COUNT) return false;
     const currentPlayer = this.state.currentPlayer;
-    if (getRemainingPieces(this.state, currentPlayer) <= 0) return false;
     const lane = this.state.lanes[laneIndex];
     if (lane.winner !== null) return false;
     if (getNextEmptyColumn(lane, currentPlayer) === -1) return false;
@@ -565,6 +563,11 @@ export class CombatEngine {
     lane.triggers = [];
     lane.deferred = [];
     this.state.pendingRaids = this.state.pendingRaids.filter((r) => r.lane !== laneIndex);
+    this.state.player1Sanctuaries = this.state.player1Sanctuaries.filter((s) => s.lane !== laneIndex);
+    this.state.player2Sanctuaries = this.state.player2Sanctuaries.filter((s) => s.lane !== laneIndex);
+    this.state.player1Captures = this.state.player1Captures.filter((c) => c.lane !== laneIndex);
+    this.state.player2Captures = this.state.player2Captures.filter((c) => c.lane !== laneIndex);
+    delete this.state.frozenLanes[laneIndex];
     return true;
   }
 
