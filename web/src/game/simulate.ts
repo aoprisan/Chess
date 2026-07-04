@@ -6,6 +6,7 @@ import { CombatEngine } from './engine';
 import { chooseAIPerk } from './ai';
 import { SeededRNG } from './rng';
 import { PlayerSide } from './state';
+import type { PerkPools } from './characters';
 
 export interface MatchResult {
   winner: PlayerSide | null; // null = turn-cap draw (should be rare)
@@ -23,6 +24,9 @@ export interface SeriesOptions {
   seed?: number;
   /** Safety cap on turns per game. */
   maxTurns?: number;
+  /** Character-bound slot 3/4 pools per side; omitted = full catalog. */
+  player1PerkPools?: PerkPools;
+  player2PerkPools?: PerkPools;
 }
 
 export interface SeriesResult {
@@ -86,6 +90,8 @@ export function playSeries(opts: SeriesOptions): SeriesResult {
       player2IsAI: true,
       player1AIDifficulty: player1Difficulty,
       player2AIDifficulty: player2Difficulty,
+      player1PerkPools: opts.player1PerkPools,
+      player2PerkPools: opts.player2PerkPools,
       rng: new SeededRNG(seed + g * 7919),
     });
     const result = playMatch(engine, maxTurns);
