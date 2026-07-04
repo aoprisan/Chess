@@ -398,6 +398,65 @@ button:disabled {
   background-position: center;
 }
 
+/* Cloud drift laid over each biome seam (see CloudBand in AdventureMap.tsx) */
+.seam-clouds {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+
+/* Portal gates where the trail crosses into the next biome: the halo
+   breathes, the dashed swirl drifts around the ring, sparkles twinkle.
+   Purely decorative — the hero simply walks through. */
+.biome-portal {
+  position: absolute;
+  pointer-events: none;
+}
+.biome-portal .portal-halo {
+  animation: portal-breathe 2.6s ease-in-out infinite alternate;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+@keyframes portal-breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+.biome-portal .portal-swirl {
+  animation: portal-swirl 6s linear infinite;
+}
+@keyframes portal-swirl {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+.biome-portal .portal-spark {
+  animation: portal-twinkle 1.8s ease-in-out infinite;
+}
+.biome-portal .portal-spark.s2 {
+  animation-delay: 0.45s;
+}
+.biome-portal .portal-spark.s3 {
+  animation-delay: 0.9s;
+}
+.biome-portal .portal-spark.s4 {
+  animation-delay: 1.35s;
+}
+@keyframes portal-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .adv-node {
   position: absolute;
   display: flex;
