@@ -1,7 +1,7 @@
 {
   "id": "map_3",
   "name": "Sky Core",
-  "heightFactor": 6.4,
+  "heightFactor": 5,
   "entryNodeId": "n04",
   "nodes": [
     {

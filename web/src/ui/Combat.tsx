@@ -4,23 +4,23 @@ import { CombatEngine, MoveLogEntry } from '../game/engine';
 import { chooseAIPerk } from '../game/ai';
 import { getValidLanesForPerk, perkRequiresTarget } from '../game/targeting';
 import { getPerk, PerkCategory, PerkInfo, PerkSlot, PerkTargetSide } from '../game/perks';
-import { Hero } from '../game/hero';
+import { Character, buildPerkPools } from '../game/characters';
 import { CombatGameState, Lane, PlayerSide, isCloaked, isBlinded } from '../game/state';
-import { heroImage, ui } from './assets';
+
+import { CharacterPortrait } from './CharacterPortrait';
 import { Icon, IconName } from './Icons';
 import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
 
-// Mirrors client/lib/screens/combat_screen.dart: landscape board with 5
-// horizontal lanes x 10 columns (P1 left/green, P2 right/purple), doodle
-// background, white turn pill, image-backed player panels, turn flag,
-// painted grid + red center line, compact dark perk bar with amber border,
-// pass-and-play turn dialog (auto-dismissed for the AI).
+// Landscape board with 5 horizontal data lines x 10 slots (P1 left/cyan,
+// P2 right/magenta), neon grid field, turn pill, CSS-drawn player panels and
+// turn flag, compact dark perk bar, pass-and-play turn dialog (auto-dismissed
+// for the AI).
 
 const DUAL_LANE_PERKS = new Set([33, 34]);
 const FREEZE_PERK = 4;
 
-// Lane-half highlight palette while targeting: green = your half, purple =
-// enemy half, amber = whole lane; Freeze keeps its signature ice-blue.
+// Lane-half highlight palette while targeting: cyan = your half, magenta =
+// enemy half, amber = whole line; Lockdown keeps its signature ice-blue.
 interface SideStyle {
   fill: string;
   border: string;
@@ -29,33 +29,33 @@ interface SideStyle {
 }
 const SIDE_STYLE: Record<PerkTargetSide, SideStyle> = {
   own: {
-    fill: 'rgba(76,175,80,0.35)',
-    border: '#66BB6A',
-    pill: 'rgba(56,142,60,0.9)',
+    fill: 'rgba(0,229,255,0.28)',
+    border: '#00e5ff',
+    pill: 'rgba(0,151,167,0.92)',
     label: 'Your side',
   },
   enemy: {
-    fill: 'rgba(156,39,176,0.35)',
-    border: '#AB47BC',
-    pill: 'rgba(123,31,162,0.9)',
+    fill: 'rgba(255,47,214,0.28)',
+    border: '#ff2fd6',
+    pill: 'rgba(170,20,140,0.92)',
     label: 'Enemy side',
   },
   both: {
-    fill: 'rgba(255,193,7,0.3)',
-    border: '#FFCA28',
+    fill: 'rgba(255,210,63,0.25)',
+    border: '#ffd23f',
     pill: 'rgba(255,160,0,0.9)',
-    label: 'Whole lane',
+    label: 'Whole line',
   },
 };
 const FREEZE_STYLE: SideStyle = {
-  fill: 'rgba(33,150,243,0.35)',
+  fill: 'rgba(66,165,245,0.3)',
   border: '#42A5F5',
   pill: 'rgba(25,118,210,0.9)',
   label: 'Enemy side',
 };
 const SIDE_CHIP_COLOR: Record<PerkTargetSide, string> = {
-  own: '#388E3C',
-  enemy: '#7B1FA2',
+  own: '#0097a7',
+  enemy: '#aa148c',
   both: '#FFA000',
 };
 
@@ -100,28 +100,36 @@ interface CombatResult {
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export function Combat({
-  player1Hero,
-  player2Hero,
+  player1Team,
+  player2Team,
   aiDifficulty,
   player2IsAI = true,
+  usePerkPools = false,
   exitLabel = 'Back to Map',
   onGameEnd,
 }: {
-  player1Hero: Hero;
-  player2Hero: Hero;
+  /** Characters fighting on each side; index 0 is the lead (portrait + log name). */
+  player1Team: Character[];
+  player2Team: Character[];
   aiDifficulty: string;
   /** false = pass-and-play: both sides are humans sharing this device. */
   player2IsAI?: boolean;
+  /** Campaign battles: restrict perk slots 3/4 to each team's own perks. */
+  usePerkPools?: boolean;
   exitLabel?: string;
   onGameEnd: (result: CombatResult) => void;
 }) {
+  const player1Hero = player1Team[0];
+  const player2Hero = player2Team[0];
   const engineRef = useRef<CombatEngine | null>(null);
   if (engineRef.current === null) {
     engineRef.current = new CombatEngine(`game_${Date.now()}`, {
-      player1Hero: player1Hero.type,
-      player2Hero: player2Hero.type,
+      player1Hero: player1Hero.id,
+      player2Hero: player2Hero.id,
       player2IsAI,
       player2AIDifficulty: aiDifficulty,
+      player1PerkPools: usePerkPools ? buildPerkPools(player1Team.map((c) => c.id)) : undefined,
+      player2PerkPools: usePerkPools ? buildPerkPools(player2Team.map((c) => c.id)) : undefined,
     });
   }
   const engine = engineRef.current;
@@ -364,13 +372,13 @@ export function Combat({
   // Fog labels so a half emptied by Cloak/Blind reads as "hidden", not vanished.
   const p1FogLabel = hideP1
     ? isCloaked(state, 'player1') && viewer !== 'player1'
-      ? 'Hidden by Cloak'
-      : 'Hidden by Blind'
+      ? 'Hidden by Stealth Mode'
+      : 'Hidden by Static Storm'
     : null;
   const p2FogLabel = hideP2
     ? isCloaked(state, 'player2') && viewer !== 'player2'
-      ? 'Hidden by Cloak'
-      : 'Hidden by Blind'
+      ? 'Hidden by Stealth Mode'
+      : 'Hidden by Static Storm'
     : null;
 
   const gap = H * 0.005;
@@ -402,8 +410,8 @@ export function Combat({
       <PlayerHeaders
         W={W}
         H={H}
-        player1Hero={player1Hero}
-        player2Hero={player2Hero}
+        player1Team={player1Team}
+        player2Team={player2Team}
         state={state}
       />
 
@@ -440,8 +448,8 @@ export function Combat({
             className="winner-banner"
             style={{
               padding: `${W * 0.012}px ${W * 0.03}px`,
-              background: winnerIsP1 ? '#C8E6C9' : '#E1BEE7',
-              color: winnerIsP1 ? '#388E3C' : '#7B1FA2',
+              background: winnerIsP1 ? 'rgba(0,229,255,0.18)' : 'rgba(255,47,214,0.18)',
+              color: winnerIsP1 ? '#00e5ff' : '#ff2fd6',
               fontSize: clamp(W * 0.022, 16, 28),
             }}
           >
@@ -505,6 +513,13 @@ export function Combat({
         ) : (
           <PerkPanel
             slots={engine.currentPerkSlots}
+            owners={
+              usePerkPools
+                ? state.currentPlayer === 'player1'
+                  ? player1Team
+                  : player2Team
+                : undefined
+            }
             disabled={!humanTurn}
             aiHighlight={engine.lastAIPerkId}
             selectedPerkId={selectedPerkId}
@@ -549,16 +564,18 @@ export function Combat({
 function PlayerHeaders({
   W,
   H,
-  player1Hero,
-  player2Hero,
+  player1Team,
+  player2Team,
   state,
 }: {
   W: number;
   H: number;
-  player1Hero: Hero;
-  player2Hero: Hero;
+  player1Team: Character[];
+  player2Team: Character[];
   state: CombatGameState;
 }) {
+  const player1Hero = player1Team[0];
+  const player2Hero = player2Team[0];
   const spacing = clamp(W * 0.008, 4, 10);
   const avatarW = clamp(W * 0.1, 50, 140);
   const avatarH = clamp(H * 0.1, 60, 160);
@@ -574,14 +591,13 @@ function PlayerHeaders({
   const flagH = clamp(W * 0.05, 34, 60);
   const isP1Turn = state.currentPlayer === 'player1';
 
-  const title = (side: PlayerSide, hero: Hero) => (
+  const title = (side: PlayerSide, hero: Character) => (
     <div
-      className="pp-title"
+      className={`pp-title ${side === 'player1' ? 'p1' : 'p2'}`}
       style={{
         width: titleW,
         height: titleH,
         fontSize,
-        backgroundImage: `url(${side === 'player1' ? ui.p1TitleBg : ui.p2TitleBg})`,
         paddingLeft: side === 'player1' ? 8 : 0,
         paddingRight: side === 'player1' ? 0 : 8,
       }}
@@ -591,27 +607,56 @@ function PlayerHeaders({
   );
   const score = (side: PlayerSide, value: number) => (
     <div
-      className="pp-score"
-      style={{
-        width: scoreW,
-        height: titleH,
-        fontSize,
-        backgroundImage: `url(${side === 'player1' ? ui.p1ScoreBg : ui.p2ScoreBg})`,
-      }}
+      className={`pp-score ${side === 'player1' ? 'p1' : 'p2'}`}
+      style={{ width: scoreW, height: titleH, fontSize }}
     >
       {value}
     </div>
   );
 
+  const teamColumn = (team: Character[]) => {
+    const lead = team[0];
+    const rest = team.slice(1);
+    const chipSize = Math.max(14, avatarH * 0.22);
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          width: avatarW,
+          height: avatarH,
+        }}
+      >
+        <CharacterPortrait
+          character={lead}
+          className="pp-avatar"
+          style={{
+            width: avatarW,
+            height: rest.length > 0 ? avatarH - chipSize - 2 : avatarH,
+            objectFit: 'contain',
+          }}
+        />
+        {rest.length > 0 && (
+          <div style={{ display: 'flex', gap: 2, height: chipSize }}>
+            {rest.map((c) => (
+              <CharacterPortrait
+                key={c.id}
+                character={c}
+                style={{ width: chipSize, height: chipSize, objectFit: 'contain' }}
+                initialScale={0.7}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="player-headers" style={{ padding: `0 ${clamp(W * 0.02, 8, 20)}px` }}>
       <div className="player-panel p1">
-        <img
-          className="pp-avatar"
-          src={heroImage(player1Hero.imagePath)}
-          alt={player1Hero.name}
-          style={{ width: avatarW, height: avatarH }}
-        />
+        {teamColumn(player1Team)}
         <span style={{ width: spacing }} />
         {title('player1', player1Hero)}
         {score('player1', state.player1LanesWon)}
@@ -622,10 +667,10 @@ function PlayerHeaders({
           className="flag-pole"
           style={{ top: indicatorH * 0.2, width: poleW, height: indicatorH * 0.8 }}
         />
-        <img
-          className="flag-img"
-          src={ui.turnFlag}
-          alt="turn"
+        <div
+          className={`flag-img ${isP1Turn ? 'p1' : 'p2'}`}
+          role="img"
+          aria-label={isP1Turn ? 'Player 1 turn' : 'Player 2 turn'}
           style={{
             top: indicatorH * 0.2,
             width: flagW,
@@ -633,19 +678,16 @@ function PlayerHeaders({
             left: isP1Turn ? 0 : indicatorW - flagW,
             transform: isP1Turn ? 'scaleX(-1)' : undefined,
           }}
-        />
+        >
+          <Icon name="flash" size={flagW * 0.55} color="#0a0e1a" />
+        </div>
       </div>
 
       <div className="player-panel p2">
         {score('player2', state.player2LanesWon)}
         {title('player2', player2Hero)}
         <span style={{ width: spacing }} />
-        <img
-          className="pp-avatar"
-          src={heroImage(player2Hero.imagePath)}
-          alt={player2Hero.name}
-          style={{ width: avatarW, height: avatarH }}
-        />
+        {teamColumn(player2Team)}
       </div>
     </div>
   );
@@ -671,8 +713,8 @@ function GameBoard({
 }: {
   W: number;
   state: CombatGameState;
-  player1Hero: Hero;
-  player2Hero: Hero;
+  player1Hero: Character;
+  player2Hero: Character;
   hideP1: boolean;
   hideP2: boolean;
   p1FogLabel: string | null;
@@ -734,19 +776,18 @@ function GameBoard({
                   ? `${side}-${laneIndex}-${c}-anim${lastPlacement.counter}`
                   : `${side}-${laneIndex}-${c}`
               }
-              className={`piece${isNewest ? (side === 'player1' ? ' slide-left' : ' slide-right') : ''}`}
+              className={`piece ${side === 'player1' ? 'p1' : 'p2'}${isNewest ? (side === 'player1' ? ' slide-left' : ' slide-right') : ''}`}
               style={
                 {
                   left: x,
                   top: y,
                   width: pieceSize,
                   height: pieceSize,
-                  backgroundImage: `url(${side === 'player1' ? ui.p1ItemBg : ui.p2ItemBg})`,
                   '--slide-dist': `${slideDist}px`,
                 } as CSSProperties
               }
             >
-              <img className="portrait" src={heroImage(hero.imagePath)} alt="" />
+              <CharacterPortrait character={hero} className="portrait" initialScale={0.66} />
             </div>,
           );
         });
@@ -771,7 +812,7 @@ function GameBoard({
                 y1={0}
                 x2={(i + 1) * cellW}
                 y2={bh}
-                stroke="#E0E0E0"
+                stroke="rgba(136,153,187,0.28)"
                 strokeWidth={1}
               />
             ))}
@@ -782,7 +823,7 @@ function GameBoard({
                 y1={(i + 1) * cellH}
                 x2={bw}
                 y2={(i + 1) * cellH}
-                stroke="#E0E0E0"
+                stroke="rgba(136,153,187,0.28)"
                 strokeWidth={1}
               />
             ))}
@@ -803,7 +844,7 @@ function GameBoard({
                   height: cellH,
                   background:
                     lane.winner === 'player1' ? 'rgba(76,175,80,0.2)' : 'rgba(156,39,176,0.2)',
-                  border: `2px solid ${lane.winner === 'player1' ? '#4CAF50' : '#9C27B0'}`,
+                  border: `2px solid ${lane.winner === 'player1' ? '#00e5ff' : '#ff2fd6'}`,
                 }}
               />
             ) : null,
@@ -886,8 +927,32 @@ interface EffectEntry {
 const OFFENSIVE_TRIGGERS = new Set(['SHOCKWAVE', 'BACKFIRE', 'RETALIATE']);
 const OFFENSIVE_DEFERRED = new Set(['ENLIST', 'AMBUSH']);
 
+/** Engine trigger/deferred/raid type -> the perk it came from (for display names). */
+const EFFECT_PERK_IDS: Record<string, number> = {
+  PORTAL: 24,
+  TRAP: 25,
+  MIRROR: 26,
+  ECHO: 27,
+  SHOCKWAVE: 28,
+  HYDRA: 29,
+  BACKFIRE: 30,
+  ABSORB: 46,
+  RETALIATE: 52,
+  SIGNAL: 43,
+  ENLIST: 40,
+  AMBUSH: 41,
+  REINFORCE: 42,
+  RAID: 51,
+};
+
 function titleCase(s: string): string {
   return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+/** Catalog name for an engine effect type (falls back to title-cased type). */
+function effectLabel(type: string): string {
+  const perkId = EFFECT_PERK_IDS[type];
+  return (perkId !== undefined && getPerk(perkId)?.name) || titleCase(type);
 }
 
 function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): EffectEntry[] {
@@ -895,7 +960,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   for (const t of lane.triggers) {
     const offensive = OFFENSIVE_TRIGGERS.has(t.type);
     entries.push({
-      name: titleCase(t.type),
+      name: effectLabel(t.type),
       icon: offensive ? 'warning' : 'shield',
       category: offensive ? 'offensive' : 'defensive',
       turnsLeft: t.turnsLeft,
@@ -904,7 +969,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   }
   for (const d of lane.deferred) {
     entries.push({
-      name: titleCase(d.type),
+      name: effectLabel(d.type),
       icon: 'schedule',
       category: OFFENSIVE_DEFERRED.has(d.type) ? 'offensive' : 'utility',
       turnsLeft: 0,
@@ -916,7 +981,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     for (const s of sancs) {
       if (s.lane === laneIndex) {
         entries.push({
-          name: 'Sanctuary',
+          name: getPerk(49)?.name ?? 'Safe Zone',
           icon: 'heart',
           category: 'defensive',
           turnsLeft: s.turnsLeft,
@@ -928,7 +993,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     for (const c of caps) {
       if (c.lane === laneIndex) {
         entries.push({
-          name: 'Capture',
+          name: getPerk(50)?.name ?? 'Magnet',
           icon: 'crosshair',
           category: 'offensive',
           turnsLeft: c.turnsLeft,
@@ -940,7 +1005,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   for (const r of state.pendingRaids) {
     if (r.lane === laneIndex) {
       entries.push({
-        name: titleCase(r.source),
+        name: effectLabel(r.source),
         icon: 'raid',
         category: 'offensive',
         turnsLeft: r.turnsUntilResolve,
@@ -1188,6 +1253,7 @@ function TargetingHint({
 
 function PerkPanel({
   slots,
+  owners,
   disabled,
   aiHighlight,
   selectedPerkId,
@@ -1198,6 +1264,8 @@ function PerkPanel({
   onCancel,
 }: {
   slots: PerkSlot[];
+  /** Campaign battles: the seated team, for "whose perk is this" tags. */
+  owners?: Character[];
   disabled: boolean;
   aiHighlight: number | null;
   selectedPerkId: number | null;
@@ -1208,6 +1276,8 @@ function PerkPanel({
   onCancel: () => void;
 }) {
   const aiMode = aiHighlight !== null;
+  const ownerOf = (perkId: number): Character | undefined =>
+    owners?.find((c) => c.perkIds.includes(perkId));
   return (
     <div className={`perk-panel column${aiMode ? ' ai' : ''}`}>
       {/* Inline explanation of the selected perk, right where the player
@@ -1268,6 +1338,7 @@ function PerkPanel({
             const isAiChoice = aiHighlight === slot.perkId;
             const isSel = selectedPerkId === slot.perkId;
             const recharging = slot.disabled === true;
+            const owner = slot.slotIndex >= 2 ? ownerOf(slot.perkId) : undefined;
             return (
               <button
                 key={slot.slotIndex}
@@ -1289,6 +1360,19 @@ function PerkPanel({
                   color={(disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category]}
                 />
                 {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
+                {!recharging && owner && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      opacity: 0.85,
+                      marginLeft: 4,
+                      color: owner.accent,
+                    }}
+                  >
+                    {owner.name}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1334,8 +1418,8 @@ function MoveLogOverlay({
   onClose,
 }: {
   entries: MoveLogEntry[];
-  player1Hero: Hero;
-  player2Hero: Hero;
+  player1Hero: Character;
+  player2Hero: Character;
   onClose: () => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -1359,7 +1443,7 @@ function MoveLogOverlay({
           )}
           {entries.map((e, i) => {
             const hero = e.side === 'player1' ? player1Hero : player2Hero;
-            const color = e.side === 'player1' ? '#81C784' : '#CE93D8';
+            const color = e.side === 'player1' ? '#00e5ff' : '#ff2fd6';
             return (
               <div key={i} className="move-log-row">
                 <span className="ply">{e.ply + 1}</span>
@@ -1386,13 +1470,13 @@ function TurnDialog({
   onReady,
 }: {
   W: number;
-  hero: Hero;
+  hero: Character;
   isP1: boolean;
   isAI: boolean;
   isOpeningTurn: boolean;
   onReady: () => void;
 }) {
-  const playerColor = isP1 ? '#4CAF50' : '#9C27B0';
+  const playerColor = isP1 ? '#00e5ff' : '#ff2fd6';
   const cardW = clamp(W * 0.35, 220, 400);
   const padding = clamp(W * 0.025, 16, 30);
   const avatarSize = clamp(W * 0.12, 80, 150);
@@ -1402,7 +1486,7 @@ function TurnDialog({
         style={{
           width: cardW,
           padding,
-          background: '#2A2A2A',
+          background: '#131a2e',
           borderRadius: 20,
           border: `3px solid ${playerColor}`,
           boxShadow: `0 0 20px 4px ${playerColor}66`,
@@ -1411,9 +1495,8 @@ function TurnDialog({
           alignItems: 'center',
         }}
       >
-        <img
-          src={heroImage(hero.imagePath)}
-          alt={hero.name}
+        <CharacterPortrait
+          character={hero}
           style={{ width: avatarSize, height: avatarSize, objectFit: 'contain' }}
         />
         <div style={{ height: padding * 0.5 }} />

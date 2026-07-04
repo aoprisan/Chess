@@ -7,11 +7,12 @@ import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
 // what the combat screen offers.
 
 const RULES = [
-  'Every turn, one of your pieces lands on a random lane all by itself.',
+  'Every turn, one of your repair bots deploys onto a random data line all by itself.',
   'Then you pick one power — or pass and save your turn.',
-  'Fill all 5 of your squares on a lane to conquer it.',
-  'Conquer 3 lanes and you win the battle!',
+  'Fill all 5 of your slots on a line to fix it.',
+  'Fix 3 lines and you win the battle!',
   'Tap a power to read what it does before you use it.',
+  'In the Campaign, powers come from the crew members you bring to the battle.',
 ];
 
 const GROUPS: { title: string; ids: number[] }[] = [
@@ -25,7 +26,7 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
     <div className="screen doodle-bg howto">
       <div className="overlay-header">
         <button className="chip" onClick={onBack}>
-          <Icon name="arrowBack" size={20} color="#5D4037" />
+          <Icon name="arrowBack" size={20} color="#e8f4ff" />
           Menu
         </button>
         <span style={{ flex: 1 }} />

@@ -3,7 +3,7 @@
 // seat count are DERIVED from this state + the map defender lists (see
 // controller.ts), never stored, so they can't drift.
 
-import { CharacterId, STARTER_IDS } from '../game/characters';
+import { CharacterId, CHARACTERS, STARTER_IDS } from '../game/characters';
 import { BASE_SEATS, MAX_SEATS } from './balance';
 
 export const META_KEY = 'neon_meta_v1';
@@ -125,4 +125,10 @@ export function resetMeta(): CampaignMeta {
 
 export function seatsFor(meta: CampaignMeta): number {
   return Math.min(MAX_SEATS, BASE_SEATS + meta.mapsCompleted.size);
+}
+
+/** Crew character ids in catalog order (for pickers outside the campaign). */
+export function crewIds(): CharacterId[] {
+  const meta = loadMeta();
+  return CHARACTERS.filter((c) => meta.roster.has(c.id)).map((c) => c.id);
 }

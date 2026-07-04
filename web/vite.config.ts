@@ -18,20 +18,20 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'assets/**/*'],
       workbox: {
-        // Adventure art (14MB of PNGs) plus the app shell — precache everything
-        // so a full journey is playable offline once installed.
+        // Character art plus the app shell — precache everything so the
+        // campaign is playable offline once installed.
         globPatterns: ['**/*.{js,css,html,png,json,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
       manifest: {
-        name: 'Kiddie Chess Adventure',
-        short_name: 'Kiddie Chess',
+        name: 'Neon City: Bug Busters',
+        short_name: 'Neon City',
         description:
-          'A kid-friendly lane-battle adventure. Traverse the maze, clear obstacles, and beat the rival heroes!',
-        theme_color: '#8D6E63',
-        background_color: '#F5E6D3',
+          'A kid-friendly cyberpunk lane battler. Recruit repair-bot Fixers, restore the glitched city systems, and reboot the AI Core!',
+        theme_color: '#0a0e1a',
+        background_color: '#0a0e1a',
         display: 'standalone',
-        // The adventure map is portrait-friendly but the combat board is
+        // The city map is portrait-friendly but the combat board is
         // landscape, so defer to device rotation rather than locking either.
         orientation: 'any',
         // Generated from character art by scripts/generate-icons.mjs (npm run icons).

@@ -1,7 +1,7 @@
 {
   "id": "map_2",
   "name": "Metro Net",
-  "heightFactor": 4.8,
+  "heightFactor": 3.8,
   "entryNodeId": "n03",
   "nodes": [
     {

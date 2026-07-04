@@ -1,7 +1,7 @@
 {
   "id": "map_1",
   "name": "Street Grid",
-  "heightFactor": 3.2,
+  "heightFactor": 2.4,
   "entryNodeId": "n02",
   "nodes": [
     {
