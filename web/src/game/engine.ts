@@ -48,6 +48,9 @@ export interface EngineConfig {
 
 const PLACEMENT_TRIGGER_TYPES = ['PORTAL', 'TRAP', 'MIRROR', 'ECHO', 'SHOCKWAVE', 'RETALIATE'];
 const REMOVAL_TRIGGER_TYPES = ['HYDRA', 'BACKFIRE', 'ABSORB'];
+
+/** How an enemy-caused removal resolved (see removePieceWithRedirects). */
+type RemovalOutcome = 'none' | 'removed' | 'captured' | 'sanctuary';
 const SOURCE_EXCLUSION_THRESHOLD = 3;
 const MAX_TRIGGER_CHAIN_DEPTH = 10;
 
@@ -282,8 +285,6 @@ export class CombatEngine {
     if (countPieces(lane, enemy) === 0) return false;
 
     this.removePieceWithRedirects(laneIndex, enemy, currentPlayer);
-    this.fireRemovalTriggers(laneIndex, currentPlayer);
-    this.checkAllLaneWins();
     return true;
   }
 
@@ -364,7 +365,7 @@ export class CombatEngine {
         }
       }
       if (lanesWithEnemy.length === 0) break;
-      this.removeFront(this.randPick(lanesWithEnemy), enemy);
+      this.removePieceWithRedirects(this.randPick(lanesWithEnemy), enemy, player);
     }
     return true;
   }
@@ -471,7 +472,9 @@ export class CombatEngine {
     }
     if (lanesWithEnemy.length === 0) return false;
 
-    this.removeFront(this.randPick(lanesWithEnemy), enemy);
+    // The +1 below is unconditional even when the stolen piece escapes to a
+    // Sanctuary or lands in the stealer's own Capture zone.
+    this.removePieceWithRedirects(this.randPick(lanesWithEnemy), enemy, player);
 
     const lanesForAdd = this.openLanesFor(player);
     if (lanesForAdd.length > 0) {
@@ -738,31 +741,47 @@ export class CombatEngine {
   }
 
   /** Remove a piece with Capture-before-Sanctuary-before-normal redirection. */
+  /**
+   * The single choke point for enemy-caused removals: applies the Capture /
+   * Sanctuary redirects, fires the piece owner's removal triggers, and
+   * re-checks lane wins (a redirect can fill its destination lane). Own-perk
+   * sacrifices and raid placeholder cleanup deliberately bypass this and use
+   * removeFront directly — a Sanctuary must not void a cost, and the enemy
+   * must not "rescue" a raid placeholder into their board.
+   */
   private removePieceWithRedirects(
     laneIndex: number,
     pieceOwner: PlayerSide,
     remover?: PlayerSide,
-  ): void {
-    if (countPieces(this.state.lanes[laneIndex], pieceOwner) <= 0) return;
+    chainDepth = 0,
+  ): RemovalOutcome {
+    if (countPieces(this.state.lanes[laneIndex], pieceOwner) <= 0) return 'none';
 
+    let outcome: RemovalOutcome = 'removed';
     // Capture first (remover is opponent with active Capture)
-    if (remover !== undefined && remover !== pieceOwner) {
-      const captureLane = this.getCaptureLane(remover);
-      if (captureLane !== null && this.state.lanes[captureLane].winner === null) {
-        this.removeFront(laneIndex, pieceOwner);
-        this.addPiece(captureLane, remover);
-        return;
-      }
-    }
-    // Sanctuary (piece owner has active Sanctuary)
+    const captureLane =
+      remover !== undefined && remover !== pieceOwner ? this.getCaptureLane(remover) : null;
     const sanctuaryLane = this.getSanctuaryLane(pieceOwner);
-    if (sanctuaryLane !== null && this.state.lanes[sanctuaryLane].winner === null) {
+    if (captureLane !== null && this.state.lanes[captureLane].winner === null) {
+      this.removeFront(laneIndex, pieceOwner);
+      this.addPiece(captureLane, remover!);
+      outcome = 'captured';
+    } else if (sanctuaryLane !== null && this.state.lanes[sanctuaryLane].winner === null) {
+      // Sanctuary (piece owner has active Sanctuary)
       this.removeFront(laneIndex, pieceOwner);
       this.addPiece(sanctuaryLane, pieceOwner);
-      return;
+      outcome = 'sanctuary';
+    } else {
+      this.removeFront(laneIndex, pieceOwner);
     }
-    // Normal
-    this.removeFront(laneIndex, pieceOwner);
+
+    // The piece left the lane in every branch, so removal triggers fire on
+    // all outcomes — matching the original RemoveEnemy sequencing.
+    if (remover !== undefined && remover !== pieceOwner) {
+      this.fireRemovalTriggers(laneIndex, remover, chainDepth);
+    }
+    this.checkAllLaneWins();
+    return outcome;
   }
 
   // --- Placement triggers ---
@@ -800,7 +819,7 @@ export class CombatEngine {
           this.handlePortalTrigger(laneIndex, placingPlayer, chainDepth);
           break;
         case 'TRAP':
-          this.handleTrapTrigger(laneIndex, placingPlayer);
+          this.handleTrapTrigger(laneIndex, placingPlayer, triggerOwner, chainDepth);
           break;
         case 'MIRROR':
           this.handleMirrorTrigger(laneIndex, triggerOwner);
@@ -809,7 +828,7 @@ export class CombatEngine {
           this.handleEchoTrigger(laneIndex, triggerOwner);
           break;
         case 'SHOCKWAVE':
-          this.handleShockwaveTrigger(laneIndex, placingPlayer, triggerOwner);
+          this.handleShockwaveTrigger(laneIndex, placingPlayer, triggerOwner, chainDepth);
           break;
         case 'RETALIATE':
           this.handleRetaliateTrigger(laneIndex, triggerOwner, placingPlayer);
@@ -839,8 +858,15 @@ export class CombatEngine {
     }
   }
 
-  private handleTrapTrigger(laneIndex: number, placingPlayer: PlayerSide): void {
-    this.removePieceWithRedirects(laneIndex, placingPlayer);
+  private handleTrapTrigger(
+    laneIndex: number,
+    placingPlayer: PlayerSide,
+    triggerOwner: PlayerSide,
+    chainDepth: number,
+  ): void {
+    // The trap owner performs the removal, so their Capture can convert the
+    // trapped piece and the placer's removal triggers on the lane can fire.
+    this.removePieceWithRedirects(laneIndex, placingPlayer, triggerOwner, chainDepth + 1);
   }
 
   private handleMirrorTrigger(laneIndex: number, owner: PlayerSide): void {
@@ -863,6 +889,7 @@ export class CombatEngine {
     laneIndex: number,
     placingPlayer: PlayerSide,
     triggerOwner: PlayerSide,
+    chainDepth: number,
   ): void {
     for (let i = 0; i < 2; i++) {
       const otherLanes: number[] = [];
@@ -876,7 +903,12 @@ export class CombatEngine {
         }
       }
       if (otherLanes.length > 0) {
-        this.removePieceWithRedirects(this.randPick(otherLanes), placingPlayer, triggerOwner);
+        this.removePieceWithRedirects(
+          this.randPick(otherLanes),
+          placingPlayer,
+          triggerOwner,
+          chainDepth + 1,
+        );
       }
     }
   }
@@ -897,7 +929,12 @@ export class CombatEngine {
 
   // --- Removal triggers ---
 
-  private fireRemovalTriggers(laneIndex: number, removingPlayer: PlayerSide): void {
+  private fireRemovalTriggers(
+    laneIndex: number,
+    removingPlayer: PlayerSide,
+    chainDepth: number,
+  ): void {
+    if (chainDepth >= MAX_TRIGGER_CHAIN_DEPTH) return;
     if (this.state.lanes[laneIndex].winner !== null) return;
     const removingOwnerInt = ownerInt(removingPlayer);
     const pieceOwner = opponentOf(removingPlayer);
@@ -919,7 +956,7 @@ export class CombatEngine {
           this.handleHydraTrigger(laneIndex, pieceOwner);
           break;
         case 'BACKFIRE':
-          this.handleBackfireTrigger(removingPlayer, pieceOwner);
+          this.handleBackfireTrigger(removingPlayer, pieceOwner, chainDepth);
           break;
         case 'ABSORB':
           this.handleAbsorbTrigger(laneIndex, pieceOwner);
@@ -939,7 +976,11 @@ export class CombatEngine {
     }
   }
 
-  private handleBackfireTrigger(removingPlayer: PlayerSide, triggerOwner: PlayerSide): void {
+  private handleBackfireTrigger(
+    removingPlayer: PlayerSide,
+    triggerOwner: PlayerSide,
+    chainDepth: number,
+  ): void {
     for (let i = 0; i < 2; i++) {
       const lanesWithPieces: number[] = [];
       for (let j = 0; j < LANE_COUNT; j++) {
@@ -951,7 +992,12 @@ export class CombatEngine {
         }
       }
       if (lanesWithPieces.length > 0) {
-        this.removePieceWithRedirects(this.randPick(lanesWithPieces), removingPlayer, triggerOwner);
+        this.removePieceWithRedirects(
+          this.randPick(lanesWithPieces),
+          removingPlayer,
+          triggerOwner,
+          chainDepth + 1,
+        );
       }
     }
   }
@@ -1038,7 +1084,7 @@ export class CombatEngine {
             this.resolveEnlist(laneIdx, player, opponent);
             break;
           case 'AMBUSH':
-            this.resolveAmbush(effect, opponent);
+            this.resolveAmbush(effect, player, opponent);
             break;
           case 'REINFORCE':
             if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
@@ -1079,8 +1125,9 @@ export class CombatEngine {
     this.removeFront(laneIdx, player);
     let enemyCaptured = false;
     if (countPieces(this.state.lanes[laneIdx], opponent) > 0) {
-      this.removeFront(laneIdx, opponent);
-      enemyCaptured = true;
+      const outcome = this.removePieceWithRedirects(laneIdx, opponent, player);
+      // A Sanctuary escape means the piece survived — no growth bonus.
+      enemyCaptured = outcome === 'removed' || outcome === 'captured';
     }
 
     const destLanes: number[] = [];
@@ -1117,7 +1164,7 @@ export class CombatEngine {
     }
   }
 
-  private resolveAmbush(effect: DeferredData, opponent: PlayerSide): void {
+  private resolveAmbush(effect: DeferredData, player: PlayerSide, opponent: PlayerSide): void {
     const targetLane = effect.targetLane;
     const adjacentLanes: number[] = [targetLane];
     if (targetLane > 0) adjacentLanes.push(targetLane - 1);
@@ -1127,7 +1174,7 @@ export class CombatEngine {
       (i) => this.state.lanes[i].winner === null && countPieces(this.state.lanes[i], opponent) > 0,
     );
     if (validRemoval.length > 0) {
-      this.removeFront(this.randPick(validRemoval), opponent);
+      this.removePieceWithRedirects(this.randPick(validRemoval), opponent, player);
     }
   }
 

@@ -219,7 +219,7 @@ This document provides the complete rules for the V2 game system, including all 
 
 > **Shipped balance buff:** Hydra, Backfire, and Absorb also place **+1 of your pieces on the target lane immediately when cast** (if that +1 wins the lane, no trigger is set), and the trigger then waits up to **2 opponent turns**.
 >
-> **Shipped scope:** removal triggers fire only when a piece is removed by **RemoveEnemy (#2)**. Removals caused by Kamikaze, Steal, Ambush, Enlist, Rush, Scramble, Disperse, raid losses, or other triggers do NOT fire them.
+> **Scope:** removal triggers fire on ANY enemy-caused removal on the lane — RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, Trap, Shockwave, and Backfire — including when the removed piece is redirected by Sanctuary or Capture. They do NOT fire on your own sacrifices (Split, Kamikaze's own piece, Rush's cost), repositioning effects (Scramble, Disperse, Disrupt, Regroup, Portal), or raid placeholder cleanup. Trigger chains (e.g. Backfire firing another Backfire) share the placement-trigger depth cap of 10.
 
 #### #29 Hydra
 | | |
@@ -366,7 +366,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Category** | Offensive |
 | **Target** | Your side of chosen lane |
 | **Timing** | Deferred |
-| **Effect** | Place 1 of your pieces on lane X. At START of your NEXT turn: take 1 enemy piece from lane X (if available) and move BOTH pieces (yours and captured enemy) to your LEAST populated available lane. If tied for least populated, random selection among ties. If no enemy piece on X, only your piece moves. If destination lane is full when effect resolves, pieces are removed. |
+| **Effect** | Place 1 of your pieces on lane X. At START of your NEXT turn: take 1 enemy piece from lane X (if available) and move BOTH pieces (yours and captured enemy) to your LEAST populated available lane. If tied for least populated, random selection among ties. If no enemy piece on X, only your piece moves. If destination lane is full when effect resolves, pieces are removed. The capture bonus applies only when the enemy piece was actually removed or converted — if their Sanctuary rescues it, only your own piece moves. |
 
 #### #41 Ambush
 | | |
@@ -395,7 +395,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane (marker) |
 | **Timing** | Duration |
 | **Duration** | 2 turns |
-| **Effect** | Mark 1 lane as sanctuary. While active, your pieces removed by the opponent's RemoveEnemy, Trap, Shockwave, or Backfire go to the sanctuary lane instead of being lost (removals from Kamikaze, Steal, Ambush, Enlist, Rush, and raid losses are NOT redirected). Stops if lane is won. If sanctuary lane is full, pieces are lost as normal. Multiple Sanctuary markers may be active simultaneously; the earliest-placed active Sanctuary receives the piece. |
+| **Effect** | Mark 1 lane as sanctuary. While active, your pieces removed by ANY enemy-caused effect (RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, Trap, Shockwave, Backfire) go to the sanctuary lane instead of being lost. Your own sacrifices (Split, Kamikaze's own piece, Rush's cost, Enlist's consumed piece, Signal's move) and raid placeholder cleanup are NOT redirected — a Sanctuary never voids a cost. Stops if lane is won. If sanctuary lane is full, pieces are lost as normal. Multiple Sanctuary markers may be active simultaneously; the earliest-placed active Sanctuary receives the piece. |
 
 #### #50 Capture
 | | |
@@ -404,7 +404,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane (marker) |
 | **Timing** | Duration |
 | **Duration** | 2 turns |
-| **Effect** | Mark 1 lane as capture zone. While active, enemy pieces YOU remove via RemoveEnemy, Trap, Shockwave, or Backfire become YOUR pieces and go to this lane (removals via Kamikaze, Steal, Ambush, Enlist, Scramble, or Disperse are NOT captured). Stops if lane is won. If lane is full, capture fails and enemy piece is removed normally (not converted). Multiple Capture markers may be active simultaneously; the earliest-placed active Capture zone receives the piece. Capture is checked before the opponent's Sanctuary. |
+| **Effect** | Mark 1 lane as capture zone. While active, enemy pieces YOU remove via ANY of your removal effects (RemoveEnemy, Kamikaze, Steal, Ambush, Enlist's capture, and your Trap/Shockwave/Backfire triggers) become YOUR pieces and go to this lane. Repositioning effects (Scramble, Disperse, Disrupt) move pieces rather than remove them and are not captured. Stops if lane is won. If lane is full, capture fails and enemy piece is removed normally (not converted). Multiple Capture markers may be active simultaneously; the earliest-placed active Capture zone receives the piece. Capture is checked before the opponent's Sanctuary. Note: Steal's +1 bonus is granted even when the stolen piece is Captured (a Steal into your own Capture zone nets +2). |
 
 ---
 
@@ -639,8 +639,8 @@ When both players fill their side of a lane on the same action (rare, but possib
 - CAN be removed by RemoveEnemy or other removal effects
 - If removed before resolution, deferred effect is cancelled
 - Removal triggers (Hydra, Backfire, Absorb) mark LANES, not pieces
-- Removal of a piece on a marked lane by **RemoveEnemy (#2)** triggers the effect (other removal sources do not — see the shipped-scope note under Removal Triggers)
-- **Example:** If a piece on a Hydra lane is removed by RemoveEnemy, Hydra fires (you get +2 pieces on random lanes)
+- Any enemy-caused removal of a piece on a marked lane triggers the effect (see the scope note under Removal Triggers)
+- **Example:** If an Enlist piece is removed and Hydra is on that lane, Hydra fires (you get +2 pieces on random lanes)
 
 **Nullify interaction:** When Nullify targets a lane with deferred pieces, the deferred EFFECT is cancelled but the piece itself remains as a normal piece. This differs from opponent removal (which removes both piece and effect). This asymmetry is intentional - Nullify has a "softer" cost when used on your own effects.
 

@@ -76,17 +76,39 @@ describe('removal & redirects', () => {
     expect(countPieces(e.state.lanes[2], 'player2')).toBe(1);
   });
 
-  it('Sanctuary redirects owner losses when no capture applies', () => {
+  it('Sanctuary rescues pieces from Kamikaze kills', () => {
     const e = engine();
-    // Kamikaze removes enemy pieces with no remover-capture; give player2 a sanctuary.
     e.state.player2Sanctuaries.push({ lane: 0, turnsLeft: 4 });
     setPieces(e.state.lanes[1], 'player1', 1); // sacrifice fodder
     setPieces(e.state.lanes[2], 'player2', 2);
-    // Kamikaze: no remover passed to removePieceWithRedirects for enemy removal,
-    // so sanctuary does NOT trigger for kamikaze (uses removeFront directly).
     e.kamikazePiece(1);
-    // enemy lost pieces via plain removeFront (kamikaze), sanctuary untouched
-    expect(countPieces(e.state.lanes[2], 'player2')).toBeLessThan(2);
+    // Both kills redirect to the sanctuary (a kill landing on the sanctuary
+    // lane itself redirects back onto it), so player2's total is conserved.
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    expect(totalP2).toBe(2);
+    expect(countPieces(e.state.lanes[1], 'player1')).toBe(0); // sacrifice still paid
+  });
+
+  it("Steal converts the stolen piece via the stealer's Capture zone", () => {
+    const e = engine();
+    e.state.player1Captures.push({ lane: 4, turnsLeft: 3 });
+    setPieces(e.state.lanes[2], 'player2', 1);
+    expect(e.stealPiece()).toBe(true);
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    const totalP1 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player1'), 0);
+    expect(totalP2).toBe(0); // stolen piece gone from player2
+    expect(countPieces(e.state.lanes[4], 'player1')).toBeGreaterThanOrEqual(1); // converted
+    expect(totalP1).toBe(2); // capture conversion + Steal's unconditional +1
+  });
+
+  it('a raid placeholder is NOT rescued by Sanctuary when the raid resolves', () => {
+    const e = engine(5);
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    setPieces(e.state.lanes[0], 'player2', 1); // the raid placeholder
+    e.state.pendingRaids = [{ owner: 1, lane: 0, turnsUntilResolve: 0, source: 'RAID' }];
+    e.autoPlace(); // resolves the raid at player1's turn start
+    // All four roll branches remove the placeholder outright — never redirected.
+    expect(countPieces(e.state.lanes[3], 'player2')).toBe(0);
   });
 });
 
@@ -98,6 +120,15 @@ describe('placement triggers', () => {
     e.placeOnLane(0);
     // The just-placed player1 piece is removed by trap.
     expect(countPieces(e.state.lanes[0], 'player1')).toBe(0);
+  });
+
+  it("Trap owner's Capture converts the trapped piece", () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'TRAP', owner: 2, turnsLeft: 2, orderId: 0 });
+    e.state.player2Captures.push({ lane: 4, turnsLeft: 3 });
+    e.placeOnLane(0);
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(0); // trapped
+    expect(countPieces(e.state.lanes[4], 'player2')).toBe(1); // converted, not vanished
   });
 
   it('Mirror grants the owner +2 when enemy places on the lane', () => {
@@ -186,6 +217,42 @@ describe('placement triggers', () => {
     }
     // Should terminate without throwing.
     expect(() => e.placeOnLane(0)).not.toThrow();
+  });
+});
+
+describe('removal triggers', () => {
+  it("Ambush fires the victim's Hydra on the hit lane", () => {
+    const e = engine(3);
+    // player1 owns a pending Ambush on lane 1; player2 has pieces only there,
+    // protected by their Hydra trigger.
+    e.state.lanes[1].deferred.push({ type: 'AMBUSH', owner: 1, targetLane: 1 });
+    e.state.lanes[1].triggers.push({ type: 'HYDRA', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[1], 'player2', 2);
+    e.autoPlace(); // player1 turn start resolves the deferred Ambush
+    expect(countPieces(e.state.lanes[1], 'player2')).toBe(1); // lost 1 to the ambush
+    const totalP2 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player2'), 0);
+    expect(totalP2).toBe(3); // Hydra spawned 2 elsewhere: net +1
+    expect(e.state.lanes[1].triggers).toHaveLength(0); // one-shot, consumed
+  });
+
+  it('Backfire-vs-Backfire chains terminate within the depth guard', () => {
+    const e = engine(9);
+    for (let i = 0; i < 5; i++) {
+      setPieces(e.state.lanes[i], 'player1', 3);
+      setPieces(e.state.lanes[i], 'player2', 3);
+      e.state.lanes[i].triggers.push({ type: 'BACKFIRE', owner: 1, turnsLeft: 4, orderId: i * 2 });
+      e.state.lanes[i].triggers.push({
+        type: 'BACKFIRE',
+        owner: 2,
+        turnsLeft: 4,
+        orderId: i * 2 + 1,
+      });
+    }
+    expect(() => e.removeEnemyPiece(0)).not.toThrow();
+    for (const lane of e.state.lanes) {
+      expect(countPieces(lane, 'player1')).toBeLessThanOrEqual(5);
+      expect(countPieces(lane, 'player2')).toBeLessThanOrEqual(5);
+    }
   });
 });
 
