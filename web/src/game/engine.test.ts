@@ -158,6 +158,26 @@ describe('placement triggers', () => {
     expect(e.state.lanes[0].triggers).toHaveLength(0);
   });
 
+  it('Retaliate spawns a raid piece on the placer side', () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'RETALIATE', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[0], 'player1', 1);
+    e.placeOnLane(0); // player1's 2nd piece fires the trigger
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(3); // 2 placed + raid piece
+    expect(e.state.pendingRaids).toHaveLength(1);
+    expect(e.state.pendingRaids[0]).toMatchObject({ owner: 2, lane: 0, source: 'RETALIATE' });
+  });
+
+  it('Retaliate fizzles instead of winning the lane for the placer', () => {
+    const e = engine();
+    e.state.lanes[0].triggers.push({ type: 'RETALIATE', owner: 2, turnsLeft: 4, orderId: 0 });
+    setPieces(e.state.lanes[0], 'player1', 3);
+    e.placeOnLane(0); // player1 now has 4; a raid piece would be their winning 5th
+    expect(e.state.lanes[0].winner).toBeNull();
+    expect(countPieces(e.state.lanes[0], 'player1')).toBe(4);
+    expect(e.state.pendingRaids).toHaveLength(0);
+  });
+
   it('trigger chaining respects depth guard (no infinite loop)', () => {
     const e = engine();
     // Portal on every lane owned by player2; player1 placement bounces around.
@@ -204,9 +224,16 @@ describe('turn end decrements timers', () => {
     e.freezeLane(3); // player1 freezes lane 3 -> blocks player2
     e.endTurn();
     expect(e.state.currentPlayer).toBe('player2');
-    // lane 3 frozen for player2
-    const availableForP2 = getValidLanesForPerk(1, e.state, 'player2');
-    expect(availableForP2).toContain(3); // PlaceAnother validity ignores freeze; freeze checked in autoPlace
+    // lane 3 frozen for player2: chosen placements are blocked
+    expect(getValidLanesForPerk(1, e.state, 'player2')).not.toContain(3);
+    expect(getValidLanesForPerk(39, e.state, 'player2')).not.toContain(3);
+    expect(e.placeOnLane(3)).toBe(false);
+    expect(e.rushLane(3)).toBe(false);
+    // ...but not the freezer's own
+    expect(getValidLanesForPerk(1, e.state, 'player1')).toContain(3);
+    // freeze expires after the frozen player's turn
+    e.endTurn();
+    expect(getValidLanesForPerk(1, e.state, 'player2')).toContain(3);
   });
 });
 

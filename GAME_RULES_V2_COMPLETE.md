@@ -124,7 +124,7 @@ This document provides the complete rules for the V2 game system, including all 
 | **Target** | Your side of chosen lane |
 | **Timing** | Duration |
 | **Duration** | 1 turn |
-| **Effect** | Place a freeze marker on your side of the lane. Opponent cannot place pieces on this lane for 1 turn. Auto-placement skips frozen lanes. **Scope:** Freeze ONLY blocks piece placement. It does not affect, pause, or cancel any other active effects on the lane (triggers, Sanctuary, Capture, deferred pieces, etc.). |
+| **Effect** | Place a freeze marker on your side of the lane. Opponent cannot place pieces on this lane for 1 turn: auto-placement skips frozen lanes, and their chosen placements there (PlaceAnother, Rush) are blocked. Random-destination effects (Split, Scatter, Echo, etc.) and trigger rewards can still land pieces on a frozen lane. **Scope:** Freeze ONLY blocks piece placement. It does not affect, pause, or cancel any other active effects on the lane (triggers, Sanctuary, Capture, deferred pieces, etc.). |
 
 #### #22 Cloak
 | | |
@@ -485,6 +485,7 @@ Note: This means 2 full turns pass before resolution, giving opponent time to re
 **Retaliate-Spawned Raid Piece Ownership:**
 - Same mechanics as regular Raid: piece is **mechanically enemy's piece** once on their side
 - Counts toward enemy's lane win, targetable as enemy piece (see Raid Mechanics above)
+- If the placer already has 4 pieces on the lane after their placement, the retaliation **fizzles** (no raid piece) — it would otherwise win the lane for them, mirroring Raid's lane-targeting guard
 
 ---
 

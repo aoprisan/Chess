@@ -7,6 +7,7 @@ import {
   countPieces,
   isSideFilled,
   isCloaked,
+  isLaneFrozenFor,
   LANE_COUNT,
   SLOTS_PER_SIDE,
 } from './state';
@@ -26,8 +27,13 @@ export function getValidLanesForPerk(
     if (lane.winner !== null) continue;
 
     switch (perkId) {
-      case 1: // PlaceAnother - your lane not full
-        if (!isSideFilled(lane, playerSide)) validLanes.push(i);
+      case 1: // PlaceAnother - your lane not full (or frozen against you)
+        if (!isSideFilled(lane, playerSide) && !isLaneFrozenFor(gameState, i, playerSide)) {
+          validLanes.push(i);
+        }
+        break;
+      case 39: // Rush - places on the chosen lane, so freeze blocks it too
+        if (!isLaneFrozenFor(gameState, i, playerSide)) validLanes.push(i);
         break;
       case 2: // RemoveEnemy
       case 36: // Disperse

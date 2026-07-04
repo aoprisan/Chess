@@ -22,6 +22,7 @@ import {
   initialState,
   LANE_COUNT,
   LANES_TO_WIN,
+  SLOTS_PER_SIDE,
 } from './state';
 import { RNG, MathRandomRNG } from './rng';
 import { PerkSlot, getPerk, SLOT3_POOL, SLOT4_POOL } from './perks';
@@ -255,6 +256,7 @@ export class CombatEngine {
     const currentPlayer = this.state.currentPlayer;
     const lane = this.state.lanes[laneIndex];
     if (lane.winner !== null) return false;
+    if (isLaneFrozenFor(this.state, laneIndex, currentPlayer)) return false;
     if (getNextEmptyColumn(lane, currentPlayer) === -1) return false;
     this.placePieceAndAdvance(laneIndex, currentPlayer);
     this.firePlacementTriggers(laneIndex, currentPlayer, 0);
@@ -521,6 +523,7 @@ export class CombatEngine {
   rushLane(laneIndex: number): boolean {
     if (laneIndex < 0 || laneIndex >= LANE_COUNT) return false;
     if (this.state.lanes[laneIndex].winner !== null) return false;
+    if (isLaneFrozenFor(this.state, laneIndex, this.state.currentPlayer)) return false;
     const player = this.state.currentPlayer;
     const enemy = opponentOf(player);
     let laneWonDuringPlacement = false;
@@ -800,7 +803,10 @@ export class CombatEngine {
   }
 
   private handleRetaliateTrigger(laneIndex: number, owner: PlayerSide, opponent: PlayerSide): void {
-    if (isSideFilled(this.state.lanes[laneIndex], opponent)) return;
+    // The raid piece is mechanically the placer's piece; if it would be their
+    // 5th it would win the lane FOR them, so the retaliation fizzles instead
+    // (same guard as Raid lane targeting).
+    if (countPieces(this.state.lanes[laneIndex], opponent) >= SLOTS_PER_SIDE - 1) return;
     this.addPiece(laneIndex, opponent);
     this.state.pendingRaids.push({
       owner: ownerInt(owner),
