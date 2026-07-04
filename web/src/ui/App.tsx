@@ -112,7 +112,9 @@ export function App() {
       <div className="app screen doodle-bg menu-home">
         <h1 className="menu-error">Oops!</h1>
         <p className="menu-error-detail">Could not load the adventure map.</p>
-        <p className="menu-error-detail" style={{ fontSize: 12 }}>{loadError}</p>
+        <p className="menu-error-detail" style={{ fontSize: 12 }}>
+          {loadError}
+        </p>
       </div>
     );
   }
@@ -141,7 +143,9 @@ export function App() {
       <div className="app">
         <HeroSelect
           onBack={() => setView({ name: 'levels' })}
-          onPick={(hero) => setView({ name: 'adventure', journeyId: view.journeyId, newJourneyHero: hero })}
+          onPick={(hero) =>
+            setView({ name: 'adventure', journeyId: view.journeyId, newJourneyHero: hero })
+          }
         />
       </div>
     );
@@ -159,7 +163,13 @@ export function App() {
             saveSoloDifficulty(d);
           }}
           onPick={(hero) =>
-            setView({ name: 'battle', p1: hero, p2: randomRival(hero), vsAI: true, difficulty: soloDifficulty })
+            setView({
+              name: 'battle',
+              p1: hero,
+              p2: randomRival(hero),
+              vsAI: true,
+              difficulty: soloDifficulty,
+            })
           }
         />
       </div>
@@ -179,7 +189,13 @@ export function App() {
           onPick={(hero) =>
             pickingP1
               ? setView({ name: 'duelHeroSelect', p1: hero })
-              : setView({ name: 'battle', p1: view.p1!, p2: hero, vsAI: false, difficulty: 'medium' })
+              : setView({
+                  name: 'battle',
+                  p1: view.p1!,
+                  p2: hero,
+                  vsAI: false,
+                  difficulty: 'medium',
+                })
           }
         />
       </div>
@@ -216,7 +232,9 @@ export function App() {
         <div className="app">
           <HeroSelect
             onBack={() => setView({ name: 'levels' })}
-            onPick={(hero) => setView({ name: 'adventure', journeyId: map.id, newJourneyHero: hero })}
+            onPick={(hero) =>
+              setView({ name: 'adventure', journeyId: map.id, newJourneyHero: hero })
+            }
           />
         </div>
       );
@@ -241,9 +259,17 @@ export function App() {
   // Home — logo + the three game modes.
   return (
     <div className="app screen doodle-bg menu-home">
-      <img className="menu-logo" src={ui.logo} alt="Kiddie Chess" onError={(e) => (e.currentTarget.style.display = 'none')} />
+      <img
+        className="menu-logo"
+        src={ui.logo}
+        alt="Kiddie Chess"
+        onError={(e) => (e.currentTarget.style.display = 'none')}
+      />
       <div style={{ height: 48 }} />
-      <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'soloHeroSelect' })}>
+      <button
+        className="img-btn yellow menu-btn"
+        onClick={() => setView({ name: 'soloHeroSelect' })}
+      >
         Play Solo
       </button>
       <div style={{ height: 16 }} />
@@ -251,7 +277,10 @@ export function App() {
         Adventure
       </button>
       <div style={{ height: 16 }} />
-      <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'duelHeroSelect' })}>
+      <button
+        className="img-btn yellow menu-btn"
+        onClick={() => setView({ name: 'duelHeroSelect' })}
+      >
         2 Players
       </button>
       <div style={{ height: 16 }} />

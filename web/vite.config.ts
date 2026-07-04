@@ -26,7 +26,8 @@ export default defineConfig({
       manifest: {
         name: 'Kiddie Chess Adventure',
         short_name: 'Kiddie Chess',
-        description: 'A kid-friendly lane-battle adventure. Traverse the maze, clear obstacles, and beat the rival heroes!',
+        description:
+          'A kid-friendly lane-battle adventure. Traverse the maze, clear obstacles, and beat the rival heroes!',
         theme_color: '#8D6E63',
         background_color: '#F5E6D3',
         display: 'standalone',

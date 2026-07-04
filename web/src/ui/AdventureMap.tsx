@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useCallback,
+  MouseEvent as ReactMouseEvent,
+} from 'react';
 import { AdventureMapDef, AdventureNode, Biome, ObstacleType } from '../adventure/map';
 import { AdventureController, clearSavedJourney } from '../adventure/progress';
 import { journeyById, nextJourney, recordJourneyCompletion } from '../adventure/levels';
@@ -52,7 +59,13 @@ export function AdventureMap({
 
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const mutate = useCallback((fn: () => void) => { fn(); bump(); }, [bump]);
+  const mutate = useCallback(
+    (fn: () => void) => {
+      fn();
+      bump();
+    },
+    [bump],
+  );
 
   const [popup, setPopup] = useState<Popup>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -63,7 +76,9 @@ export function AdventureMap({
 
   useEffect(() => {
     aliveRef.current = true;
-    return () => { aliveRef.current = false; };
+    return () => {
+      aliveRef.current = false;
+    };
   }, []);
 
   // Record completion in the level store whenever a completed journey is on
@@ -257,13 +272,29 @@ export function AdventureMap({
               extend up over the one above with a faded top edge so the
               artworks cross-blend instead of cutting hard at the seam. */}
           <BiomePanel biome="peaks" top={0} height={mapHeight / 3} />
-          <BiomePanel biome="forest" top={mapHeight / 3} height={mapHeight / 3} fadeTop={seamFade} />
-          <BiomePanel biome="meadow" top={(mapHeight / 3) * 2} height={mapHeight / 3} fadeTop={seamFade} />
+          <BiomePanel
+            biome="forest"
+            top={mapHeight / 3}
+            height={mapHeight / 3}
+            fadeTop={seamFade}
+          />
+          <BiomePanel
+            biome="meadow"
+            top={(mapHeight / 3) * 2}
+            height={mapHeight / 3}
+            fadeTop={seamFade}
+          />
 
           {/* A soft drift of clouds sits on each seam to hide the blend */}
           {dims.width > 0 &&
             SEAM_FRACTIONS.map((frac, i) => (
-              <CloudBand key={i} seed={(i + 1) * 37} width={dims.width} y={frac * mapHeight} height={seamBand} />
+              <CloudBand
+                key={i}
+                seed={(i + 1) * 37}
+                width={dims.width}
+                y={frac * mapHeight}
+                height={seamBand}
+              />
             ))}
 
           {/* Dashed trails */}
@@ -334,7 +365,11 @@ export function AdventureMap({
           {ctrl.totalStars} / {ctrl.maxStars}
         </button>
         <span style={{ width: 8 }} />
-        <button className="chip" aria-label="Start over" onClick={() => setPopup({ kind: 'startOver' })}>
+        <button
+          className="chip"
+          aria-label="Start over"
+          onClick={() => setPopup({ kind: 'startOver' })}
+        >
           <Icon name="refresh" size={20} color="#5D4037" />
         </button>
       </div>
@@ -343,11 +378,17 @@ export function AdventureMap({
 
       {popup?.kind === 'startOver' && (
         <div className="modal-scrim" onClick={() => setPopup(null)}>
-          <div className="modal" style={{ alignItems: 'stretch' }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            style={{ alignItems: 'stretch' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="alert-title">Start Over?</h3>
             <p className="alert-body">This will erase your journey and let you pick a new hero.</p>
             <div className="alert-actions">
-              <button style={{ color: '#8D6E63' }} onClick={() => setPopup(null)}>Cancel</button>
+              <button style={{ color: '#8D6E63' }} onClick={() => setPopup(null)}>
+                Cancel
+              </button>
               <button
                 style={{ color: '#5D4037', fontWeight: 700 }}
                 onClick={() => {
@@ -365,13 +406,19 @@ export function AdventureMap({
       {popup?.kind === 'obstacle' && (
         <ObstacleDialog
           obstacle={popup.node.obstacle!}
-          onCleared={() => { mutate(() => ctrl.markObstacleCleared(popup.node.id)); setPopup(null); }}
+          onCleared={() => {
+            mutate(() => ctrl.markObstacleCleared(popup.node.id));
+            setPopup(null);
+          }}
           onClose={() => setPopup(null)}
         />
       )}
       {popup?.kind === 'treasure' && (
         <TreasureDialog
-          onOpened={() => { mutate(() => ctrl.openTreasure(popup.node.id)); setPopup(null); }}
+          onOpened={() => {
+            mutate(() => ctrl.openTreasure(popup.node.id));
+            setPopup(null);
+          }}
           onClose={() => setPopup(null)}
         />
       )}
@@ -388,7 +435,10 @@ export function AdventureMap({
         <VictoryOverlay
           ctrl={ctrl}
           onNextLevel={nextJourney(map.id) ? () => onNextLevel(ctrl.progress.heroType) : undefined}
-          onPlayAgain={() => { clearSavedJourney(map.id); onNewJourney(); }}
+          onPlayAgain={() => {
+            clearSavedJourney(map.id);
+            onNewJourney();
+          }}
           onMenu={onExit}
         />
       )}
@@ -408,7 +458,8 @@ function BiomePanel({
   /** Extend the panel this many px up over the previous one, fading in. */
   fadeTop?: number;
 }) {
-  const mask = fadeTop > 0 ? `linear-gradient(to bottom, transparent 0, #000 ${fadeTop}px)` : undefined;
+  const mask =
+    fadeTop > 0 ? `linear-gradient(to bottom, transparent 0, #000 ${fadeTop}px)` : undefined;
   return (
     <div
       className="biome-panel"
@@ -452,11 +503,27 @@ function jitter(n: number): number {
 }
 
 /** A blurred strip of cloud puffs laid across a biome seam. */
-function CloudBand({ seed, width, y, height }: { seed: number; width: number; y: number; height: number }) {
+function CloudBand({
+  seed,
+  width,
+  y,
+  height,
+}: {
+  seed: number;
+  width: number;
+  y: number;
+  height: number;
+}) {
   const step = height * 0.9;
   const count = Math.ceil(width / step) + 2;
   return (
-    <svg className="seam-clouds" width={width} height={height * 2} style={{ top: y - height }} aria-hidden>
+    <svg
+      className="seam-clouds"
+      width={width}
+      height={height * 2}
+      style={{ top: y - height }}
+      aria-hidden
+    >
       <defs>
         <filter id={`seam-blur-${seed}`} x="-20%" y="-50%" width="140%" height="200%">
           <feGaussianBlur stdDeviation={height * 0.14} />
@@ -482,7 +549,10 @@ function CloudBand({ seed, width, y, height }: { seed: number; width: number; y:
 function PortalGate({ id, x, y, size }: { id: string; x: number; y: number; size: number }) {
   const h = size * 1.25;
   return (
-    <div className="biome-portal" style={{ left: x - size / 2, top: y - h / 2, width: size, height: h }}>
+    <div
+      className="biome-portal"
+      style={{ left: x - size / 2, top: y - h / 2, width: size, height: h }}
+    >
       <svg viewBox="0 0 100 125" width="100%" height="100%">
         <defs>
           <radialGradient id={`portal-glow-${id}`} cx="50%" cy="50%" r="50%">
@@ -496,7 +566,14 @@ function PortalGate({ id, x, y, size }: { id: string; x: number; y: number; size
             <stop offset="100%" stopColor="#FFD54F" stopOpacity="0.25" />
           </radialGradient>
         </defs>
-        <ellipse className="portal-halo" cx="50" cy="62" rx="48" ry="60" fill={`url(#portal-glow-${id})`} />
+        <ellipse
+          className="portal-halo"
+          cx="50"
+          cy="62"
+          rx="48"
+          ry="60"
+          fill={`url(#portal-glow-${id})`}
+        />
         <ellipse cx="50" cy="62" rx="30" ry="44" fill={`url(#portal-core-${id})`} />
         <ellipse cx="50" cy="62" rx="30" ry="44" fill="none" stroke="#FFC107" strokeWidth="5" />
         <ellipse
@@ -520,9 +597,23 @@ function PortalGate({ id, x, y, size }: { id: string; x: number; y: number; size
   );
 }
 
-function Edges({ map, ctrl, width, height }: { map: AdventureMapDef; ctrl: AdventureController; width: number; height: number }) {
+function Edges({
+  map,
+  ctrl,
+  width,
+  height,
+}: {
+  map: AdventureMapDef;
+  ctrl: AdventureController;
+  width: number;
+  height: number;
+}) {
   return (
-    <svg width={width} height={height} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+    <svg
+      width={width}
+      height={height}
+      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+    >
       {map.edges.map(([a, b], i) => {
         const na = map.nodeById(a);
         const nb = map.nodeById(b);
@@ -605,7 +696,15 @@ function NodeMarker({
   );
 }
 
-function NodeGlyph({ node, ctrl, size }: { node: AdventureNode; ctrl: AdventureController; size: number }) {
+function NodeGlyph({
+  node,
+  ctrl,
+  size,
+}: {
+  node: AdventureNode;
+  ctrl: AdventureController;
+  size: number;
+}) {
   switch (node.type) {
     case 'start':
       return <img className="node-art" src={ui.flag} alt="start" />;
@@ -753,7 +852,14 @@ function TreasureDialog({ onOpened, onClose }: { onOpened: () => void; onClose: 
           onClick={() => setOpened(true)}
         />
         <div style={{ height: 12 }} />
-        <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: opened ? '#FF9800' : '#8D6E63' }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 16,
+            fontWeight: 700,
+            color: opened ? '#FF9800' : '#8D6E63',
+          }}
+        >
           {opened ? '+2 Stars!' : 'Tap to open!'}
         </p>
       </div>
@@ -782,9 +888,21 @@ function EncounterDialog({
         <h2>{isBoss ? `${rival.name} guards the summit!` : `${rival.name} blocks your path!`}</h2>
         <div style={{ height: 16 }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={heroImage(ctrl.playerHero.imagePath)} alt="you" style={{ width: 80, height: 80, objectFit: 'contain' }} />
-          <img src={ui.vs} alt="vs" style={{ width: 44, height: 44, objectFit: 'contain', margin: '0 8px' }} />
-          <img src={heroImage(rival.imagePath)} alt={rival.name} style={{ width: 80, height: 80, objectFit: 'contain' }} />
+          <img
+            src={heroImage(ctrl.playerHero.imagePath)}
+            alt="you"
+            style={{ width: 80, height: 80, objectFit: 'contain' }}
+          />
+          <img
+            src={ui.vs}
+            alt="vs"
+            style={{ width: 44, height: 44, objectFit: 'contain', margin: '0 8px' }}
+          />
+          <img
+            src={heroImage(rival.imagePath)}
+            alt={rival.name}
+            style={{ width: 80, height: 80, objectFit: 'contain' }}
+          />
         </div>
         <div style={{ height: 8 }} />
         <p className="sub">
@@ -793,9 +911,13 @@ function EncounterDialog({
             : `Difficulty: ${difficulty.charAt(0).toUpperCase()}${difficulty.slice(1)}`}
         </p>
         <div style={{ height: 20 }} />
-        <button className="img-btn yellow dialog-btn" onClick={onFight}>Fight!</button>
+        <button className="img-btn yellow dialog-btn" onClick={onFight}>
+          Fight!
+        </button>
         <div style={{ height: 10 }} />
-        <button className="img-btn grey dialog-btn" onClick={onClose}>Not Yet</button>
+        <button className="img-btn grey dialog-btn" onClick={onClose}>
+          Not Yet
+        </button>
       </div>
     </div>
   );
@@ -817,7 +939,9 @@ function VictoryOverlay({
     <div className="modal-scrim">
       <div className="modal" style={{ width: 320, padding: '32px 24px' }}>
         <div style={{ fontSize: 40 }}>🎉</div>
-        <h2 style={{ fontSize: 24 }}>{onNextLevel ? 'Journey Complete!' : 'Adventure Complete!'}</h2>
+        <h2 style={{ fontSize: 24 }}>
+          {onNextLevel ? 'Journey Complete!' : 'Adventure Complete!'}
+        </h2>
         <div style={{ height: 16 }} />
         <img
           src={heroImage(ctrl.playerHero.imagePath)}
@@ -840,15 +964,22 @@ function VictoryOverlay({
         <div style={{ height: 24 }} />
         {onNextLevel && (
           <>
-            <button className="img-btn yellow dialog-btn" onClick={onNextLevel}>Next Level!</button>
+            <button className="img-btn yellow dialog-btn" onClick={onNextLevel}>
+              Next Level!
+            </button>
             <div style={{ height: 10 }} />
           </>
         )}
-        <button className={`img-btn ${onNextLevel ? 'grey' : 'yellow'} dialog-btn`} onClick={onPlayAgain}>
+        <button
+          className={`img-btn ${onNextLevel ? 'grey' : 'yellow'} dialog-btn`}
+          onClick={onPlayAgain}
+        >
           New Journey
         </button>
         <div style={{ height: 10 }} />
-        <button className="img-btn grey dialog-btn" onClick={onMenu}>Back to Menu</button>
+        <button className="img-btn grey dialog-btn" onClick={onMenu}>
+          Back to Menu
+        </button>
       </div>
     </div>
   );

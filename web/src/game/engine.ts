@@ -129,8 +129,16 @@ export class CombatEngine {
     ];
     const slot3Id = SLOT3_POOL[this.rng.nextInt(SLOT3_POOL.length)];
     const slot4Id = SLOT4_POOL[this.rng.nextInt(SLOT4_POOL.length)];
-    slots.push({ slotIndex: 2, perkId: slot3Id, perkName: getPerk(slot3Id)?.name ?? `Perk ${slot3Id}` });
-    slots.push({ slotIndex: 3, perkId: slot4Id, perkName: getPerk(slot4Id)?.name ?? `Perk ${slot4Id}` });
+    slots.push({
+      slotIndex: 2,
+      perkId: slot3Id,
+      perkName: getPerk(slot3Id)?.name ?? `Perk ${slot3Id}`,
+    });
+    slots.push({
+      slotIndex: 3,
+      perkId: slot4Id,
+      perkName: getPerk(slot4Id)?.name ?? `Perk ${slot4Id}`,
+    });
     return slots;
   }
 
@@ -324,10 +332,7 @@ export class CombatEngine {
     this.removeFront(laneIndex, player);
 
     const otherLanes = this.openLanesFor(player);
-    if (
-      otherLanes.length >= SOURCE_EXCLUSION_THRESHOLD &&
-      otherLanes.includes(laneIndex)
-    ) {
+    if (otherLanes.length >= SOURCE_EXCLUSION_THRESHOLD && otherLanes.includes(laneIndex)) {
       otherLanes.splice(otherLanes.indexOf(laneIndex), 1);
     }
     for (let placed = 0; placed < 2 && otherLanes.length > 0; placed++) {
@@ -503,7 +508,8 @@ export class CombatEngine {
       const available = this.openLanesFor(enemy);
       if (available.length === 0) break;
       const laneIdx = this.randPick(available);
-      if (getNextEmptyColumn(this.state.lanes[laneIdx], enemy) !== -1) this.addPiece(laneIdx, enemy);
+      if (getNextEmptyColumn(this.state.lanes[laneIdx], enemy) !== -1)
+        this.addPiece(laneIdx, enemy);
     }
 
     const playerAvailable = this.openLanesFor(player);
@@ -530,14 +536,20 @@ export class CombatEngine {
 
     for (let i = 0; i < 2; i++) {
       const lane = this.state.lanes[laneIndex];
-      if (lane.winner !== null) { laneWonDuringPlacement = true; break; }
+      if (lane.winner !== null) {
+        laneWonDuringPlacement = true;
+        break;
+      }
       if (isSideFilled(lane, player)) break;
       if (getNextEmptyColumn(lane, player) === -1) break;
       this.addPiece(laneIndex, player);
     }
     for (let i = 0; i < 2; i++) {
       const lane = this.state.lanes[laneIndex];
-      if (lane.winner !== null) { laneWonDuringPlacement = true; break; }
+      if (lane.winner !== null) {
+        laneWonDuringPlacement = true;
+        break;
+      }
       if (isSideFilled(lane, enemy)) break;
       if (getNextEmptyColumn(lane, enemy) === -1) break;
       this.addPiece(laneIndex, enemy);
@@ -546,7 +558,11 @@ export class CombatEngine {
     if (!laneWonDuringPlacement) {
       const otherLanes: number[] = [];
       for (let i = 0; i < LANE_COUNT; i++) {
-        if (i !== laneIndex && this.state.lanes[i].winner === null && countPieces(this.state.lanes[i], player) > 0) {
+        if (
+          i !== laneIndex &&
+          this.state.lanes[i].winner === null &&
+          countPieces(this.state.lanes[i], player) > 0
+        ) {
           otherLanes.push(i);
         }
       }
@@ -566,8 +582,12 @@ export class CombatEngine {
     lane.triggers = [];
     lane.deferred = [];
     this.state.pendingRaids = this.state.pendingRaids.filter((r) => r.lane !== laneIndex);
-    this.state.player1Sanctuaries = this.state.player1Sanctuaries.filter((s) => s.lane !== laneIndex);
-    this.state.player2Sanctuaries = this.state.player2Sanctuaries.filter((s) => s.lane !== laneIndex);
+    this.state.player1Sanctuaries = this.state.player1Sanctuaries.filter(
+      (s) => s.lane !== laneIndex,
+    );
+    this.state.player2Sanctuaries = this.state.player2Sanctuaries.filter(
+      (s) => s.lane !== laneIndex,
+    );
     this.state.player1Captures = this.state.player1Captures.filter((c) => c.lane !== laneIndex);
     this.state.player2Captures = this.state.player2Captures.filter((c) => c.lane !== laneIndex);
     delete this.state.frozenLanes[laneIndex];
@@ -608,15 +628,33 @@ export class CombatEngine {
   // Portal/Trap stay conditional-only for one opponent turn (turnsLeft 2).
   private static readonly BUFFED_TRIGGER = { turnsLeft: 4, placeNow: true };
 
-  setPortalTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'PORTAL'); }
-  setTrapTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'TRAP'); }
-  setMirrorTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'MIRROR', CombatEngine.BUFFED_TRIGGER); }
-  setEchoTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ECHO', CombatEngine.BUFFED_TRIGGER); }
-  setShockwaveTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'SHOCKWAVE', CombatEngine.BUFFED_TRIGGER); }
-  setHydraTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'HYDRA', CombatEngine.BUFFED_TRIGGER); }
-  setBackfireTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'BACKFIRE', CombatEngine.BUFFED_TRIGGER); }
-  setAbsorbTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'ABSORB', CombatEngine.BUFFED_TRIGGER); }
-  setRetaliateTrigger(laneIndex: number): boolean { return this.setTrigger(laneIndex, 'RETALIATE', CombatEngine.BUFFED_TRIGGER); }
+  setPortalTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'PORTAL');
+  }
+  setTrapTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'TRAP');
+  }
+  setMirrorTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'MIRROR', CombatEngine.BUFFED_TRIGGER);
+  }
+  setEchoTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'ECHO', CombatEngine.BUFFED_TRIGGER);
+  }
+  setShockwaveTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'SHOCKWAVE', CombatEngine.BUFFED_TRIGGER);
+  }
+  setHydraTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'HYDRA', CombatEngine.BUFFED_TRIGGER);
+  }
+  setBackfireTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'BACKFIRE', CombatEngine.BUFFED_TRIGGER);
+  }
+  setAbsorbTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'ABSORB', CombatEngine.BUFFED_TRIGGER);
+  }
+  setRetaliateTrigger(laneIndex: number): boolean {
+    return this.setTrigger(laneIndex, 'RETALIATE', CombatEngine.BUFFED_TRIGGER);
+  }
 
   // --- Deferred perks (+1 now, effect next turn) ---
 
@@ -632,10 +670,18 @@ export class CombatEngine {
     return true;
   }
 
-  signalLane(laneIndex: number): boolean { return this.deferredPerk(laneIndex, 'SIGNAL'); }
-  enlistOnLane(laneIndex: number): boolean { return this.deferredPerk(laneIndex, 'ENLIST'); }
-  ambushOnLane(laneIndex: number): boolean { return this.deferredPerk(laneIndex, 'AMBUSH'); }
-  reinforceLane(laneIndex: number): boolean { return this.deferredPerk(laneIndex, 'REINFORCE'); }
+  signalLane(laneIndex: number): boolean {
+    return this.deferredPerk(laneIndex, 'SIGNAL');
+  }
+  enlistOnLane(laneIndex: number): boolean {
+    return this.deferredPerk(laneIndex, 'ENLIST');
+  }
+  ambushOnLane(laneIndex: number): boolean {
+    return this.deferredPerk(laneIndex, 'AMBUSH');
+  }
+  reinforceLane(laneIndex: number): boolean {
+    return this.deferredPerk(laneIndex, 'REINFORCE');
+  }
 
   // --- Duration perks ---
 
@@ -681,7 +727,8 @@ export class CombatEngine {
   // --- Redirect-aware removal ---
 
   private getSanctuaryLane(player: PlayerSide): number | null {
-    const list = player === 'player1' ? this.state.player1Sanctuaries : this.state.player2Sanctuaries;
+    const list =
+      player === 'player1' ? this.state.player1Sanctuaries : this.state.player2Sanctuaries;
     return list.length === 0 ? null : list[0].lane;
   }
 
@@ -720,7 +767,11 @@ export class CombatEngine {
 
   // --- Placement triggers ---
 
-  private firePlacementTriggers(laneIndex: number, placingPlayer: PlayerSide, chainDepth: number): void {
+  private firePlacementTriggers(
+    laneIndex: number,
+    placingPlayer: PlayerSide,
+    chainDepth: number,
+  ): void {
     if (chainDepth >= MAX_TRIGGER_CHAIN_DEPTH) return;
     if (this.state.lanes[laneIndex].winner !== null) return;
 
@@ -738,21 +789,41 @@ export class CombatEngine {
 
       // Remove trigger by orderId (one-time use)
       lane.triggers = lane.triggers.filter((t) => t.orderId !== trigger.orderId);
-      this.log(triggerOwner, 'trigger', `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`);
+      this.log(
+        triggerOwner,
+        'trigger',
+        `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`,
+      );
 
       switch (trigger.type) {
-        case 'PORTAL': this.handlePortalTrigger(laneIndex, placingPlayer, chainDepth); break;
-        case 'TRAP': this.handleTrapTrigger(laneIndex, placingPlayer); break;
-        case 'MIRROR': this.handleMirrorTrigger(laneIndex, triggerOwner); break;
-        case 'ECHO': this.handleEchoTrigger(laneIndex, triggerOwner); break;
-        case 'SHOCKWAVE': this.handleShockwaveTrigger(laneIndex, placingPlayer, triggerOwner); break;
-        case 'RETALIATE': this.handleRetaliateTrigger(laneIndex, triggerOwner, placingPlayer); break;
+        case 'PORTAL':
+          this.handlePortalTrigger(laneIndex, placingPlayer, chainDepth);
+          break;
+        case 'TRAP':
+          this.handleTrapTrigger(laneIndex, placingPlayer);
+          break;
+        case 'MIRROR':
+          this.handleMirrorTrigger(laneIndex, triggerOwner);
+          break;
+        case 'ECHO':
+          this.handleEchoTrigger(laneIndex, triggerOwner);
+          break;
+        case 'SHOCKWAVE':
+          this.handleShockwaveTrigger(laneIndex, placingPlayer, triggerOwner);
+          break;
+        case 'RETALIATE':
+          this.handleRetaliateTrigger(laneIndex, triggerOwner, placingPlayer);
+          break;
       }
       this.checkAllLaneWins();
     }
   }
 
-  private handlePortalTrigger(laneIndex: number, placingPlayer: PlayerSide, chainDepth: number): void {
+  private handlePortalTrigger(
+    laneIndex: number,
+    placingPlayer: PlayerSide,
+    chainDepth: number,
+  ): void {
     this.removeFront(laneIndex, placingPlayer);
     const available = this.openLanesFor(placingPlayer);
     if (available.length >= SOURCE_EXCLUSION_THRESHOLD && available.includes(laneIndex)) {
@@ -788,11 +859,19 @@ export class CombatEngine {
     }
   }
 
-  private handleShockwaveTrigger(laneIndex: number, placingPlayer: PlayerSide, triggerOwner: PlayerSide): void {
+  private handleShockwaveTrigger(
+    laneIndex: number,
+    placingPlayer: PlayerSide,
+    triggerOwner: PlayerSide,
+  ): void {
     for (let i = 0; i < 2; i++) {
       const otherLanes: number[] = [];
       for (let j = 0; j < LANE_COUNT; j++) {
-        if (j !== laneIndex && this.state.lanes[j].winner === null && countPieces(this.state.lanes[j], placingPlayer) > 0) {
+        if (
+          j !== laneIndex &&
+          this.state.lanes[j].winner === null &&
+          countPieces(this.state.lanes[j], placingPlayer) > 0
+        ) {
           otherLanes.push(j);
         }
       }
@@ -836,9 +915,15 @@ export class CombatEngine {
       this.log(pieceOwner, 'trigger', `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`);
 
       switch (trigger.type) {
-        case 'HYDRA': this.handleHydraTrigger(laneIndex, pieceOwner); break;
-        case 'BACKFIRE': this.handleBackfireTrigger(removingPlayer, pieceOwner); break;
-        case 'ABSORB': this.handleAbsorbTrigger(laneIndex, pieceOwner); break;
+        case 'HYDRA':
+          this.handleHydraTrigger(laneIndex, pieceOwner);
+          break;
+        case 'BACKFIRE':
+          this.handleBackfireTrigger(removingPlayer, pieceOwner);
+          break;
+        case 'ABSORB':
+          this.handleAbsorbTrigger(laneIndex, pieceOwner);
+          break;
       }
       this.checkAllLaneWins();
     }
@@ -858,7 +943,10 @@ export class CombatEngine {
     for (let i = 0; i < 2; i++) {
       const lanesWithPieces: number[] = [];
       for (let j = 0; j < LANE_COUNT; j++) {
-        if (this.state.lanes[j].winner === null && countPieces(this.state.lanes[j], removingPlayer) > 0) {
+        if (
+          this.state.lanes[j].winner === null &&
+          countPieces(this.state.lanes[j], removingPlayer) > 0
+        ) {
           lanesWithPieces.push(j);
         }
       }
@@ -882,7 +970,9 @@ export class CombatEngine {
     const owner = ownerInt(player);
     const opponent = opponentOf(player);
 
-    const readyRaids = this.state.pendingRaids.filter((r) => r.owner === owner && r.turnsUntilResolve <= 0);
+    const readyRaids = this.state.pendingRaids.filter(
+      (r) => r.owner === owner && r.turnsUntilResolve <= 0,
+    );
     if (readyRaids.length === 0) return;
 
     this.state.pendingRaids = this.state.pendingRaids.filter(
@@ -897,25 +987,29 @@ export class CombatEngine {
 
       if (roll < 10) {
         // 10% lost
-        if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
+        if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
+          this.removeFront(laneIdx, opponent);
         this.log(player, 'raid', `lost their ${label} in Lane ${laneIdx + 1}`);
       } else if (roll < 25) {
         // 15% +2 recruits => 3 total
-        if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
+        if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
+          this.removeFront(laneIdx, opponent);
         for (let i = 0; i < 3; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
         this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — 2 recruits joined!`);
       } else if (roll < 55) {
         // 30% +1 recruit => 2 total
-        if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
+        if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
+          this.removeFront(laneIdx, opponent);
         for (let i = 0; i < 2; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
         this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — a recruit joined!`);
       } else {
         // 45% alone
-        if (countPieces(this.state.lanes[laneIdx], opponent) > 0) this.removeFront(laneIdx, opponent);
+        if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
+          this.removeFront(laneIdx, opponent);
         if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         this.log(player, 'raid', `finished their ${label} in Lane ${laneIdx + 1}`);
       }
@@ -937,9 +1031,15 @@ export class CombatEngine {
       for (const effect of effects) {
         this.log(player, 'deferred', `resolved ${titleCase(effect.type)} in Lane ${laneIdx + 1}`);
         switch (effect.type) {
-          case 'SIGNAL': this.resolveSignal(laneIdx, player); break;
-          case 'ENLIST': this.resolveEnlist(laneIdx, player, opponent); break;
-          case 'AMBUSH': this.resolveAmbush(effect, opponent); break;
+          case 'SIGNAL':
+            this.resolveSignal(laneIdx, player);
+            break;
+          case 'ENLIST':
+            this.resolveEnlist(laneIdx, player, opponent);
+            break;
+          case 'AMBUSH':
+            this.resolveAmbush(effect, opponent);
+            break;
           case 'REINFORCE':
             if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
             break;
@@ -952,7 +1052,11 @@ export class CombatEngine {
     const sourceLanes: number[] = [];
     let maxPieces = 0;
     for (let i = 0; i < LANE_COUNT; i++) {
-      if (i !== laneIdx && this.state.lanes[i].winner === null && countPieces(this.state.lanes[i], player) > 0) {
+      if (
+        i !== laneIdx &&
+        this.state.lanes[i].winner === null &&
+        countPieces(this.state.lanes[i], player) > 0
+      ) {
         const count = countPieces(this.state.lanes[i], player);
         if (count > maxPieces) {
           maxPieces = count;
@@ -982,7 +1086,11 @@ export class CombatEngine {
     const destLanes: number[] = [];
     let minPieces = 999;
     for (let i = 0; i < LANE_COUNT; i++) {
-      if (i !== laneIdx && this.state.lanes[i].winner === null && !isSideFilled(this.state.lanes[i], player)) {
+      if (
+        i !== laneIdx &&
+        this.state.lanes[i].winner === null &&
+        !isSideFilled(this.state.lanes[i], player)
+      ) {
         const count = countPieces(this.state.lanes[i], player);
         if (count < minPieces) {
           minPieces = count;
@@ -993,7 +1101,11 @@ export class CombatEngine {
         }
       }
     }
-    if (destLanes.length === 0 && this.state.lanes[laneIdx].winner === null && !isSideFilled(this.state.lanes[laneIdx], player)) {
+    if (
+      destLanes.length === 0 &&
+      this.state.lanes[laneIdx].winner === null &&
+      !isSideFilled(this.state.lanes[laneIdx], player)
+    ) {
       destLanes.push(laneIdx);
     }
     if (destLanes.length > 0) {
@@ -1120,7 +1232,9 @@ export class CombatEngine {
       this.log(this.state.currentPlayer, 'perk', `used ${info.name}${lanes}`);
     }
     switch (perkId) {
-      case 1: if (targetLane >= 0) this.placeOnLane(targetLane); break;
+      case 1:
+        if (targetLane >= 0) this.placeOnLane(targetLane);
+        break;
       case 2:
         // Cooldown: a successful removal locks the slot for the player's next
         // turn (their next perk phase is ply turnCounter+2, ready at +3).
@@ -1132,36 +1246,96 @@ export class CombatEngine {
           this.removeEnemyReadyAt[this.state.currentPlayer] = this.turnCounter + 3;
         }
         break;
-      case 4: if (targetLane >= 0) this.freezeLane(targetLane); break;
-      case 13: this.scrambleEnemyPieces(); break;
-      case 31: if (targetLane >= 0) this.splitPiece(targetLane); break;
-      case 32: if (targetLane >= 0) this.kamikazePiece(targetLane); break;
-      case 33: if (targetLane >= 0 && secondLane !== null) this.regroupPieces(secondLane, targetLane); break;
-      case 34: if (targetLane >= 0 && secondLane !== null) this.disruptEnemyPieces(secondLane, targetLane); break;
-      case 35: if (targetLane >= 0) this.scatterPieces(targetLane); break;
-      case 36: if (targetLane >= 0) this.disperseEnemyPieces(targetLane); break;
-      case 22: this.cloakField(); break;
-      case 23: this.blindOpponent(); break;
-      case 38: this.stealPiece(); break;
-      case 37: this.gambitPieces(); break;
-      case 39: if (targetLane >= 0) this.rushLane(targetLane); break;
-      case 48: if (targetLane >= 0) this.nullifyLane(targetLane); break;
-      case 24: if (targetLane >= 0) this.setPortalTrigger(targetLane); break;
-      case 25: if (targetLane >= 0) this.setTrapTrigger(targetLane); break;
-      case 26: if (targetLane >= 0) this.setMirrorTrigger(targetLane); break;
-      case 27: if (targetLane >= 0) this.setEchoTrigger(targetLane); break;
-      case 28: if (targetLane >= 0) this.setShockwaveTrigger(targetLane); break;
-      case 29: if (targetLane >= 0) this.setHydraTrigger(targetLane); break;
-      case 30: if (targetLane >= 0) this.setBackfireTrigger(targetLane); break;
-      case 46: if (targetLane >= 0) this.setAbsorbTrigger(targetLane); break;
-      case 52: if (targetLane >= 0) this.setRetaliateTrigger(targetLane); break;
-      case 43: if (targetLane >= 0) this.signalLane(targetLane); break;
-      case 40: if (targetLane >= 0) this.enlistOnLane(targetLane); break;
-      case 41: if (targetLane >= 0) this.ambushOnLane(targetLane); break;
-      case 42: if (targetLane >= 0) this.reinforceLane(targetLane); break;
-      case 49: if (targetLane >= 0) this.setSanctuary(targetLane); break;
-      case 50: if (targetLane >= 0) this.setCaptureZone(targetLane); break;
-      case 51: if (targetLane >= 0) this.raidLane(targetLane); break;
+      case 4:
+        if (targetLane >= 0) this.freezeLane(targetLane);
+        break;
+      case 13:
+        this.scrambleEnemyPieces();
+        break;
+      case 31:
+        if (targetLane >= 0) this.splitPiece(targetLane);
+        break;
+      case 32:
+        if (targetLane >= 0) this.kamikazePiece(targetLane);
+        break;
+      case 33:
+        if (targetLane >= 0 && secondLane !== null) this.regroupPieces(secondLane, targetLane);
+        break;
+      case 34:
+        if (targetLane >= 0 && secondLane !== null) this.disruptEnemyPieces(secondLane, targetLane);
+        break;
+      case 35:
+        if (targetLane >= 0) this.scatterPieces(targetLane);
+        break;
+      case 36:
+        if (targetLane >= 0) this.disperseEnemyPieces(targetLane);
+        break;
+      case 22:
+        this.cloakField();
+        break;
+      case 23:
+        this.blindOpponent();
+        break;
+      case 38:
+        this.stealPiece();
+        break;
+      case 37:
+        this.gambitPieces();
+        break;
+      case 39:
+        if (targetLane >= 0) this.rushLane(targetLane);
+        break;
+      case 48:
+        if (targetLane >= 0) this.nullifyLane(targetLane);
+        break;
+      case 24:
+        if (targetLane >= 0) this.setPortalTrigger(targetLane);
+        break;
+      case 25:
+        if (targetLane >= 0) this.setTrapTrigger(targetLane);
+        break;
+      case 26:
+        if (targetLane >= 0) this.setMirrorTrigger(targetLane);
+        break;
+      case 27:
+        if (targetLane >= 0) this.setEchoTrigger(targetLane);
+        break;
+      case 28:
+        if (targetLane >= 0) this.setShockwaveTrigger(targetLane);
+        break;
+      case 29:
+        if (targetLane >= 0) this.setHydraTrigger(targetLane);
+        break;
+      case 30:
+        if (targetLane >= 0) this.setBackfireTrigger(targetLane);
+        break;
+      case 46:
+        if (targetLane >= 0) this.setAbsorbTrigger(targetLane);
+        break;
+      case 52:
+        if (targetLane >= 0) this.setRetaliateTrigger(targetLane);
+        break;
+      case 43:
+        if (targetLane >= 0) this.signalLane(targetLane);
+        break;
+      case 40:
+        if (targetLane >= 0) this.enlistOnLane(targetLane);
+        break;
+      case 41:
+        if (targetLane >= 0) this.ambushOnLane(targetLane);
+        break;
+      case 42:
+        if (targetLane >= 0) this.reinforceLane(targetLane);
+        break;
+      case 49:
+        if (targetLane >= 0) this.setSanctuary(targetLane);
+        break;
+      case 50:
+        if (targetLane >= 0) this.setCaptureZone(targetLane);
+        break;
+      case 51:
+        if (targetLane >= 0) this.raidLane(targetLane);
+        break;
     }
     this.skipTurn();
   }

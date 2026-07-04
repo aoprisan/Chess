@@ -9,13 +9,7 @@
 // - hard:   always the best-scoring choice.
 
 import { CombatEngine } from './engine';
-import {
-  CombatGameState,
-  PlayerSide,
-  opponentOf,
-  ownerInt,
-  countPieces,
-} from './state';
+import { CombatGameState, PlayerSide, opponentOf, ownerInt, countPieces } from './state';
 import { getPerk, PerkSlot } from './perks';
 import { getValidLanesForPerk } from './targeting';
 import { RNG } from './rng';

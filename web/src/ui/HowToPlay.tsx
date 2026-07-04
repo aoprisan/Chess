@@ -49,7 +49,10 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
               const perk = PERKS[id];
               return (
                 <div className="howto-perk" key={id}>
-                  <span className="howto-perk-icon" style={{ background: CATEGORY_COLOR[perk.category] }}>
+                  <span
+                    className="howto-perk-icon"
+                    style={{ background: CATEGORY_COLOR[perk.category] }}
+                  >
                     <Icon name={CATEGORY_ICON[perk.category]} size={16} color="#fff" />
                   </span>
                   <span className="howto-perk-name">{perk.name}</span>

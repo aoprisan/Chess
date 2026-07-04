@@ -35,7 +35,14 @@ export const PERKS: Record<number, PerkInfo> = {
 
   // Fixed commons (slots 1-2)
   1: p(1, 'PlaceAnother', 'Place 1 piece on any lane', 'offensive', true, 'own'),
-  2: p(2, 'RemoveEnemy', "Remove enemy's frontmost piece, then recharge 1 turn", 'offensive', true, 'enemy'),
+  2: p(
+    2,
+    'RemoveEnemy',
+    "Remove enemy's frontmost piece, then recharge 1 turn",
+    'offensive',
+    true,
+    'enemy',
+  ),
 
   // Slot 3: React & Protect
   4: p(4, 'Freeze', 'Block enemy placement for 1 turn', 'defensive', true, 'enemy'),
@@ -44,7 +51,14 @@ export const PERKS: Record<number, PerkInfo> = {
   25: p(25, 'Trap', 'Enemy pieces placed here vanish', 'defensive', true, 'enemy'),
   26: p(26, 'Mirror', '+1 now; enemy places here, you get +2', 'defensive', true, 'enemy'),
   27: p(27, 'Echo', '+1 now; enemy places here, you get +2 random', 'defensive', true, 'enemy'),
-  28: p(28, 'Shockwave', '+1 now; enemy places here, loses 2 elsewhere', 'offensive', true, 'enemy'),
+  28: p(
+    28,
+    'Shockwave',
+    '+1 now; enemy places here, loses 2 elsewhere',
+    'offensive',
+    true,
+    'enemy',
+  ),
   29: p(29, 'Hydra', '+1 now; piece removed here spawns 2 elsewhere', 'defensive', true, 'own'),
   30: p(30, 'Backfire', '+1 now; piece removed here costs enemy 2', 'offensive', true, 'own'),
   46: p(46, 'Absorb', '+1 now; removed piece reappears elsewhere', 'defensive', true, 'own'),

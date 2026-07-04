@@ -165,7 +165,11 @@ export function isBlinded(s: CombatGameState, side: PlayerSide): boolean {
 }
 
 /** A lane is frozen for the opponent of whoever froze it. */
-export function isLaneFrozenFor(s: CombatGameState, laneIndex: number, player: PlayerSide): boolean {
+export function isLaneFrozenFor(
+  s: CombatGameState,
+  laneIndex: number,
+  player: PlayerSide,
+): boolean {
   const frozenBy = s.frozenLanes[laneIndex];
   if (frozenBy === undefined) return false;
   return frozenBy !== player;

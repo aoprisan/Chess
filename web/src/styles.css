@@ -525,7 +525,9 @@ button:disabled {
    AdventureMap.tsx so each hop lands before the next begins. */
 .player-token {
   position: absolute;
-  transition: left 0.38s ease-in-out, top 0.38s ease-in-out;
+  transition:
+    left 0.38s ease-in-out,
+    top 0.38s ease-in-out;
   pointer-events: none;
   z-index: 5;
 }
@@ -663,10 +665,14 @@ button:disabled {
 
 /* Obstacle / treasure interactions */
 .tap-art {
-  transition: transform 0.15s ease, opacity 0.3s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.3s ease;
 }
 .tap-art.shrunk {
-  transition: transform 0.4s ease, opacity 0.3s ease;
+  transition:
+    transform 0.4s ease,
+    opacity 0.3s ease;
 }
 
 /* ---- Combat ---- */
@@ -741,7 +747,9 @@ button:disabled {
 }
 .flag-img {
   position: absolute;
-  transition: left 0.3s ease-in-out, right 0.3s ease-in-out;
+  transition:
+    left 0.3s ease-in-out,
+    right 0.3s ease-in-out;
   object-fit: contain;
 }
 

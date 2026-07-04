@@ -117,7 +117,10 @@ export class AdventureController {
   }
 
   private save(): void {
-    localStorage.setItem(journeyStorageKey(this.progress.mapId), JSON.stringify(toJson(this.progress)));
+    localStorage.setItem(
+      journeyStorageKey(this.progress.mapId),
+      JSON.stringify(toJson(this.progress)),
+    );
   }
 
   get playerHero(): Hero {
@@ -270,9 +273,8 @@ export class AdventureController {
   get totalStars(): number {
     const fightStars = Object.values(this.progress.rivalStars).reduce((a, b) => a + b, 0);
     const treasureStars =
-      this.map.nodes.filter(
-        (n) => n.type === 'treasure' && this.progress.clearedNodes.has(n.id),
-      ).length * 2;
+      this.map.nodes.filter((n) => n.type === 'treasure' && this.progress.clearedNodes.has(n.id))
+        .length * 2;
     return fightStars + treasureStars;
   }
 

@@ -7,7 +7,13 @@ import { JOURNEYS } from './levels';
 // hand-crafted, the rest come from scripts/generate-journeys.mjs).
 
 const OBSTACLE_TYPES = new Set([
-  'fallenLog', 'riverRaft', 'sleepingCub', 'tangledVines', 'ropeBridge', 'snowballBoulder', 'icePatch',
+  'fallenLog',
+  'riverRaft',
+  'sleepingCub',
+  'tangledVines',
+  'ropeBridge',
+  'snowballBoulder',
+  'icePatch',
 ]);
 const BIOMES = new Set(['meadow', 'forest', 'peaks']);
 const DIFFICULTIES = new Set(['easy', 'medium', 'hard']);

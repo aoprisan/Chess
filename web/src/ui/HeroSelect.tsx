@@ -114,14 +114,8 @@ export function HeroSelect({
     <div className="screen doodle-bg">
       {/* Title bar */}
       <div className="hs-titlebar">
-        <div
-          className="hs-title-pill"
-          style={{ width: titleWidth, height: titleHeight }}
-        >
-          <div
-            className="hs-player-badge"
-            style={{ width: badgeWidth, height: badgeHeight }}
-          >
+        <div className="hs-title-pill" style={{ width: titleWidth, height: titleHeight }}>
+          <div className="hs-player-badge" style={{ width: badgeWidth, height: badgeHeight }}>
             <span style={{ fontSize: titleFont * 0.6 }}>{playerLabel}</span>
           </div>
           <span className="hs-title-text" style={{ fontSize: titleFont }}>
@@ -132,19 +126,13 @@ export function HeroSelect({
 
       {/* Content */}
       {isWide ? (
-        <div
-          className="hs-content wide"
-          style={{ padding: `8px ${w * 0.02}px` }}
-        >
+        <div className="hs-content wide" style={{ padding: `8px ${w * 0.02}px` }}>
           <div style={{ width: w * 0.42, flexShrink: 0 }}>{grid}</div>
           <div style={{ width: w * 0.02, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}>{detailsPanel}</div>
         </div>
       ) : (
-        <div
-          className="hs-content narrow"
-          style={{ padding: `8px ${w * 0.02}px` }}
-        >
+        <div className="hs-content narrow" style={{ padding: `8px ${w * 0.02}px` }}>
           {grid}
           <div style={{ height: 16 }} />
           <div style={{ height: '50vh' }}>{detailsPanel}</div>

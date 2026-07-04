@@ -49,27 +49,47 @@ const BANDS = { meadow: [0.945, 0.7], forest: [0.645, 0.4], peaks: [0.35, 0.1] }
 //   gates between biomes (2) + boss (1) + sum(rivalSpursPerBiome).
 const LEVELS = [
   {
-    id: 'journey_2', name: 'Winding Woods', seed: 202, heightFactor: 4.6,
-    cellsPerBiome: 1, branchLen: 3,
-    rivalSpursPerBiome: [1, 1, 1], treasureSpursPerBiome: [1, 1, 1],
+    id: 'journey_2',
+    name: 'Winding Woods',
+    seed: 202,
+    heightFactor: 4.6,
+    cellsPerBiome: 1,
+    branchLen: 3,
+    rivalSpursPerBiome: [1, 1, 1],
+    treasureSpursPerBiome: [1, 1, 1],
     difficulty: { easy: 2, medium: 3, hard: 1 },
   },
   {
-    id: 'journey_3', name: 'Twin Rivers', seed: 303, heightFactor: 5.8,
-    cellsPerBiome: 2, branchLen: 2,
-    rivalSpursPerBiome: [1, 1, 2], treasureSpursPerBiome: [1, 2, 1],
+    id: 'journey_3',
+    name: 'Twin Rivers',
+    seed: 303,
+    heightFactor: 5.8,
+    cellsPerBiome: 2,
+    branchLen: 2,
+    rivalSpursPerBiome: [1, 1, 2],
+    treasureSpursPerBiome: [1, 2, 1],
     difficulty: { easy: 1, medium: 4, hard: 2 },
   },
   {
-    id: 'journey_4', name: 'Stormy Highlands', seed: 404, heightFactor: 7.2,
-    cellsPerBiome: 2, branchLen: 3,
-    rivalSpursPerBiome: [2, 2, 2], treasureSpursPerBiome: [2, 1, 2],
+    id: 'journey_4',
+    name: 'Stormy Highlands',
+    seed: 404,
+    heightFactor: 7.2,
+    cellsPerBiome: 2,
+    branchLen: 3,
+    rivalSpursPerBiome: [2, 2, 2],
+    treasureSpursPerBiome: [2, 1, 2],
     difficulty: { easy: 0, medium: 5, hard: 4 },
   },
   {
-    id: 'journey_5', name: 'Summit of Legends', seed: 505, heightFactor: 8.6,
-    cellsPerBiome: 3, branchLen: 2,
-    rivalSpursPerBiome: [2, 3, 3], treasureSpursPerBiome: [2, 2, 2],
+    id: 'journey_5',
+    name: 'Summit of Legends',
+    seed: 505,
+    heightFactor: 8.6,
+    cellsPerBiome: 3,
+    branchLen: 2,
+    rivalSpursPerBiome: [2, 3, 3],
+    treasureSpursPerBiome: [2, 2, 2],
     difficulty: { easy: 0, medium: 4, hard: 7 },
   },
 ];
@@ -127,9 +147,10 @@ function buildJourney(spec) {
         const baseX = side === 'L' ? 0.22 : 0.78;
         const drift = side === 'L' ? -0.04 : 0.04;
         const obstacleRow = Math.floor(rnd() * spec.branchLen);
-        const extraObstacle = spec.branchLen >= 3 && rnd() < 0.5
-          ? (obstacleRow + 1 + Math.floor(rnd() * (spec.branchLen - 1))) % spec.branchLen
-          : -1;
+        const extraObstacle =
+          spec.branchLen >= 3 && rnd() < 0.5
+            ? (obstacleRow + 1 + Math.floor(rnd() * (spec.branchLen - 1))) % spec.branchLen
+            : -1;
         let prev = a.id;
         for (let i = 0; i < spec.branchLen; i++) {
           const isObstacle = i === obstacleRow || i === extraObstacle;
@@ -147,7 +168,13 @@ function buildJourney(spec) {
         }
       }
 
-      const b = addNode({ id: `${p}B`, type: 'path', x: 0.45 + jitter(0.06), y: rowY(base + rowsPerCell - 1), biome });
+      const b = addNode({
+        id: `${p}B`,
+        type: 'path',
+        x: 0.45 + jitter(0.06),
+        y: rowY(base + rowsPerCell - 1),
+        biome,
+      });
       addEdge(branchIds.L[branchIds.L.length - 1], b.id);
       addEdge(branchIds.R[branchIds.R.length - 1], b.id);
 
@@ -158,14 +185,18 @@ function buildJourney(spec) {
         const attach = byId.get(branchIds[side][Math.floor(spec.branchLen / 2)]);
         const dx = side === 'R' ? 0.12 : -0.12;
         const rival = addNode({
-          id: `${p}${side}S`, type: 'rival',
+          id: `${p}${side}S`,
+          type: 'rival',
           x: Math.min(0.93, Math.max(0.07, attach.x + dx)),
-          y: attach.y - 0.012, biome,
+          y: attach.y - 0.012,
+          biome,
         });
         const chest = addNode({
-          id: `${p}${side}T`, type: 'treasure',
+          id: `${p}${side}T`,
+          type: 'treasure',
           x: Math.min(0.95, Math.max(0.05, rival.x + dx * 0.4)),
-          y: rival.y - 0.03, biome,
+          y: rival.y - 0.03,
+          biome,
         });
         addEdge(attach.id, rival.id);
         addEdge(rival.id, chest.id);
@@ -175,9 +206,11 @@ function buildJourney(spec) {
       if (cell < treasureSpurs) {
         const dx = cell % 2 === 0 ? -0.17 : 0.17;
         const chest = addNode({
-          id: `${p}BT`, type: 'treasure',
+          id: `${p}BT`,
+          type: 'treasure',
           x: Math.min(0.95, Math.max(0.05, b.x + dx)),
-          y: b.y - 0.022, biome,
+          y: b.y - 0.022,
+          biome,
         });
         addEdge(b.id, chest.id);
       }
@@ -188,8 +221,11 @@ function buildJourney(spec) {
     // Rival gate between biomes (the boss handles the peaks exit).
     if (biome !== 'peaks') {
       const gate = addNode({
-        id: `gate_${biome[0]}`, type: 'rival',
-        x: 0.5 + jitter(0.03), y: yTop - 0.028, biome,
+        id: `gate_${biome[0]}`,
+        type: 'rival',
+        x: 0.5 + jitter(0.03),
+        y: yTop - 0.028,
+        biome,
       });
       addEdge(prevId, gate.id);
       prevId = gate.id;
@@ -234,7 +270,10 @@ for (const spec of LEVELS) {
   const rivalCount = counts.rival ?? 0;
   const treasureCount = counts.treasure ?? 0;
   const file = join(OUT_DIR, `${spec.id}.json`);
-  writeFileSync(file, JSON.stringify(journey, (k, v) => (typeof v === 'number' ? Number(v.toFixed(4)) : v), 2) + '\n');
+  writeFileSync(
+    file,
+    JSON.stringify(journey, (k, v) => (typeof v === 'number' ? Number(v.toFixed(4)) : v), 2) + '\n',
+  );
   console.log(
     `${spec.id} (${spec.name}): ${journey.nodes.length} nodes`,
     counts,
