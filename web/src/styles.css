@@ -2168,6 +2168,155 @@ button:disabled {
   color: var(--text-dim);
 }
 
+/* ---- Perk pictograms (picture-chip phrases for pre-readers) ---- */
+.picto-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+.picto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border: 1px solid currentcolor;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+}
+.picto-arrow {
+  color: var(--text-dim);
+  font-weight: 800;
+  line-height: 1;
+}
+.howto-perk-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.howto-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+/* ---- First-battle tutorial coach marks ---- */
+.tut-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  z-index: 28;
+  padding: 16px;
+}
+.tut-scrim.bottom {
+  justify-content: flex-end;
+  padding-bottom: 96px;
+}
+.tut-card {
+  background: var(--panel);
+  border: 2px solid var(--amber);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: 0 0 24px rgba(255, 210, 63, 0.35);
+  padding: 18px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  animation: toast-in 0.25s ease;
+}
+.tut-title {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 210, 63, 0.6);
+}
+.tut-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tut-halves {
+  display: flex;
+  width: min(240px, 90%);
+  height: 60px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.tut-half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.tut-half.p1 {
+  background: rgba(0, 229, 255, 0.16);
+  border: 2px solid var(--cyan);
+  color: var(--cyan);
+}
+.tut-half.p2 {
+  background: rgba(255, 47, 214, 0.16);
+  border: 2px solid var(--magenta);
+  border-left: none;
+  color: var(--magenta);
+}
+.tut-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 50%;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1.5px solid rgba(0, 229, 255, 0.5);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.3);
+}
+.tut-glyph.row {
+  gap: 8px;
+  border-radius: 12px;
+  background: rgba(61, 255, 143, 0.1);
+  border-color: rgba(61, 255, 143, 0.5);
+  box-shadow: 0 0 14px rgba(61, 255, 143, 0.3);
+}
+.tut-next {
+  min-width: 140px;
+  height: 42px;
+  font-size: 15px;
+}
+.tut-skip {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: underline;
+  padding: 4px 8px;
+}
+.tut-arrow {
+  font-size: 30px;
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 210, 63, 0.8);
+  animation: tut-bounce 0.8s ease-in-out infinite alternate;
+}
+@keyframes tut-bounce {
+  from {
+    transform: translateY(-4px);
+  }
+  to {
+    transform: translateY(6px);
+  }
+}
+
 /* Respect the OS reduced-motion preference. */
 @media (prefers-reduced-motion: reduce) {
   *,

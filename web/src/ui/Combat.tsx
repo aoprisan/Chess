@@ -10,6 +10,8 @@ import { CombatGameState, Lane, PlayerSide, isCloaked, isBlinded } from '../game
 import { CharacterPortrait } from './CharacterPortrait';
 import { Icon, IconName } from './Icons';
 import { CATEGORY_COLOR, perkIcon } from './perkTheme';
+import { PerkPicto } from './PerkPicto';
+import { TutorialStep, isTutorialDone, markTutorialDone } from './tutorial';
 
 // Landscape board with 5 horizontal data lines x 10 slots (P1 left/cyan,
 // P2 right/magenta), neon grid field, turn pill, CSS-drawn player panels and
@@ -179,6 +181,20 @@ export function Combat({
     [later],
   );
 
+  // --- First-battle tutorial -------------------------------------------------
+  // Coach marks that pause the turn loop (same gate as the turn dialog) at
+  // four teachable moments of the player's first solo battle: the two board
+  // sides, the self-deploying bot, the perk bar, and the first fixed line.
+  const [tutStep, setTutStepState] = useState<TutorialStep | null>(null);
+  const tutStepRef = useRef<TutorialStep | null>(null);
+  const setTutStep = useCallback((s: TutorialStep | null) => {
+    tutStepRef.current = s;
+    setTutStepState(s);
+  }, []);
+  const tutPending = useRef<TutorialStep | null>(
+    player2IsAI && !isTutorialDone() ? 'sides' : null,
+  );
+
   // --- Turn loop -----------------------------------------------------------
 
   const tick = useCallback(
@@ -189,10 +205,11 @@ export function Combat({
         return;
       }
       if (showTurnDialogRef.current) return; // paused while the turn dialog is up
+      if (tutStepRef.current !== null) return; // paused while a coach mark is up
 
       if (s.currentPhase === 'autoPlacement') {
         later(() => {
-          if (showTurnDialogRef.current) return;
+          if (showTurnDialogRef.current || tutStepRef.current !== null) return;
           if (engine.state.currentPhase !== 'autoPlacement') {
             tickFn();
             return;
@@ -268,9 +285,30 @@ export function Combat({
       // Solo human turns flow straight into auto-placement; the tap-gated
       // dialog only appears on the opening turn (fair-start hint).
     }
+    // Tutorial checkpoints (queued only in the player's first solo battle).
+    if (tutPending.current === 'deploy' && lastPlacement.current?.player === 'player1') {
+      tutPending.current = 'power';
+      setTutStep('deploy');
+    } else if (
+      tutPending.current === 'power' &&
+      s.status === 'playing' &&
+      s.currentPhase === 'perkSelection' &&
+      !engine.isCurrentPlayerAI
+    ) {
+      tutPending.current = 'win';
+      setTutStep('power');
+    } else if (tutPending.current === 'win' && s.lanes.some((l) => l.winner)) {
+      tutPending.current = null;
+      markTutorialDone();
+      setTutStep('win');
+    } else if (s.status === 'finished' && tutPending.current !== null) {
+      // Battle ended before the walkthrough finished: don't repeat it.
+      tutPending.current = null;
+      markTutorialDone();
+    }
     bump();
     tick();
-  }, [engine, bump, later, tick, setTurnDialog, player2IsAI]);
+  }, [engine, bump, later, tick, setTurnDialog, setTutStep, player2IsAI]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -283,6 +321,23 @@ export function Combat({
 
   const dismissTurnDialog = () => {
     setTurnDialog(false);
+    if (tutPending.current === 'sides') {
+      // First lesson right after the opening "Ready!": which side is whose.
+      tutPending.current = 'deploy';
+      setTutStep('sides');
+      return;
+    }
+    tick();
+  };
+
+  const onTutorialNext = () => {
+    setTutStep(null);
+    tick();
+  };
+  const onTutorialSkip = () => {
+    markTutorialDone();
+    tutPending.current = null;
+    setTutStep(null);
     tick();
   };
 
@@ -497,7 +552,7 @@ export function Combat({
             {exitLabel}
           </button>
         </div>
-      ) : state.currentPhase === 'autoPlacement' && !showTurnDialog ? (
+      ) : state.currentPhase === 'autoPlacement' && !showTurnDialog && !tutStep ? (
         <div
           className="placing-row"
           style={{ paddingBottom: H * 0.01, fontSize: clamp(W * 0.016, 12, 20) }}
@@ -578,6 +633,99 @@ export function Combat({
           isOpeningTurn={lastPlacement.current === null && state.currentPlayer === 'player1'}
           onReady={dismissTurnDialog}
         />
+      )}
+
+      {/* First-battle coach marks */}
+      {tutStep && !finished && (
+        <TutorialCoach W={W} step={tutStep} onNext={onTutorialNext} onSkip={onTutorialSkip} />
+      )}
+    </div>
+  );
+}
+
+// --- First-battle tutorial coach marks -----------------------------------------
+
+const TUTORIAL_CARDS: Record<
+  TutorialStep,
+  { title: string; text: string; anchor: 'center' | 'bottom' }
+> = {
+  sides: {
+    title: 'Welcome to the Grid!',
+    text: 'Fill a line with 5 bots to fix it!',
+    anchor: 'center',
+  },
+  deploy: {
+    title: 'Auto-Deploy!',
+    text: 'A bot lands by itself every turn.',
+    anchor: 'center',
+  },
+  power: {
+    title: 'Pick a Power!',
+    text: 'Tap a picture to see what it does.',
+    anchor: 'bottom',
+  },
+  win: {
+    title: 'Line Fixed!',
+    text: 'Fix 3 lines to win the battle!',
+    anchor: 'center',
+  },
+};
+
+function TutorialCoach({
+  W,
+  step,
+  onNext,
+  onSkip,
+}: {
+  W: number;
+  step: TutorialStep;
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const card = TUTORIAL_CARDS[step];
+  return (
+    <div className={`tut-scrim ${card.anchor}`}>
+      <div className="tut-card" style={{ width: clamp(W * 0.4, 250, 380) }}>
+        <span className="tut-title">{card.title}</span>
+
+        {step === 'sides' && (
+          <div className="tut-halves" aria-hidden>
+            <span className="tut-half p1">
+              <Icon name="robot" size={22} color="#00e5ff" />
+              You
+            </span>
+            <span className="tut-half p2">
+              <Icon name="robot" size={22} color="#ff2fd6" />
+              Rival
+            </span>
+          </div>
+        )}
+        {step === 'deploy' && (
+          <span className="tut-glyph" aria-hidden>
+            <Icon name="robot" size={38} color="#00e5ff" />
+          </span>
+        )}
+        {step === 'win' && (
+          <span className="tut-glyph row" aria-hidden>
+            <Icon name="check" size={26} color="#3dff8f" />
+            <Icon name="check" size={26} color="#3dff8f" />
+            <Icon name="check" size={26} color="#3dff8f" />
+          </span>
+        )}
+
+        <span className="tut-text">{card.text}</span>
+
+        <button className="img-btn yellow tut-next" onClick={onNext}>
+          Got it!
+        </button>
+        <button className="tut-skip" onClick={onSkip}>
+          Skip lessons
+        </button>
+      </div>
+      {step === 'power' && (
+        <span className="tut-arrow" aria-hidden>
+          ▼
+        </span>
       )}
     </div>
   );
@@ -1508,6 +1656,7 @@ function PerkPanel({
                 {sideStyleFor(selectedInfo.id, selectedInfo).label}
               </span>
             </span>
+            <PerkPicto perkId={selectedInfo.id} size={13} />
             <span className="desc">
               {selectedInfo.requiresTarget
                 ? `${selectedInfo.description}. Next: tap a lane.`
