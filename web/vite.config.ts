@@ -16,12 +16,25 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'assets/**/*'],
+      // NB: do NOT also list these via `includeAssets`. Doing so enqueues the
+      // same URLs a second time (with a `?__WB_REVISION__=` marker instead of
+      // a content hash), which trips workbox's `add-to-cache-list-conflicting-
+      // entries` guard and makes the ENTIRE precache install reject — silently
+      // breaking offline. `globPatterns` below already covers every icon,
+      // favicon, map JSON and character PNG emitted into dist.
       workbox: {
         // Character art plus the app shell — precache everything so the
         // campaign is playable offline once installed.
         globPatterns: ['**/*.{js,css,html,png,json,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // The app is a single-page app served under `base`. Offline
+        // navigations (a reload of /Chess/, or any in-app route) must fall
+        // back to the precached shell, otherwise the browser hits the network
+        // and fails with ERR_INTERNET_DISCONNECTED. Point the fallback at the
+        // base-prefixed index so it resolves under GitHub Pages' subpath.
+        navigateFallback: `${base}index.html`,
+        // Retire stale precaches from earlier deploys on activate.
+        cleanupOutdatedCaches: true,
       },
       manifest: {
         name: 'Neon City: Bug Busters',
