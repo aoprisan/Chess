@@ -7,6 +7,7 @@ import { Combat } from './Combat';
 import { TeamPicker } from './TeamPicker';
 import { CharacterPortrait } from './CharacterPortrait';
 import { Icon } from './Icons';
+import { useLang, useT, mapName, difficultyLabel } from '../i18n';
 
 const WALK_STEP_MS = 220;
 
@@ -29,6 +30,8 @@ export function CampaignMap({
   onExit: () => void;
   onOpenMap: (mapId: CampaignMapId) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const map = controller.maps[mapId];
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
@@ -67,27 +70,34 @@ export function CampaignMap({
   const announceOutcome = (outcome: BattleOutcome) => {
     if (outcome.respect > 0) {
       pushToast(
-        `System restored! +${outcome.respect} respect${outcome.improved ? '' : ' (best kept)'}`,
+        t('toast.systemRestored', {
+          respect: outcome.respect,
+          suffix: outcome.improved ? '' : t('toast.bestKept'),
+        }),
         '#3dff8f',
       );
     }
     for (const id of outcome.joined) {
-      pushToast(`${characterById(id).name} joined your crew!`, characterById(id).accent);
+      pushToast(t('toast.joined', { name: characterById(id).name }), characterById(id).accent);
     }
     for (const id of outcome.withdrew) {
-      pushToast(`${characterById(id).name} pulled their defenses off the city!`, '#ff2fd6');
+      pushToast(t('toast.withdrew', { name: characterById(id).name }), '#ff2fd6');
     }
     if (outcome.autoRestored.length > 0) {
       pushToast(
-        `${outcome.autoRestored.length} undefended system${outcome.autoRestored.length > 1 ? 's' : ''} came back online!`,
+        t(outcome.autoRestored.length > 1 ? 'toast.autoRestoredMany' : 'toast.autoRestoredOne', {
+          count: outcome.autoRestored.length,
+        }),
         '#3dff8f',
       );
     }
     for (const completed of outcome.mapsCompleted) {
       pushToast(
         completed === 'map_3'
-          ? 'The AI Core is yours — Neon City reboots!'
-          : `${controller.maps[completed as CampaignMapId].name} fully restored — new system and battle seat unlocked!`,
+          ? t('toast.coreDone')
+          : t('toast.mapRestored', {
+              map: mapName(controller.maps[completed as CampaignMapId].name, lang),
+            }),
         '#ffd23f',
       );
     }
@@ -135,7 +145,7 @@ export function CampaignMap({
         player2Team={defenders.map(characterById)}
         aiDifficulty={battle.node.difficulty}
         usePerkPools
-        exitLabel="Back to Map"
+        exitLabel={t('combat.exitToMap')}
         onGameEnd={(result) => {
           const outcome = controller.recordBattleResult(mapId, battle.node.id, result.stars);
           setBattle(null);
@@ -157,18 +167,18 @@ export function CampaignMap({
       <div className="cm-header">
         <button className="img-btn grey cm-back" onClick={onExit}>
           <Icon name="arrowBack" size={14} color="#e8f4ff" />
-          Systems
+          {t('campaign.systems')}
         </button>
         <div className="cm-title">
-          <span className="cm-map-name">{map.name}</span>
+          <span className="cm-map-name">{mapName(map.name, lang)}</span>
           <span className="cm-progress">
             <Icon name="flash" size={13} color="#00e5ff" />
-            {criticalsCleared}/{criticalsTotal} critical systems secured
+            {t('campaign.criticalSecured', { cleared: criticalsCleared, total: criticalsTotal })}
           </span>
         </div>
         {controller.isMapCompleted(mapId) && nextMapId && (
           <button className="img-btn yellow cm-next" onClick={() => onOpenMap(nextMapId)}>
-            Next system
+            {t('campaign.nextSystem')}
           </button>
         )}
       </div>
@@ -259,7 +269,7 @@ export function CampaignMap({
                     ))}
                   </span>
                 )}
-                {autoRestored && <span className="cm-node-auto">auto</span>}
+                {autoRestored && <span className="cm-node-auto">{t('campaign.auto')}</span>}
                 {isCurrent && <span className="cm-player-ring" />}
               </button>
             );
@@ -281,13 +291,11 @@ export function CampaignMap({
         <div className="modal-scrim" style={{ zIndex: 35 }} onClick={() => setPreview(null)}>
           <div className="cm-preview" onClick={(e) => e.stopPropagation()}>
             <div className="cm-preview-title">
-              {preview.critical ? 'Critical system' : 'Glitched system'}
-              <span className="cm-preview-diff">{preview.difficulty}</span>
+              {preview.critical ? t('campaign.preview.critical') : t('campaign.preview.glitched')}
+              <span className="cm-preview-diff">{difficultyLabel(preview.difficulty, lang)}</span>
             </div>
             {controller.isNodeCleared(mapId, preview) && (
-              <p className="cm-preview-note">
-                Already restored — win cleaner to improve your respect (best result counts).
-              </p>
+              <p className="cm-preview-note">{t('campaign.preview.alreadyRestored')}</p>
             )}
             <div className="cm-preview-defenders">
               {controller.effectiveDefenders(preview).map((id) => {
@@ -303,12 +311,12 @@ export function CampaignMap({
                 );
               })}
               {controller.effectiveDefenders(preview).length === 0 && (
-                <p className="cm-preview-note">Nobody is defending this system any more.</p>
+                <p className="cm-preview-note">{t('campaign.preview.nobodyDefending')}</p>
               )}
             </div>
             <div className="tp-actions">
               <button className="img-btn grey" onClick={() => setPreview(null)}>
-                Not yet
+                {t('common.notYet')}
               </button>
               {controller.effectiveDefenders(preview).length > 0 && (
                 <button
@@ -318,7 +326,7 @@ export function CampaignMap({
                     setPreview(null);
                   }}
                 >
-                  Fix it!
+                  {t('campaign.fixIt')}
                 </button>
               )}
             </div>

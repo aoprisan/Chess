@@ -5,13 +5,7 @@ import { getPerk } from '../game/perks';
 import { CharacterPortrait } from './CharacterPortrait';
 import { Icon } from './Icons';
 import { CATEGORY_COLOR, perkIcon } from './perkTheme';
-
-const MAP_LABELS: Record<number, string> = {
-  0: 'Starter',
-  1: 'Street Grid',
-  2: 'Metro Net',
-  3: 'Sky Core',
-};
+import { useLang, useT, perkName, characterRole, characterTagline } from '../i18n';
 
 // Crew roster: all 23 characters with respect progress toward joining
 // (level 1) and withdrawing their defenses (level 2).
@@ -22,12 +16,13 @@ export function Roster({
   controller: CampaignController;
   onBack: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   return (
     <div className="screen doodle-bg roster">
-      <h1 className="ls-title">Your Crew</h1>
+      <h1 className="ls-title">{t('roster.title')}</h1>
       <p className="ls-subtitle">
-        Beat a character&apos;s systems to earn respect. {JOIN_THRESHOLD}+ and they join you;{' '}
-        {WITHDRAW_THRESHOLD}+ and they pull their defenses off the whole city!
+        {t('roster.subtitle', { join: JOIN_THRESHOLD, withdraw: WITHDRAW_THRESHOLD })}
       </p>
       <div className="roster-list">
         {CHARACTERS.map((c) => {
@@ -53,10 +48,10 @@ export function Roster({
                 <span className="roster-name">
                   {onCrew ? c.name : '???'}
                   <span className="roster-role">
-                    {onCrew ? ` · ${c.role}` : ` · ${MAP_LABELS[c.homeMap]}`}
+                    {onCrew ? ` · ${characterRole(c, lang)}` : ` · ${t(`roster.map.${c.homeMap}`)}`}
                   </span>
                 </span>
-                {onCrew && <span className="roster-tagline">{c.tagline}</span>}
+                {onCrew && <span className="roster-tagline">{characterTagline(c, lang)}</span>}
                 {!starter && (
                   <div className="roster-bar">
                     <div
@@ -69,25 +64,25 @@ export function Roster({
                     <span
                       className="roster-bar-mark"
                       style={{ left: `${(JOIN_THRESHOLD / barMax) * 100}%` }}
-                      title={`Joins at ${JOIN_THRESHOLD}`}
+                      title={t('roster.joinsAt', { n: JOIN_THRESHOLD })}
                     />
                     <span
                       className="roster-bar-mark"
                       style={{ left: `${(WITHDRAW_THRESHOLD / barMax) * 100}%` }}
-                      title={`Withdraws at ${WITHDRAW_THRESHOLD}`}
+                      title={t('roster.withdrawsAt', { n: WITHDRAW_THRESHOLD })}
                     />
                   </div>
                 )}
                 <div className="roster-chips">
                   {starter ? (
-                    <span className="roster-badge">On your crew from day one</span>
+                    <span className="roster-badge">{t('roster.badge.starter')}</span>
                   ) : (
                     <span className="roster-badge">
                       {level >= 2
-                        ? 'Defenses withdrawn!'
+                        ? t('roster.badge.withdrawn')
                         : level >= 1
-                          ? 'On your crew'
-                          : `Respect ${respect}/${JOIN_THRESHOLD} to join`}
+                          ? t('roster.badge.joined')
+                          : t('roster.badge.respect', { respect, join: JOIN_THRESHOLD })}
                     </span>
                   )}
                   {onCrew &&
@@ -105,7 +100,7 @@ export function Roster({
                           title={p.description}
                         >
                           <Icon name={perkIcon(perkId)} size={12} color={CATEGORY_COLOR[p.category]} />
-                          {p.name}
+                          {perkName(p, lang)}
                         </span>
                       );
                     })}
@@ -117,7 +112,7 @@ export function Roster({
       </div>
       <div className="ls-bottombar">
         <button className="img-btn grey" onClick={onBack}>
-          Back
+          {t('common.back')}
         </button>
       </div>
     </div>

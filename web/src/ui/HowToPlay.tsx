@@ -2,71 +2,74 @@ import { PERKS, SLOT3_POOL, SLOT4_POOL } from '../game/perks';
 import { Icon } from './Icons';
 import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 import { PerkPicto, PictoRow, PictoToken } from './PerkPicto';
+import { useLang, useT, perkName, perkDescription } from '../i18n';
 
 // How to Play: short kid-friendly rules plus the full power catalog,
 // rendered straight from the perk definitions so it never drifts from
-// what the combat screen offers.
+// what the combat screen offers. Copy is pulled from the i18n catalog.
 
-const RULES = [
-  'Every turn, one of your repair bots deploys onto a random data line all by itself.',
-  'Then you pick one power — or pass and save your turn.',
-  'Fill all 5 of your slots on a line to fix it.',
-  'Fix 3 lines and you win the battle!',
-  'Tap a power to read what it does before you use it.',
-  'In the Campaign, powers come from the crew members you bring to the battle.',
+const RULE_KEYS = [
+  'howto.rule.1',
+  'howto.rule.2',
+  'howto.rule.3',
+  'howto.rule.4',
+  'howto.rule.5',
+  'howto.rule.6',
 ];
 
-const GROUPS: { title: string; ids: number[] }[] = [
-  { title: 'Always available', ids: [1, 2] },
-  { title: 'Protect powers', ids: SLOT3_POOL },
-  { title: 'Action powers', ids: SLOT4_POOL },
+const GROUPS: { titleKey: string; ids: number[] }[] = [
+  { titleKey: 'howto.group.always', ids: [1, 2] },
+  { titleKey: 'howto.group.protect', ids: SLOT3_POOL },
+  { titleKey: 'howto.group.action', ids: SLOT4_POOL },
 ];
 
 // The picture-chip grammar every power's pictogram is built from.
-const LEGEND: { tokens: PictoToken[]; label: string }[] = [
-  { tokens: [{ tone: 'own', icon: 'robot' }], label: 'Your bot' },
-  { tokens: [{ tone: 'enemy', icon: 'robot' }], label: "Rival's bot" },
-  { tokens: [{ tone: 'gain', text: '+2' }], label: 'Gain bots' },
-  { tokens: [{ tone: 'loss', text: '−2' }], label: 'Lose bots' },
-  { tokens: [{ tone: 'time', icon: 'schedule' }], label: 'Happens next turn' },
-  { tokens: [{ tone: 'neutral', icon: 'dice' }], label: 'Random' },
+const LEGEND: { tokens: PictoToken[]; labelKey: string }[] = [
+  { tokens: [{ tone: 'own', icon: 'robot' }], labelKey: 'howto.legend.ownBot' },
+  { tokens: [{ tone: 'enemy', icon: 'robot' }], labelKey: 'howto.legend.enemyBot' },
+  { tokens: [{ tone: 'gain', text: '+2' }], labelKey: 'howto.legend.gain' },
+  { tokens: [{ tone: 'loss', text: '−2' }], labelKey: 'howto.legend.lose' },
+  { tokens: [{ tone: 'time', icon: 'schedule' }], labelKey: 'howto.legend.next' },
+  { tokens: [{ tone: 'neutral', icon: 'dice' }], labelKey: 'howto.legend.random' },
 ];
 
 export function HowToPlay({ onBack }: { onBack: () => void }) {
+  const t = useT();
+  const { lang } = useLang();
   return (
     <div className="screen doodle-bg howto">
       <div className="overlay-header">
         <button className="chip" onClick={onBack}>
           <Icon name="arrowBack" size={20} color="#e8f4ff" />
-          Menu
+          {t('common.menu')}
         </button>
         <span style={{ flex: 1 }} />
-        <span className="chip">How to Play</span>
+        <span className="chip">{t('howto.chip')}</span>
       </div>
 
       <div className="howto-scroll">
         <div className="howto-card">
-          <h2 className="howto-heading">The Battle</h2>
+          <h2 className="howto-heading">{t('howto.battle')}</h2>
           <ul className="howto-rules">
-            {RULES.map((rule) => (
-              <li key={rule}>{rule}</li>
+            {RULE_KEYS.map((key) => (
+              <li key={key}>{t(key)}</li>
             ))}
           </ul>
         </div>
 
         <div className="howto-card">
-          <h2 className="howto-heading">What the pictures mean</h2>
+          <h2 className="howto-heading">{t('howto.pictures')}</h2>
           {LEGEND.map((row) => (
-            <div className="howto-legend-row" key={row.label}>
+            <div className="howto-legend-row" key={row.labelKey}>
               <PictoRow tokens={row.tokens} size={14} />
-              <span className="howto-perk-desc">{row.label}</span>
+              <span className="howto-perk-desc">{t(row.labelKey)}</span>
             </div>
           ))}
         </div>
 
         {GROUPS.map((group) => (
-          <div className="howto-card" key={group.title}>
-            <h2 className="howto-heading">{group.title}</h2>
+          <div className="howto-card" key={group.titleKey}>
+            <h2 className="howto-heading">{t(group.titleKey)}</h2>
             {group.ids.map((id) => {
               const perk = PERKS[id];
               return (
@@ -77,10 +80,10 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
                   >
                     <Icon name={perkIcon(id)} size={16} color="#fff" />
                   </span>
-                  <span className="howto-perk-name">{perk.name}</span>
+                  <span className="howto-perk-name">{perkName(perk, lang)}</span>
                   <span className="howto-perk-info">
                     <PerkPicto perkId={id} size={13} />
-                    <span className="howto-perk-desc">{perk.description}</span>
+                    <span className="howto-perk-desc">{perkDescription(perk, lang)}</span>
                   </span>
                 </div>
               );

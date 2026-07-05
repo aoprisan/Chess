@@ -2399,6 +2399,44 @@ button:disabled {
   }
 }
 
+/* ---- Language toggle (home screen, top-right) ---- */
+.lang-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(19, 26, 46, 0.92);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  z-index: 3;
+}
+.lang-chip {
+  appearance: none;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: transparent;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.lang-chip:hover {
+  color: var(--text);
+}
+.lang-chip.active {
+  color: var(--text);
+  border-color: var(--cyan);
+  background: linear-gradient(160deg, rgba(0, 229, 255, 0.3), rgba(123, 47, 255, 0.3));
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+}
+
 /* Respect the OS reduced-motion preference. */
 @media (prefers-reduced-motion: reduce) {
   *,

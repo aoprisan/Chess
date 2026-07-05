@@ -13,6 +13,8 @@ import { HowToPlay } from './HowToPlay';
 import { Story } from './Story';
 import { ShareGame } from './ShareGame';
 import { Combat } from './Combat';
+import { useT } from '../i18n';
+import { LanguageToggle } from './LanguageToggle';
 
 type View =
   | { name: 'home' }
@@ -57,6 +59,7 @@ function saveSoloDifficulty(difficulty: AIDifficulty) {
 }
 
 export function App() {
+  const t = useT();
   const [view, setView] = useState<View>({ name: 'home' });
   const [soloDifficulty, setSoloDifficulty] = useState<AIDifficulty>(loadSoloDifficulty);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -90,8 +93,8 @@ export function App() {
   if (loadError) {
     return (
       <div className="app screen doodle-bg menu-home">
-        <h1 className="menu-error">Oops!</h1>
-        <p className="menu-error-detail">Could not load Neon City.</p>
+        <h1 className="menu-error">{t('error.oops')}</h1>
+        <p className="menu-error-detail">{t('error.couldNotLoad')}</p>
         <p className="menu-error-detail" style={{ fontSize: 12 }}>
           {loadError}
         </p>
@@ -107,7 +110,7 @@ export function App() {
         <div className="boot-bar">
           <div className="boot-bar-fill" style={{ width: `${percent}%` }} />
         </div>
-        <p className="boot-label">Booting… {percent}%</p>
+        <p className="boot-label">{t('boot.booting', { percent })}</p>
       </div>
     );
   }
@@ -206,8 +209,8 @@ export function App() {
       <div className="app">
         <CharacterSelect
           key={pickingP1 ? 'p1' : 'p2'}
-          playerLabel={pickingP1 ? 'Player 1' : 'Player 2'}
-          backLabel={pickingP1 ? 'Back to menu' : 'Back'}
+          playerLabel={pickingP1 ? t('select.player1') : t('select.player2')}
+          backLabel={pickingP1 ? t('common.backToMenu') : t('common.back')}
           onBack={() => setView(pickingP1 ? { name: 'home' } : { name: 'duelCharSelect' })}
           onPick={(id) =>
             pickingP1
@@ -234,7 +237,7 @@ export function App() {
           player2Team={[characterById(view.p2)]}
           aiDifficulty={view.difficulty}
           player2IsAI={view.vsAI}
-          exitLabel="Back to Menu"
+          exitLabel={t('combat.exitToMenu')}
           onGameEnd={() => setView({ name: 'home' })}
         />
       </div>
@@ -245,6 +248,7 @@ export function App() {
   // behind the diamond logo badge and the three game modes.
   return (
     <div className="app screen doodle-bg menu-home">
+      <LanguageToggle />
       <div className="scene-layer" aria-hidden>
         <div className="floaties" />
         <div
@@ -284,33 +288,33 @@ export function App() {
       </div>
       <div style={{ height: 28 }} />
       <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'mapSelect' })}>
-        Campaign
+        {t('menu.campaign')}
       </button>
       <div style={{ height: 16 }} />
       <button
         className="img-btn yellow menu-btn"
         onClick={() => setView({ name: 'quickCharSelect' })}
       >
-        Quick Match
+        {t('menu.quickMatch')}
       </button>
       <div style={{ height: 16 }} />
       <button
         className="img-btn yellow menu-btn"
         onClick={() => setView({ name: 'duelCharSelect' })}
       >
-        2 Players
+        {t('menu.twoPlayers')}
       </button>
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'story' })}>
-        The Story
+        {t('menu.story')}
       </button>
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'howto' })}>
-        How to Play
+        {t('menu.howToPlay')}
       </button>
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'share' })}>
-        Share Game
+        {t('menu.shareGame')}
       </button>
     </div>
   );

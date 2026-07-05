@@ -63,18 +63,35 @@ const SOURCE_EXCLUSION_THRESHOLD = 3;
 const MAX_TRIGGER_CHAIN_DEPTH = 10;
 
 /** One line of the battle log ("who did what"), shown in the Combat move-log overlay. */
+/**
+ * Structured description of a logged event. The UI turns this into a localized
+ * sentence fragment (see i18n/gameStrings formatMoveLog), so the engine stays
+ * language-agnostic. `lane` fields are 0-based lane indices.
+ */
+export type MoveLogMsg =
+  | { t: 'place'; lane: number }
+  | { t: 'placeBonus'; lane: number }
+  | { t: 'trigger'; effect: string; lane: number }
+  | { t: 'deferred'; effect: string; lane: number }
+  | { t: 'raidLost'; label: RaidLabel; lane: number }
+  | { t: 'raidWon2'; label: RaidLabel; lane: number }
+  | { t: 'raidWon1'; label: RaidLabel; lane: number }
+  | { t: 'raidDone'; label: RaidLabel; lane: number }
+  | { t: 'lane'; lane: number }
+  | { t: 'wonBattle' }
+  | { t: 'perk'; perkId: number; lane: number | null; secondLane: number | null }
+  | { t: 'pass' };
+
+export type RaidLabel = 'probe' | 'bounceProbe';
+
 export interface MoveLogEntry {
   /** Ply (engine turnCounter) when the entry was recorded, 0-based. */
   ply: number;
   /** The player the entry is about (actor for moves, owner for triggers/raids). */
   side: PlayerSide;
   kind: 'place' | 'perk' | 'pass' | 'trigger' | 'deferred' | 'raid' | 'lane';
-  /** Sentence fragment that reads naturally after the player's hero name. */
-  text: string;
-}
-
-function titleCase(s: string): string {
-  return s.charAt(0) + s.slice(1).toLowerCase();
+  /** Structured payload; rendered to text by the UI for the current language. */
+  msg: MoveLogMsg;
 }
 
 export class CombatEngine {
@@ -134,8 +151,8 @@ export class CombatEngine {
     return arr[this.rng.nextInt(arr.length)];
   }
 
-  private log(side: PlayerSide, kind: MoveLogEntry['kind'], text: string): void {
-    this.moveLog.push({ ply: this.turnCounter, side, kind, text });
+  private log(side: PlayerSide, kind: MoveLogEntry['kind'], msg: MoveLogMsg): void {
+    this.moveLog.push({ ply: this.turnCounter, side, kind, msg });
   }
 
   // --- Perk slot generation ---
@@ -235,7 +252,7 @@ export class CombatEngine {
 
     const laneIndex = this.randPick(availableLanes);
     this.placePieceAndAdvance(laneIndex, currentPlayer);
-    this.log(currentPlayer, 'place', `placed a piece in Lane ${laneIndex + 1}`);
+    this.log(currentPlayer, 'place', { t: 'place', lane: laneIndex });
     this.firePlacementTriggers(laneIndex, currentPlayer, 0);
     this.checkAllLaneWins();
 
@@ -261,7 +278,7 @@ export class CombatEngine {
       if (bonusLanes.length > 0) {
         const bonusLane = this.randPick(bonusLanes);
         this.addPiece(bonusLane, currentPlayer);
-        this.log(currentPlayer, 'place', `placed a bonus piece in Lane ${bonusLane + 1}`);
+        this.log(currentPlayer, 'place', { t: 'placeBonus', lane: bonusLane });
         this.firePlacementTriggers(bonusLane, currentPlayer, 0);
         this.checkAllLaneWins();
       }
@@ -867,11 +884,11 @@ export class CombatEngine {
 
       // Remove trigger by orderId (one-time use)
       lane.triggers = lane.triggers.filter((t) => t.orderId !== trigger.orderId);
-      this.log(
-        triggerOwner,
-        'trigger',
-        `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`,
-      );
+      this.log(triggerOwner, 'trigger', {
+        t: 'trigger',
+        effect: trigger.type,
+        lane: laneIndex,
+      });
 
       switch (trigger.type) {
         case 'PORTAL':
@@ -1008,7 +1025,7 @@ export class CombatEngine {
       if (this.state.status !== 'playing') break;
 
       lane.triggers = lane.triggers.filter((t) => t.orderId !== trigger.orderId);
-      this.log(pieceOwner, 'trigger', `sprung ${titleCase(trigger.type)} in Lane ${laneIndex + 1}`);
+      this.log(pieceOwner, 'trigger', { t: 'trigger', effect: trigger.type, lane: laneIndex });
 
       switch (trigger.type) {
         case 'HYDRA':
@@ -1088,13 +1105,13 @@ export class CombatEngine {
       const laneIdx = raid.lane;
       if (this.state.lanes[laneIdx].winner !== null) continue;
       const roll = this.rng.nextInt(100);
-      const label = raid.source === 'RAID' ? 'Probe' : 'Bounce Back probe';
+      const label: RaidLabel = raid.source === 'RAID' ? 'probe' : 'bounceProbe';
 
       if (roll < 10) {
         // 10% lost
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
           this.removeFront(laneIdx, opponent);
-        this.log(player, 'raid', `lost their ${label} in Lane ${laneIdx + 1}`);
+        this.log(player, 'raid', { t: 'raidLost', label, lane: laneIdx });
       } else if (roll < 25) {
         // 15% +2 recruits => 3 total
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
@@ -1102,7 +1119,7 @@ export class CombatEngine {
         for (let i = 0; i < 3; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
-        this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — 2 recruits joined!`);
+        this.log(player, 'raid', { t: 'raidWon2', label, lane: laneIdx });
       } else if (roll < 55) {
         // 30% +1 recruit => 2 total
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
@@ -1110,13 +1127,13 @@ export class CombatEngine {
         for (let i = 0; i < 2; i++) {
           if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
         }
-        this.log(player, 'raid', `won their ${label} in Lane ${laneIdx + 1} — a recruit joined!`);
+        this.log(player, 'raid', { t: 'raidWon1', label, lane: laneIdx });
       } else {
         // 45% alone
         if (countPieces(this.state.lanes[laneIdx], opponent) > 0)
           this.removeFront(laneIdx, opponent);
         if (!isSideFilled(this.state.lanes[laneIdx], player)) this.addPiece(laneIdx, player);
-        this.log(player, 'raid', `finished their ${label} in Lane ${laneIdx + 1}`);
+        this.log(player, 'raid', { t: 'raidDone', label, lane: laneIdx });
       }
     }
   }
@@ -1134,7 +1151,7 @@ export class CombatEngine {
       lane.deferred = lane.deferred.filter((d) => d.owner !== owner);
 
       for (const effect of effects) {
-        this.log(player, 'deferred', `resolved ${titleCase(effect.type)} in Lane ${laneIdx + 1}`);
+        this.log(player, 'deferred', { t: 'deferred', effect: effect.type, lane: laneIdx });
         switch (effect.type) {
           case 'SIGNAL':
             this.resolveSignal(laneIdx, player);
@@ -1253,7 +1270,7 @@ export class CombatEngine {
       lane.winner = winner;
       if (winner === 'player1') this.state.player1LanesWon += 1;
       else this.state.player2LanesWon += 1;
-      this.log(winner, 'lane', `conquered Lane ${laneIndex + 1}!`);
+      this.log(winner, 'lane', { t: 'lane', lane: laneIndex });
       this.checkGameWin();
     }
   }
@@ -1262,11 +1279,11 @@ export class CombatEngine {
     if (this.state.player1LanesWon >= LANES_TO_WIN) {
       this.state.status = 'finished';
       this.state.gameWinner = 'player1';
-      this.log('player1', 'lane', 'won the battle!');
+      this.log('player1', 'lane', { t: 'wonBattle' });
     } else if (this.state.player2LanesWon >= LANES_TO_WIN) {
       this.state.status = 'finished';
       this.state.gameWinner = 'player2';
-      this.log('player2', 'lane', 'won the battle!');
+      this.log('player2', 'lane', { t: 'wonBattle' });
     }
   }
 
@@ -1321,7 +1338,7 @@ export class CombatEngine {
 
   /** Deliberate pass (a player choosing not to play a perk) — logged, unlike forced skips. */
   passTurn(): void {
-    this.log(this.state.currentPlayer, 'pass', 'passed the turn');
+    this.log(this.state.currentPlayer, 'pass', { t: 'pass' });
     this.endTurn();
   }
 
@@ -1331,13 +1348,12 @@ export class CombatEngine {
   executePerk(perkId: number, targetLane: number, secondLane: number | null = null): void {
     const info = getPerk(perkId);
     if (info) {
-      const lanes =
-        secondLane !== null && targetLane >= 0
-          ? ` on Lanes ${secondLane + 1} & ${targetLane + 1}`
-          : targetLane >= 0 && info.requiresTarget
-            ? ` on Lane ${targetLane + 1}`
-            : '';
-      this.log(this.state.currentPlayer, 'perk', `used ${info.name}${lanes}`);
+      this.log(this.state.currentPlayer, 'perk', {
+        t: 'perk',
+        perkId,
+        lane: targetLane,
+        secondLane,
+      });
     }
     switch (perkId) {
       case 1:

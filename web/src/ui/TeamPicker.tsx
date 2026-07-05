@@ -7,6 +7,7 @@ import { CharacterPortrait } from './CharacterPortrait';
 import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 import { Icon } from './Icons';
 import { MAX_SEATS } from '../campaign/balance';
+import { useLang, useT, perkName, difficultyLabel } from '../i18n';
 
 // Pre-battle seat picker: choose up to `seats` crew members to bring into a
 // node battle. Locked seats show how to unlock them; the preview lists the
@@ -22,6 +23,8 @@ export function TeamPicker({
   onStart: (team: CharacterId[]) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const seats = controller.seats;
   const crew = controller.crew;
   const [team, setTeam] = useState<CharacterId[]>(() =>
@@ -48,11 +51,11 @@ export function TeamPicker({
     <div className="modal-scrim" style={{ zIndex: 40 }} onClick={onCancel}>
       <div className="team-picker" onClick={(e) => e.stopPropagation()}>
         <div className="tp-title">
-          Assemble your team
+          {t('team.title')}
           <span className="tp-subtitle">
-            vs {defenders.map((id) => characterById(id).name).join(', ')} ·{' '}
-            {node.critical ? 'critical system · ' : ''}
-            {node.difficulty}
+            {t('team.vs', { names: defenders.map((id) => characterById(id).name).join(', ') })} ·{' '}
+            {node.critical ? `${t('team.critical')} · ` : ''}
+            {difficultyLabel(node.difficulty, lang)}
           </span>
         </div>
 
@@ -67,7 +70,7 @@ export function TeamPicker({
                   <>
                     <Icon name="lock" size={16} color="#8899bb" />
                     <span className="tp-seat-hint">
-                      {i === 3 ? 'Restore Street Grid' : 'Restore Metro Net'}
+                      {i === 3 ? t('team.restoreStreet') : t('team.restoreMetro')}
                     </span>
                   </>
                 ) : id ? (
@@ -79,7 +82,7 @@ export function TeamPicker({
                     <span>{characterById(id).name}</span>
                   </button>
                 ) : (
-                  <span className="tp-seat-hint">Empty seat</span>
+                  <span className="tp-seat-hint">{t('team.emptySeat')}</span>
                 )}
               </div>
             );
@@ -97,7 +100,10 @@ export function TeamPicker({
                 className={`tp-crew-card${seated ? ' seated' : ''}`}
                 onClick={() => toggle(id)}
                 title={c.perkIds
-                  .map((perkId) => getPerk(perkId)?.name)
+                  .map((perkId) => {
+                    const perk = getPerk(perkId);
+                    return perk ? perkName(perk, lang) : undefined;
+                  })
                   .filter(Boolean)
                   .join(', ')}
               >
@@ -113,9 +119,9 @@ export function TeamPicker({
 
         {/* Perk pool preview */}
         <div className="tp-pool">
-          <span className="tp-pool-label">Team powers:</span>
+          <span className="tp-pool-label">{t('team.powers')}</span>
           {poolPerks.length === 0 ? (
-            <span className="tp-pool-empty">none — any power can appear</span>
+            <span className="tp-pool-empty">{t('team.noPowers')}</span>
           ) : (
             poolPerks.map((p) => (
               <span
@@ -125,7 +131,7 @@ export function TeamPicker({
                 title={p.description}
               >
                 <Icon name={perkIcon(p.id)} size={12} color={CATEGORY_COLOR[p.category]} />
-                {p.name}
+                {perkName(p, lang)}
               </span>
             ))
           )}
@@ -133,7 +139,7 @@ export function TeamPicker({
 
         <div className="tp-actions">
           <button className="img-btn grey" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="img-btn yellow"
@@ -144,7 +150,7 @@ export function TeamPicker({
               onStart(team);
             }}
           >
-            Start battle ({team.length}/{seats})
+            {t('team.startBattle', { count: team.length, seats })}
           </button>
         </div>
       </div>

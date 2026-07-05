@@ -1,12 +1,7 @@
 import { CampaignController } from '../campaign/controller';
 import { CAMPAIGN_MAP_IDS, CampaignMapId } from '../campaign/model';
 import { Icon } from './Icons';
-
-const MAP_BLURBS: Record<CampaignMapId, string> = {
-  map_1: 'The city streets are glitching. Restore the local systems!',
-  map_2: 'The transit network is scrambled. Fix the lines below the city!',
-  map_3: 'The AI Core awaits at the top of the sky towers. Reboot Neon City!',
-};
+import { useLang, useT, mapName } from '../i18n';
 
 // System (map) picker for the campaign: three cards with lock state and
 // critical progress, plus crew size and a Crew roster shortcut.
@@ -21,11 +16,13 @@ export function MapSelect({
   onRoster: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   return (
     <div className="screen doodle-bg level-select">
-      <h1 className="ls-title">Choose a System</h1>
+      <h1 className="ls-title">{t('mapSelect.title')}</h1>
       <p className="ls-subtitle">
-        Crew: {controller.crew.length} / 23 · Battle seats: {controller.seats}
+        {t('mapSelect.crewSeats', { crew: controller.crew.length, seats: controller.seats })}
       </p>
       <div className="ls-list">
         {CAMPAIGN_MAP_IDS.map((mapId, index) => {
@@ -42,11 +39,13 @@ export function MapSelect({
             >
               <div className="ls-card-level">{index + 1}</div>
               <div className="ls-card-info">
-                <span className="ls-card-name">{map.name}</span>
+                <span className="ls-card-name">{mapName(map.name, lang)}</span>
                 <span className="ls-card-desc">
                   {unlocked
-                    ? MAP_BLURBS[mapId]
-                    : `Secure all critical systems in ${controller.maps[CAMPAIGN_MAP_IDS[index - 1]].name} to unlock.`}
+                    ? t(`map.blurb.${mapId}`)
+                    : t('mapSelect.unlockHint', {
+                        map: mapName(controller.maps[CAMPAIGN_MAP_IDS[index - 1]].name, lang),
+                      })}
                 </span>
               </div>
               <div className="ls-card-status">
@@ -54,9 +53,9 @@ export function MapSelect({
                   <>
                     <span className="ls-card-stars">
                       <Icon name="flash" size={14} color={completed ? '#3dff8f' : '#00e5ff'} />
-                      {cleared}/{total} secured
+                      {t('mapSelect.secured', { cleared, total })}
                     </span>
-                    {completed && <span className="ls-card-done">Restored!</span>}
+                    {completed && <span className="ls-card-done">{t('mapSelect.restored')}</span>}
                   </>
                 ) : (
                   <Icon name="lock" size={22} color="#8899bb" />
@@ -68,10 +67,10 @@ export function MapSelect({
       </div>
       <div className="ls-bottombar">
         <button className="img-btn grey" onClick={onBack}>
-          Back to menu
+          {t('common.backToMenu')}
         </button>
         <button className="img-btn yellow" onClick={onRoster}>
-          Crew
+          {t('common.crew')}
         </button>
       </div>
     </div>

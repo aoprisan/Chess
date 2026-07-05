@@ -4,15 +4,10 @@ import { crewIds } from '../campaign/meta';
 import { getPerk } from '../game/perks';
 import { CharacterPortrait } from './CharacterPortrait';
 import { CATEGORY_COLOR } from './perkTheme';
+import { useLang, useT, perkName, characterRole, characterTagline, difficultyLabel } from '../i18n';
 
 export const AI_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 export type AIDifficulty = (typeof AI_DIFFICULTIES)[number];
-
-const DIFFICULTY_LABELS: Record<AIDifficulty, string> = {
-  easy: 'Easy',
-  medium: 'Medium',
-  hard: 'Hard',
-};
 
 // Character picker for Quick Match and 2 Players: title pill with player
 // badge, crew grid, details panel with role/tagline/perks, Back/Start bar.
@@ -21,8 +16,8 @@ export function CharacterSelect({
   roster,
   onPick,
   onBack,
-  playerLabel = 'Player 1',
-  backLabel = 'Back to menu',
+  playerLabel,
+  backLabel,
   difficulty,
   onDifficultyChange,
 }: {
@@ -35,6 +30,10 @@ export function CharacterSelect({
   difficulty?: AIDifficulty;
   onDifficultyChange?: (difficulty: AIDifficulty) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
+  const resolvedPlayerLabel = playerLabel ?? t('select.player1');
+  const resolvedBackLabel = backLabel ?? t('common.backToMenu');
   const characters: Character[] = (roster ?? crewIds()).map(characterById);
   const [selected, setSelected] = useState<CharacterId | null>(null);
   const [w, setW] = useState(window.innerWidth);
@@ -117,7 +116,7 @@ export function CharacterSelect({
               textAlign: 'center',
             }}
           >
-            {selectedChar.role} — {selectedChar.tagline}
+            {characterRole(selectedChar, lang)} — {characterTagline(selectedChar, lang)}
           </div>
           <div
             style={{
@@ -142,7 +141,7 @@ export function CharacterSelect({
                   }}
                   title={perk.description}
                 >
-                  {perk.name}
+                  {perkName(perk, lang)}
                 </span>
               );
             })}
@@ -150,7 +149,7 @@ export function CharacterSelect({
         </>
       ) : (
         <span className="hs-placeholder" style={{ fontSize: perkFontSize }}>
-          Select a character
+          {t('select.placeholder')}
         </span>
       )}
     </div>
@@ -162,10 +161,10 @@ export function CharacterSelect({
       <div className="hs-titlebar">
         <div className="hs-title-pill" style={{ width: titleWidth, height: titleHeight }}>
           <div className="hs-player-badge" style={{ width: badgeWidth, height: badgeHeight }}>
-            <span style={{ fontSize: titleFont * 0.6 }}>{playerLabel}</span>
+            <span style={{ fontSize: titleFont * 0.6 }}>{resolvedPlayerLabel}</span>
           </div>
           <span className="hs-title-text" style={{ fontSize: titleFont }}>
-            Choose your character
+            {t('select.title')}
           </span>
         </div>
       </div>
@@ -187,7 +186,7 @@ export function CharacterSelect({
 
       {/* Difficulty chips (Quick Match only) */}
       {difficulty && onDifficultyChange && (
-        <div className="hs-difficulty" role="radiogroup" aria-label="Rival difficulty">
+        <div className="hs-difficulty" role="radiogroup" aria-label={t('select.rivalDifficulty')}>
           {AI_DIFFICULTIES.map((d) => (
             <button
               key={d}
@@ -196,7 +195,7 @@ export function CharacterSelect({
               aria-checked={difficulty === d}
               onClick={() => onDifficultyChange(d)}
             >
-              {DIFFICULTY_LABELS[d]}
+              {difficultyLabel(d, lang)}
             </button>
           ))}
         </div>
@@ -209,7 +208,7 @@ export function CharacterSelect({
           style={{ width: buttonWidth, height: buttonHeight, fontSize: btnFont * 0.9 }}
           onClick={onBack}
         >
-          {backLabel}
+          {resolvedBackLabel}
         </button>
         <button
           className="img-btn yellow"
@@ -222,7 +221,7 @@ export function CharacterSelect({
           disabled={!selectedChar}
           onClick={() => selected && onPick(selected)}
         >
-          Start
+          {t('common.start')}
         </button>
       </div>
     </div>
