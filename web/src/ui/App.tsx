@@ -11,12 +11,14 @@ import { MapSelect } from './MapSelect';
 import { Roster } from './Roster';
 import { HowToPlay } from './HowToPlay';
 import { Story } from './Story';
+import { ShareGame } from './ShareGame';
 import { Combat } from './Combat';
 
 type View =
   | { name: 'home' }
   | { name: 'howto' }
   | { name: 'story' }
+  | { name: 'share' }
   // Campaign
   | { name: 'mapSelect' }
   | { name: 'roster' }
@@ -125,6 +127,14 @@ export function App() {
           onBack={() => setView({ name: 'home' })}
           onPlay={() => setView({ name: 'mapSelect' })}
         />
+      </div>
+    );
+  }
+
+  if (view.name === 'share') {
+    return (
+      <div className="app">
+        <ShareGame onBack={() => setView({ name: 'home' })} />
       </div>
     );
   }
@@ -297,6 +307,10 @@ export function App() {
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'howto' })}>
         How to Play
+      </button>
+      <div style={{ height: 16 }} />
+      <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'share' })}>
+        Share Game
       </button>
     </div>
   );
