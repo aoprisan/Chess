@@ -3,7 +3,8 @@ import { CampaignController } from '../campaign/controller';
 import { JOIN_THRESHOLD, WITHDRAW_THRESHOLD } from '../campaign/balance';
 import { getPerk } from '../game/perks';
 import { CharacterPortrait } from './CharacterPortrait';
-import { CATEGORY_COLOR } from './perkTheme';
+import { Icon } from './Icons';
+import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 
 const MAP_LABELS: Record<number, string> = {
   0: 'Starter',
@@ -103,6 +104,7 @@ export function Roster({
                           }}
                           title={p.description}
                         >
+                          <Icon name={perkIcon(perkId)} size={12} color={CATEGORY_COLOR[p.category]} />
                           {p.name}
                         </span>
                       );

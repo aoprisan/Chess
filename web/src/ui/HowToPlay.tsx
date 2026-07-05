@@ -1,6 +1,6 @@
 import { PERKS, SLOT3_POOL, SLOT4_POOL } from '../game/perks';
 import { Icon } from './Icons';
-import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
+import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 
 // How to Play: short kid-friendly rules plus the full power catalog,
 // rendered straight from the perk definitions so it never drifts from
@@ -54,7 +54,7 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
                     className="howto-perk-icon"
                     style={{ background: CATEGORY_COLOR[perk.category] }}
                   >
-                    <Icon name={CATEGORY_ICON[perk.category]} size={16} color="#fff" />
+                    <Icon name={perkIcon(id)} size={16} color="#fff" />
                   </span>
                   <span className="howto-perk-name">{perk.name}</span>
                   <span className="howto-perk-desc">{perk.description}</span>
