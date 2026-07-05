@@ -2203,6 +2203,53 @@ button:disabled {
   text-shadow: 0 0 8px currentcolor;
 }
 
+/* ---- Share screen ---- */
+.share-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.qr-frame {
+  margin: 6px 0 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 3px rgba(79, 240, 255, 0.55),
+    0 0 22px rgba(79, 240, 255, 0.45);
+}
+.qr-svg {
+  display: block;
+  width: 208px;
+  height: 208px;
+  image-rendering: pixelated;
+}
+.share-url {
+  max-width: 100%;
+  margin-bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(10, 16, 32, 0.5);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+  text-align: center;
+}
+.share-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+}
+.share-btn-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* ---- Perk pictograms (picture-chip phrases for pre-readers) ---- */
 .picto-row {
   display: inline-flex;
