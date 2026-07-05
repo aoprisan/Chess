@@ -197,6 +197,13 @@ export function Combat({
 
   // --- Turn loop -----------------------------------------------------------
 
+  // Enemy pacing: AI actions are deliberately slower than the player's own
+  // auto-placements so each enemy move can be read before the next one lands.
+  const AI_PLACE_DELAY = 900;
+  const HUMAN_PLACE_DELAY = 300;
+  const AI_THINK_DELAY = 900;
+  const AI_PERK_SHOW_DELAY = 1500;
+
   const tick = useCallback(
     function tickFn() {
       const s = engine.state;
@@ -208,6 +215,7 @@ export function Combat({
       if (tutStepRef.current !== null) return; // paused while a coach mark is up
 
       if (s.currentPhase === 'autoPlacement') {
+        const placeDelay = engine.isCurrentPlayerAI ? AI_PLACE_DELAY : HUMAN_PLACE_DELAY;
         later(() => {
           if (showTurnDialogRef.current || tutStepRef.current !== null) return;
           if (engine.state.currentPhase !== 'autoPlacement') {
@@ -231,7 +239,7 @@ export function Combat({
             engine.skipTurn();
           }
           afterMutation();
-        }, 300);
+        }, placeDelay);
         return;
       }
 
@@ -252,8 +260,8 @@ export function Combat({
               engine.executePerk(perkId, target, second);
             }
             afterMutation();
-          }, 650);
-        }, 400);
+          }, AI_PERK_SHOW_DELAY);
+        }, AI_THINK_DELAY);
       }
       // Human perk selection: wait for input.
     },
