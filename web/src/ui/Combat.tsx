@@ -9,7 +9,9 @@ import { CombatGameState, Lane, PlayerSide, isCloaked, isBlinded } from '../game
 
 import { CharacterPortrait } from './CharacterPortrait';
 import { Icon, IconName } from './Icons';
-import { CATEGORY_COLOR, CATEGORY_ICON } from './perkTheme';
+import { CATEGORY_COLOR, perkIcon } from './perkTheme';
+import { PerkPicto } from './PerkPicto';
+import { TutorialStep, isTutorialDone, markTutorialDone } from './tutorial';
 
 // Landscape board with 5 horizontal data lines x 10 slots (P1 left/cyan,
 // P2 right/magenta), neon grid field, turn pill, CSS-drawn player panels and
@@ -62,34 +64,6 @@ const SIDE_CHIP_COLOR: Record<PerkTargetSide, string> = {
 function sideStyleFor(perkId: number, info: PerkInfo | undefined): SideStyle {
   if (perkId === FREEZE_PERK) return FREEZE_STYLE;
   return SIDE_STYLE[info?.targetSide ?? 'both'];
-}
-
-/** Icon shown in the lane pill (and targeting hint) for a perk. */
-function targetingIcon(perkId: number): IconName {
-  switch (perkId) {
-    case 4:
-      return 'snowflake';
-    case 24:
-      return 'swap';
-    case 25:
-      return 'warning';
-    case 26:
-      return 'flip';
-    case 27:
-      return 'surround';
-    case 28:
-      return 'warning';
-    case 50:
-      return 'capture';
-    case 51:
-      return 'raid';
-    case 52:
-      return 'raid';
-    default: {
-      const info = getPerk(perkId);
-      return info ? CATEGORY_ICON[info.category] : 'flash';
-    }
-  }
 }
 
 interface CombatResult {
@@ -189,6 +163,38 @@ export function Combat({
     setFirstSelectedLane(null);
   }, []);
 
+  // Perk flash: a big glyph banner over the board whenever either side plays
+  // a power, so what just happened reads without words.
+  const [perkFlash, setPerkFlash] = useState<{
+    perkId: number;
+    side: PlayerSide;
+    seq: number;
+  } | null>(null);
+  const flashSeq = useRef(0);
+  const flashPerk = useCallback(
+    (perkId: number, side: PlayerSide) => {
+      flashSeq.current += 1;
+      const seq = flashSeq.current;
+      setPerkFlash({ perkId, side, seq });
+      later(() => setPerkFlash((cur) => (cur?.seq === seq ? null : cur)), 1100);
+    },
+    [later],
+  );
+
+  // --- First-battle tutorial -------------------------------------------------
+  // Coach marks that pause the turn loop (same gate as the turn dialog) at
+  // four teachable moments of the player's first solo battle: the two board
+  // sides, the self-deploying bot, the perk bar, and the first fixed line.
+  const [tutStep, setTutStepState] = useState<TutorialStep | null>(null);
+  const tutStepRef = useRef<TutorialStep | null>(null);
+  const setTutStep = useCallback((s: TutorialStep | null) => {
+    tutStepRef.current = s;
+    setTutStepState(s);
+  }, []);
+  const tutPending = useRef<TutorialStep | null>(
+    player2IsAI && !isTutorialDone() ? 'sides' : null,
+  );
+
   // --- Turn loop -----------------------------------------------------------
 
   const tick = useCallback(
@@ -199,10 +205,11 @@ export function Combat({
         return;
       }
       if (showTurnDialogRef.current) return; // paused while the turn dialog is up
+      if (tutStepRef.current !== null) return; // paused while a coach mark is up
 
       if (s.currentPhase === 'autoPlacement') {
         later(() => {
-          if (showTurnDialogRef.current) return;
+          if (showTurnDialogRef.current || tutStepRef.current !== null) return;
           if (engine.state.currentPhase !== 'autoPlacement') {
             tickFn();
             return;
@@ -238,8 +245,12 @@ export function Combat({
           later(() => {
             engine.lastAIPerkId = null;
             aiPerkInProgress.current = false;
-            if (perkId === 0) engine.passTurn();
-            else engine.executePerk(perkId, target, second);
+            if (perkId === 0) {
+              engine.passTurn();
+            } else {
+              flashPerk(perkId, engine.state.currentPlayer);
+              engine.executePerk(perkId, target, second);
+            }
             afterMutation();
           }, 650);
         }, 400);
@@ -249,7 +260,7 @@ export function Combat({
     // afterMutation is intentionally omitted: it and tick are mutually
     // recursive, and both are stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [engine, bump, later],
+    [engine, bump, later, flashPerk],
   );
 
   /** After any engine mutation: detect turn changes (turn dialog) and resume the loop. */
@@ -274,9 +285,30 @@ export function Combat({
       // Solo human turns flow straight into auto-placement; the tap-gated
       // dialog only appears on the opening turn (fair-start hint).
     }
+    // Tutorial checkpoints (queued only in the player's first solo battle).
+    if (tutPending.current === 'deploy' && lastPlacement.current?.player === 'player1') {
+      tutPending.current = 'power';
+      setTutStep('deploy');
+    } else if (
+      tutPending.current === 'power' &&
+      s.status === 'playing' &&
+      s.currentPhase === 'perkSelection' &&
+      !engine.isCurrentPlayerAI
+    ) {
+      tutPending.current = 'win';
+      setTutStep('power');
+    } else if (tutPending.current === 'win' && s.lanes.some((l) => l.winner)) {
+      tutPending.current = null;
+      markTutorialDone();
+      setTutStep('win');
+    } else if (s.status === 'finished' && tutPending.current !== null) {
+      // Battle ended before the walkthrough finished: don't repeat it.
+      tutPending.current = null;
+      markTutorialDone();
+    }
     bump();
     tick();
-  }, [engine, bump, later, tick, setTurnDialog, player2IsAI]);
+  }, [engine, bump, later, tick, setTurnDialog, setTutStep, player2IsAI]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -289,6 +321,23 @@ export function Combat({
 
   const dismissTurnDialog = () => {
     setTurnDialog(false);
+    if (tutPending.current === 'sides') {
+      // First lesson right after the opening "Ready!": which side is whose.
+      tutPending.current = 'deploy';
+      setTutStep('sides');
+      return;
+    }
+    tick();
+  };
+
+  const onTutorialNext = () => {
+    setTutStep(null);
+    tick();
+  };
+  const onTutorialSkip = () => {
+    markTutorialDone();
+    tutPending.current = null;
+    setTutStep(null);
     tick();
   };
 
@@ -314,6 +363,7 @@ export function Combat({
       setIsSelectingLane(true);
       return;
     }
+    flashPerk(selectedPerkId, state.currentPlayer);
     engine.executePerk(selectedPerkId, -1);
     resetSelection();
     afterMutation();
@@ -334,8 +384,10 @@ export function Combat({
         setFirstSelectedLane(laneIndex);
         return;
       }
+      flashPerk(selectedPerkId, state.currentPlayer);
       engine.executePerk(selectedPerkId, laneIndex, firstSelectedLane);
     } else {
+      flashPerk(selectedPerkId, state.currentPlayer);
       engine.executePerk(selectedPerkId, laneIndex);
     }
     resetSelection();
@@ -419,8 +471,35 @@ export function Combat({
 
       {/* Game field */}
       <div
-        style={{ flex: 1, minHeight: 0, padding: `0 ${clamp(W * 0.02, 8, 20)}px`, display: 'flex' }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          padding: `0 ${clamp(W * 0.02, 8, 20)}px`,
+          display: 'flex',
+          position: 'relative',
+        }}
       >
+        {/* Big glyph banner for the power that was just played */}
+        {perkFlash &&
+          (() => {
+            const info = getPerk(perkFlash.perkId);
+            if (!info) return null;
+            const color = perkFlash.side === 'player1' ? '#00e5ff' : '#ff2fd6';
+            return (
+              <div
+                key={perkFlash.seq}
+                className="perk-flash"
+                style={{ '--flash-color': color } as CSSProperties}
+              >
+                <span className="perk-flash-icon">
+                  <Icon name={perkIcon(info.id)} size={clamp(W * 0.055, 36, 56)} color="#fff" />
+                </span>
+                <span className="perk-flash-name" style={{ fontSize: clamp(W * 0.02, 14, 22) }}>
+                  {info.name}
+                </span>
+              </div>
+            );
+          })()}
         <GameBoard
           W={W}
           state={state}
@@ -473,7 +552,7 @@ export function Combat({
             {exitLabel}
           </button>
         </div>
-      ) : state.currentPhase === 'autoPlacement' && !showTurnDialog ? (
+      ) : state.currentPhase === 'autoPlacement' && !showTurnDialog && !tutStep ? (
         <div
           className="placing-row"
           style={{ paddingBottom: H * 0.01, fontSize: clamp(W * 0.016, 12, 20) }}
@@ -554,6 +633,99 @@ export function Combat({
           isOpeningTurn={lastPlacement.current === null && state.currentPlayer === 'player1'}
           onReady={dismissTurnDialog}
         />
+      )}
+
+      {/* First-battle coach marks */}
+      {tutStep && !finished && (
+        <TutorialCoach W={W} step={tutStep} onNext={onTutorialNext} onSkip={onTutorialSkip} />
+      )}
+    </div>
+  );
+}
+
+// --- First-battle tutorial coach marks -----------------------------------------
+
+const TUTORIAL_CARDS: Record<
+  TutorialStep,
+  { title: string; text: string; anchor: 'center' | 'bottom' }
+> = {
+  sides: {
+    title: 'Welcome to the Grid!',
+    text: 'Fill a line with 5 bots to fix it!',
+    anchor: 'center',
+  },
+  deploy: {
+    title: 'Auto-Deploy!',
+    text: 'A bot lands by itself every turn.',
+    anchor: 'center',
+  },
+  power: {
+    title: 'Pick a Power!',
+    text: 'Tap a picture to see what it does.',
+    anchor: 'bottom',
+  },
+  win: {
+    title: 'Line Fixed!',
+    text: 'Fix 3 lines to win the battle!',
+    anchor: 'center',
+  },
+};
+
+function TutorialCoach({
+  W,
+  step,
+  onNext,
+  onSkip,
+}: {
+  W: number;
+  step: TutorialStep;
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const card = TUTORIAL_CARDS[step];
+  return (
+    <div className={`tut-scrim ${card.anchor}`}>
+      <div className="tut-card" style={{ width: clamp(W * 0.4, 250, 380) }}>
+        <span className="tut-title">{card.title}</span>
+
+        {step === 'sides' && (
+          <div className="tut-halves" aria-hidden>
+            <span className="tut-half p1">
+              <Icon name="robot" size={22} color="#00e5ff" />
+              You
+            </span>
+            <span className="tut-half p2">
+              <Icon name="robot" size={22} color="#ff2fd6" />
+              Rival
+            </span>
+          </div>
+        )}
+        {step === 'deploy' && (
+          <span className="tut-glyph" aria-hidden>
+            <Icon name="robot" size={38} color="#00e5ff" />
+          </span>
+        )}
+        {step === 'win' && (
+          <span className="tut-glyph row" aria-hidden>
+            <Icon name="check" size={26} color="#3dff8f" />
+            <Icon name="check" size={26} color="#3dff8f" />
+            <Icon name="check" size={26} color="#3dff8f" />
+          </span>
+        )}
+
+        <span className="tut-text">{card.text}</span>
+
+        <button className="img-btn yellow tut-next" onClick={onNext}>
+          Got it!
+        </button>
+        <button className="tut-skip" onClick={onSkip}>
+          Skip lessons
+        </button>
+      </div>
+      {step === 'power' && (
+        <span className="tut-arrow" aria-hidden>
+          ▼
+        </span>
       )}
     </div>
   );
@@ -695,6 +867,14 @@ function PlayerHeaders({
 
 // --- Game board ---------------------------------------------------------------
 
+/** A one-shot "bot removed" flash at a board cell. */
+interface BoardBurst {
+  key: string;
+  x: number;
+  y: number;
+  side: PlayerSide;
+}
+
 function GameBoard({
   W,
   state,
@@ -748,6 +928,45 @@ function GameBoard({
   const cellW = bw / 10;
   const cellH = bh / 5;
   const halfW = bw / 2;
+
+  // Removal bursts: bots that vanished since the previous render pop out with
+  // a visible flash instead of silently disappearing (readable without text).
+  const [bursts, setBursts] = useState<BoardBurst[]>([]);
+  const prevColsRef = useRef<Record<PlayerSide, boolean[][]> | null>(null);
+  const burstSeq = useRef(0);
+  useEffect(() => {
+    const snapshot: Record<PlayerSide, boolean[][]> = {
+      player1: state.lanes.map((l) => [...l.player1Columns]),
+      player2: state.lanes.map((l) => [...l.player2Columns]),
+    };
+    const prev = prevColsRef.current;
+    prevColsRef.current = snapshot;
+    if (!prev || bw === 0) return;
+    const found: BoardBurst[] = [];
+    (['player1', 'player2'] as PlayerSide[]).forEach((side) => {
+      if (side === 'player1' ? hideP1 : hideP2) return;
+      state.lanes.forEach((lane, li) => {
+        const prevCols = prev[side][li] ?? [];
+        const cols = side === 'player1' ? lane.player1Columns : lane.player2Columns;
+        cols.forEach((filled, c) => {
+          if (!prevCols[c] || filled) return;
+          const gridCol = side === 'player1' ? c : 9 - c;
+          burstSeq.current += 1;
+          found.push({
+            key: `burst-${burstSeq.current}`,
+            x: gridCol * cellW + (cellW - pieceSize) / 2,
+            y: li * cellH + (cellH - pieceSize) / 2,
+            side,
+          });
+        });
+      });
+    });
+    if (found.length > 0) {
+      setBursts((bs) => [...bs, ...found]);
+      const keys = new Set(found.map((b) => b.key));
+      setTimeout(() => setBursts((bs) => bs.filter((b) => !keys.has(b.key))), 650);
+    }
+  });
 
   const pieces: ReactNode[] = [];
   if (bw > 0) {
@@ -1000,6 +1219,21 @@ function GameBoard({
         {/* Pieces */}
         {pieces}
 
+        {/* Removal bursts */}
+        {bursts.map((b) => (
+          <div
+            key={b.key}
+            className={`piece ${b.side === 'player1' ? 'p1' : 'p2'} burst-out`}
+            style={{ left: b.x, top: b.y, width: pieceSize, height: pieceSize }}
+          >
+            <Icon
+              name="burst"
+              size={pieceSize * 0.6}
+              color={b.side === 'player1' ? '#00e5ff' : '#ff2fd6'}
+            />
+          </div>
+        ))}
+
         {/* Fog banners over halves hidden by Cloak/Blind */}
         {bw > 0 && hideP1 && p1FogLabel && (
           <FogOverlay left={0} width={halfW} height={bh} label={p1FogLabel} />
@@ -1067,13 +1301,19 @@ function effectLabel(type: string): string {
   return (perkId !== undefined && getPerk(perkId)?.name) || titleCase(type);
 }
 
+/** The originating perk's glyph for an engine effect type, if known. */
+function effectIcon(type: string, fallback: IconName): IconName {
+  const perkId = EFFECT_PERK_IDS[type];
+  return perkId !== undefined ? perkIcon(perkId) : fallback;
+}
+
 function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): EffectEntry[] {
   const entries: EffectEntry[] = [];
   for (const t of lane.triggers) {
     const offensive = OFFENSIVE_TRIGGERS.has(t.type);
     entries.push({
       name: effectLabel(t.type),
-      icon: offensive ? 'warning' : 'shield',
+      icon: effectIcon(t.type, offensive ? 'warning' : 'shield'),
       category: offensive ? 'offensive' : 'defensive',
       turnsLeft: t.turnsLeft,
       owner: t.owner === 1 ? 'player1' : 'player2',
@@ -1082,7 +1322,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   for (const d of lane.deferred) {
     entries.push({
       name: effectLabel(d.type),
-      icon: 'schedule',
+      icon: effectIcon(d.type, 'schedule'),
       category: OFFENSIVE_DEFERRED.has(d.type) ? 'offensive' : 'utility',
       turnsLeft: 0,
       owner: d.owner === 1 ? 'player1' : 'player2',
@@ -1094,7 +1334,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
       if (s.lane === laneIndex) {
         entries.push({
           name: getPerk(49)?.name ?? 'Safe Zone',
-          icon: 'heart',
+          icon: perkIcon(49),
           category: 'defensive',
           turnsLeft: s.turnsLeft,
           owner: side,
@@ -1106,7 +1346,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
       if (c.lane === laneIndex) {
         entries.push({
           name: getPerk(50)?.name ?? 'Magnet',
-          icon: 'crosshair',
+          icon: perkIcon(50),
           category: 'offensive',
           turnsLeft: c.turnsLeft,
           owner: side,
@@ -1118,7 +1358,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     if (r.lane === laneIndex) {
       entries.push({
         name: effectLabel(r.source),
-        icon: 'raid',
+        icon: effectIcon(r.source, 'raid'),
         category: 'offensive',
         turnsLeft: r.turnsUntilResolve,
         owner: r.owner === 1 ? 'player1' : 'player2',
@@ -1213,7 +1453,7 @@ function LaneSelection({
   const perkName = info?.name ?? '';
   const side = info?.targetSide ?? 'both';
   const style = sideStyleFor(selectedPerkId, info);
-  const icon = targetingIcon(selectedPerkId);
+  const icon = perkIcon(selectedPerkId);
 
   // Player 1 always owns the left half of the board, player 2 the right.
   const highlightLeft =
@@ -1341,7 +1581,7 @@ function TargetingHint({
         boxShadow: `0 0 8px 1px ${style.fill}`,
       }}
     >
-      <Icon name={targetingIcon(perkId)} size={clamp(W * 0.022, 16, 24)} color={style.border} />
+      <Icon name={perkIcon(perkId)} size={clamp(W * 0.022, 16, 24)} color={style.border} />
       <div className="info">
         <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>
           {info.name}
@@ -1400,8 +1640,8 @@ function PerkPanel({
           style={{ borderColor: CATEGORY_COLOR[selectedInfo.category] }}
         >
           <Icon
-            name={CATEGORY_ICON[selectedInfo.category]}
-            size={20}
+            name={perkIcon(selectedInfo.id)}
+            size={22}
             color={CATEGORY_COLOR[selectedInfo.category]}
           />
           <div className="info">
@@ -1412,10 +1652,11 @@ function PerkPanel({
                 className="side-chip"
                 style={{ background: SIDE_CHIP_COLOR[selectedInfo.targetSide] }}
               >
-                <Icon name={targetingIcon(selectedInfo.id)} size={10} color="#fff" />
+                <Icon name={perkIcon(selectedInfo.id)} size={10} color="#fff" />
                 {sideStyleFor(selectedInfo.id, selectedInfo).label}
               </span>
             </span>
+            <PerkPicto perkId={selectedInfo.id} size={13} />
             <span className="desc">
               {selectedInfo.requiresTarget
                 ? `${selectedInfo.description}. Next: tap a lane.`
@@ -1451,6 +1692,8 @@ function PerkPanel({
             const isSel = selectedPerkId === slot.perkId;
             const recharging = slot.disabled === true;
             const owner = slot.slotIndex >= 2 ? ownerOf(slot.perkId) : undefined;
+            const color =
+              (disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category];
             return (
               <button
                 key={slot.slotIndex}
@@ -1459,38 +1702,37 @@ function PerkPanel({
                   isSel
                     ? {
                         borderColor: CATEGORY_COLOR[category],
-                        background: `${CATEGORY_COLOR[category]}4D`,
+                        background: `${CATEGORY_COLOR[category]}33`,
                       }
                     : undefined
                 }
                 disabled={disabled || recharging}
                 onClick={() => onPerk(slot.perkId)}
               >
-                <Icon
-                  name={CATEGORY_ICON[category]}
-                  size={14}
-                  color={(disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category]}
-                />
-                {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
+                {/* The glyph leads so pre-readers can pick powers by picture. */}
+                <span className="perk-chip-glyph" style={{ color }}>
+                  <Icon name={perkIcon(slot.perkId)} size={24} color={color} />
+                </span>
+                <span className="perk-chip-name">
+                  {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
+                </span>
                 {!recharging && owner && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 600,
-                      opacity: 0.85,
-                      marginLeft: 4,
-                      color: owner.accent,
-                    }}
-                  >
-                    {owner.name}
-                  </span>
+                  <CharacterPortrait
+                    character={owner}
+                    className="perk-chip-owner"
+                    style={{ borderColor: owner.accent }}
+                    initialScale={0.6}
+                  />
                 )}
               </button>
             );
           })}
         {!aiMode && (
           <button className="pass-chip" disabled={disabled} onClick={onPass}>
-            Pass
+            <span className="perk-chip-glyph" style={{ color: '#8899bb' }}>
+              <Icon name="skip" size={24} color={disabled ? '#757575' : '#8899bb'} />
+            </span>
+            <span className="perk-chip-name">Pass</span>
           </button>
         )}
       </div>

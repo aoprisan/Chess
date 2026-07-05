@@ -4,7 +4,7 @@ import { CampaignController } from '../campaign/controller';
 import { CampaignNode } from '../campaign/model';
 import { getPerk } from '../game/perks';
 import { CharacterPortrait } from './CharacterPortrait';
-import { CATEGORY_COLOR } from './perkTheme';
+import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 import { Icon } from './Icons';
 import { MAX_SEATS } from '../campaign/balance';
 
@@ -124,6 +124,7 @@ export function TeamPicker({
                 style={{ borderColor: CATEGORY_COLOR[p.category], color: CATEGORY_COLOR[p.category] }}
                 title={p.description}
               >
+                <Icon name={perkIcon(p.id)} size={12} color={CATEGORY_COLOR[p.category]} />
                 {p.name}
               </span>
             ))

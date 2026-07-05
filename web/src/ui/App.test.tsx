@@ -126,3 +126,29 @@ describe('Quick Match difficulty', () => {
     expect(screen.getByRole('radio', { name: 'Easy' }).getAttribute('aria-checked')).toBe('true');
   });
 });
+
+describe('first-battle tutorial', () => {
+  async function startQuickMatch() {
+    await renderHome();
+    fireEvent.click(screen.getByText('Quick Match'));
+    await screen.findByText('Choose your character');
+    fireEvent.click(screen.getByText('Bitzy'));
+    fireEvent.click(screen.getByText('Start'));
+    fireEvent.click(await screen.findByText('Ready!'));
+  }
+
+  it('opens with the sides lesson and can be skipped for good', async () => {
+    await startQuickMatch();
+    expect(screen.getByText('Welcome to the Grid!')).toBeTruthy();
+    expect(screen.getByText('Fill a line with 5 bots to fix it!')).toBeTruthy();
+    fireEvent.click(screen.getByText('Skip lessons'));
+    expect(screen.queryByText('Welcome to the Grid!')).toBeNull();
+    expect(localStorage.getItem('neon_tutorial_v1')).toBe('done');
+  });
+
+  it('stays hidden once completed', async () => {
+    localStorage.setItem('neon_tutorial_v1', 'done');
+    await startQuickMatch();
+    expect(screen.queryByText('Welcome to the Grid!')).toBeNull();
+  });
+});
