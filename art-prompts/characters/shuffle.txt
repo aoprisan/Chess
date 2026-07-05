@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Shuffle, the "Line Juggler" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are hot magenta (#ff2fd6).
+Distinguishing features: a round head, relaxed half-closed capsule eyes, a jester-fin on top, a wavy grin, and three little juggling data-orbs floating around the head.
+Personality: Keeps every line guessing.

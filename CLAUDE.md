@@ -51,7 +51,7 @@ cd web && node scripts/generate-city.mjs
   - `balance.ts` — join (3) / withdraw (9) respect thresholds, battle seats (3→5)
   - `meta.ts` — single-key localStorage persistence (`neon_meta_v1`)
   - `controller.ts` — respect derivation, recruitment, withdrawal + auto-restore, map unlocks, BFS free-roam movement
-- **ui/**: React components — `App.tsx` (screen routing), `MapSelect.tsx`, `CampaignMap.tsx`, `TeamPicker.tsx`, `Roster.tsx`, `CharacterSelect.tsx`, `Combat.tsx` (lane combat incl. team perk pools), `CharacterPortrait.tsx` (asset slot + CSS fallback tile)
+- **ui/**: React components — `App.tsx` (screen routing), `MapSelect.tsx`, `CampaignMap.tsx`, `TeamPicker.tsx`, `Roster.tsx`, `CharacterSelect.tsx`, `Combat.tsx` (lane combat incl. team perk pools), `Story.tsx` (intro story), `CharacterPortrait.tsx` (asset slot + procedural `BotAvatar.tsx` fallback)
 - **public/assets/**: character portrait slots (`images/characters/{id}.png`) and generated `maps/map_1..3.json`
 - **scripts/**: authoring tools (`generate-city.mjs` for maps, `generate-icons.mjs` for PWA icons)
 
@@ -69,7 +69,8 @@ cd web && node scripts/generate-city.mjs
 ### New Characters
 1. Add to `web/src/game/characters.ts` (id, name, perkIds, accent, homeMap)
 2. Update `MAP_CHARS` in `web/scripts/generate-city.mjs` and regenerate the maps
-3. Drop portrait art into `web/public/assets/images/characters/{id}.png` (a CSS fallback tile renders until then)
+3. Give it a look in `web/src/ui/BotAvatar.tsx` (`LOOKS`) and a Gemini prompt in `art-prompts/characters/{id}.txt`
+4. Drop portrait art into `web/public/assets/images/characters/{id}.png` (the procedural avatar renders until then)
 
 ## Key Documentation
 

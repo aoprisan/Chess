@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Sponge, the "Backup Boss" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are electric cyan (#00e5ff).
+Distinguishing features: a soft round squishy-looking head, big round eyes, no antenna, a happy open mouth, and a porous panel texture with tiny backup-drive lights on the chest.
+Personality: Nothing is ever really lost.

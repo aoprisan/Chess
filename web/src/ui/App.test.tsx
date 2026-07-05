@@ -46,11 +46,32 @@ async function renderHome() {
 }
 
 describe('home menu', () => {
-  it('shows the four modes after boot', async () => {
+  it('shows the five entries after boot', async () => {
     await renderHome();
-    for (const label of ['Campaign', 'Quick Match', '2 Players', 'How to Play']) {
+    for (const label of ['Campaign', 'Quick Match', '2 Players', 'The Story', 'How to Play']) {
       expect(screen.getByText(label)).toBeTruthy();
     }
+  });
+});
+
+describe('The Story', () => {
+  it('tells the intro, shows the starter crew, and can jump into the campaign', async () => {
+    await renderHome();
+    fireEvent.click(screen.getByText('The Story'));
+    expect(screen.getByText('Welcome to Neon City')).toBeTruthy();
+    expect(screen.getByText('The Glitch Storm')).toBeTruthy();
+    for (const starter of ['Bitzy', 'Pixel', 'Cache', 'Sparky', 'Momo']) {
+      expect(screen.getByText(starter)).toBeTruthy();
+    }
+    fireEvent.click(screen.getByText('Start the Campaign'));
+    expect(await screen.findByText('Choose a System')).toBeTruthy();
+  });
+
+  it('returns to the menu', async () => {
+    await renderHome();
+    fireEvent.click(screen.getByText('The Story'));
+    fireEvent.click(screen.getByText('Menu'));
+    expect(await screen.findByText('Quick Match')).toBeTruthy();
   });
 });
 

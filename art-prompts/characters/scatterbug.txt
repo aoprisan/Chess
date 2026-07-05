@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Scatterbug, the "Messy Mover" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are neon yellow (#ffd23f).
+Distinguishing features: a round head, calm half-closed capsule eyes, wobbly side pods for ears, a playful zigzag mouth, and mismatched panel colors as if bolted together in a hurry.
+Personality: Never in the place you expect.

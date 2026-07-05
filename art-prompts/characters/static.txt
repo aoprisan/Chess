@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Static, the "Cloak Master" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are ultraviolet purple (#7b2fff).
+Distinguishing features: a dome head under a holographic hood, a mysterious glowing visor eye-band, no antenna, a subtle wavy mouth, with parts of the body fading into translucent static.
+Personality: Now you see the crew, now you don’t.
