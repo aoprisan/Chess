@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from './Icons';
 import { BASE_URL } from './assets';
 import { qrMatrix } from './qrcode';
+import { useT } from '../i18n';
 
 // Share screen: a native share button (Android/iOS share sheet via the Web
 // Share API) plus a scannable QR code, so a kid can hand their phone to a
@@ -17,7 +18,6 @@ function gameUrl(): string {
 }
 
 const SHARE_TITLE = 'Neon City: Bug Busters';
-const SHARE_TEXT = 'Come play Neon City: Bug Busters with me! 🤖⚡';
 
 /** Renders a QR matrix as a crisp, scannable SVG with a white quiet zone. */
 function QrImage({ value }: { value: string }) {
@@ -48,13 +48,14 @@ function QrImage({ value }: { value: string }) {
 }
 
 export function ShareGame({ onBack }: { onBack: () => void }) {
+  const t = useT();
   const url = useMemo(() => gameUrl(), []);
   const [copied, setCopied] = useState(false);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const handleShare = async () => {
     try {
-      await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url });
+      await navigator.share({ title: SHARE_TITLE, text: t('share.text'), url });
     } catch {
       // User dismissed the share sheet, or sharing failed — nothing to do.
     }
@@ -75,17 +76,17 @@ export function ShareGame({ onBack }: { onBack: () => void }) {
       <div className="overlay-header">
         <button className="chip" onClick={onBack}>
           <Icon name="arrowBack" size={20} color="#e8f4ff" />
-          Menu
+          {t('common.menu')}
         </button>
         <span style={{ flex: 1 }} />
-        <span className="chip">Share</span>
+        <span className="chip">{t('share.chip')}</span>
       </div>
 
       <div className="howto-scroll">
         <div className="howto-card share-card">
-          <h2 className="howto-heading">Share the game</h2>
+          <h2 className="howto-heading">{t('share.heading')}</h2>
           <p className="story-p" style={{ textAlign: 'center' }}>
-            Scan this code with a phone camera to jump straight into Neon City.
+            {t('share.scan')}
           </p>
 
           <div className="qr-frame">
@@ -99,14 +100,14 @@ export function ShareGame({ onBack }: { onBack: () => void }) {
               <button className="img-btn yellow menu-btn" onClick={handleShare}>
                 <span className="share-btn-label">
                   <Icon name="share" size={18} color="#1a1030" />
-                  Share…
+                  {t('share.shareBtn')}
                 </span>
               </button>
             )}
             <button className="img-btn grey menu-btn" onClick={handleCopy}>
               <span className="share-btn-label">
                 <Icon name={copied ? 'check' : 'copy'} size={18} color="#e8f4ff" />
-                {copied ? 'Link copied!' : 'Copy link'}
+                {copied ? t('share.copied') : t('share.copy')}
               </span>
             </button>
           </div>

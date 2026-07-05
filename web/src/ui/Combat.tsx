@@ -12,6 +12,15 @@ import { Icon, IconName } from './Icons';
 import { CATEGORY_COLOR, perkIcon } from './perkTheme';
 import { PerkPicto } from './PerkPicto';
 import { TutorialStep, isTutorialDone, markTutorialDone } from './tutorial';
+import { useLang, useT, perkName, perkDescription, formatMoveLog } from '../i18n';
+import type { Lang } from '../i18n';
+
+// Translation keys for the "which half does this perk affect" pill label.
+const SIDE_LABEL_KEY: Record<PerkTargetSide, string> = {
+  own: 'combat.side.own',
+  enemy: 'combat.side.enemy',
+  both: 'combat.side.both',
+};
 
 // Landscape board with 5 horizontal data lines x 10 slots (P1 left/cyan,
 // P2 right/magenta), neon grid field, turn pill, CSS-drawn player panels and
@@ -93,6 +102,8 @@ export function Combat({
   exitLabel?: string;
   onGameEnd: (result: CombatResult) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const player1Hero = player1Team[0];
   const player2Hero = player2Team[0];
   const engineRef = useRef<CombatEngine | null>(null);
@@ -430,15 +441,17 @@ export function Combat({
     (isCloaked(state, 'player2') && viewer !== 'player2') ||
     (isBlinded(state, 'player2') && blindViewer === 'player2');
   // Fog labels so a half emptied by Cloak/Blind reads as "hidden", not vanished.
+  const stealthName = perkName(getPerk(22)!, lang);
+  const staticName = perkName(getPerk(23)!, lang);
   const p1FogLabel = hideP1
     ? isCloaked(state, 'player1') && viewer !== 'player1'
-      ? 'Hidden by Stealth Mode'
-      : 'Hidden by Static Storm'
+      ? t('combat.hiddenBy', { power: stealthName })
+      : t('combat.hiddenBy', { power: staticName })
     : null;
   const p2FogLabel = hideP2
     ? isCloaked(state, 'player2') && viewer !== 'player2'
-      ? 'Hidden by Stealth Mode'
-      : 'Hidden by Static Storm'
+      ? t('combat.hiddenBy', { power: stealthName })
+      : t('combat.hiddenBy', { power: staticName })
     : null;
 
   const gap = H * 0.005;
@@ -451,7 +464,7 @@ export function Combat({
       {/* Move-log button */}
       <button className="log-btn" onClick={() => setShowMoveLog(true)}>
         <Icon name="list" size={14} color="#FFCA28" />
-        Moves
+        {t('combat.moves')}
       </button>
 
       {/* Turn pill */}
@@ -462,7 +475,9 @@ export function Combat({
           fontSize: clamp(W * 0.018, 14, 20),
         }}
       >
-        {finished ? `${winnerHero.name} Wins!` : `${currentHero.name} Turn`}
+        {finished
+          ? t('combat.wins', { name: winnerHero.name })
+          : t('combat.turn', { name: currentHero.name })}
       </div>
 
       <div style={{ height: gap }} />
@@ -503,7 +518,7 @@ export function Combat({
                   <Icon name={perkIcon(info.id)} size={clamp(W * 0.055, 36, 56)} color="#fff" />
                 </span>
                 <span className="perk-flash-name" style={{ fontSize: clamp(W * 0.02, 14, 22) }}>
-                  {info.name}
+                  {perkName(info, lang)}
                 </span>
               </div>
             );
@@ -540,7 +555,7 @@ export function Combat({
               fontSize: clamp(W * 0.022, 16, 28),
             }}
           >
-            {winnerHero.name} Wins!
+            {t('combat.wins', { name: winnerHero.name })}
           </div>
           <div style={{ height: W * 0.012 }} />
           <button
@@ -574,7 +589,7 @@ export function Combat({
               borderTopColor: '#FFCA28',
             }}
           />
-          Placing piece...
+          {t('combat.placing')}
         </div>
       ) : state.currentPhase === 'perkSelection' && !showTurnDialog ? (
         engine.isCurrentPlayerAI && engine.lastAIPerkId === null ? (
@@ -584,7 +599,7 @@ export function Combat({
                 className="spinner small"
                 style={{ borderColor: 'rgba(189,189,189,0.3)', borderTopColor: '#BDBDBD' }}
               />
-              Opponent&apos;s turn
+              {t('combat.opponentTurn')}
             </div>
           </div>
         ) : isSelectingLane && selectedPerkId !== null && selectedInfo ? (
@@ -655,28 +670,12 @@ export function Combat({
 
 const TUTORIAL_CARDS: Record<
   TutorialStep,
-  { title: string; text: string; anchor: 'center' | 'bottom' }
+  { titleKey: string; textKey: string; anchor: 'center' | 'bottom' }
 > = {
-  sides: {
-    title: 'Welcome to the Grid!',
-    text: 'Fill a line with 5 bots to fix it!',
-    anchor: 'center',
-  },
-  deploy: {
-    title: 'Auto-Deploy!',
-    text: 'A bot lands by itself every turn.',
-    anchor: 'center',
-  },
-  power: {
-    title: 'Pick a Power!',
-    text: 'Tap a picture to see what it does.',
-    anchor: 'bottom',
-  },
-  win: {
-    title: 'Line Fixed!',
-    text: 'Fix 3 lines to win the battle!',
-    anchor: 'center',
-  },
+  sides: { titleKey: 'tut.sides.title', textKey: 'tut.sides.text', anchor: 'center' },
+  deploy: { titleKey: 'tut.deploy.title', textKey: 'tut.deploy.text', anchor: 'center' },
+  power: { titleKey: 'tut.power.title', textKey: 'tut.power.text', anchor: 'bottom' },
+  win: { titleKey: 'tut.win.title', textKey: 'tut.win.text', anchor: 'center' },
 };
 
 function TutorialCoach({
@@ -690,21 +689,22 @@ function TutorialCoach({
   onNext: () => void;
   onSkip: () => void;
 }) {
+  const t = useT();
   const card = TUTORIAL_CARDS[step];
   return (
     <div className={`tut-scrim ${card.anchor}`}>
       <div className="tut-card" style={{ width: clamp(W * 0.4, 250, 380) }}>
-        <span className="tut-title">{card.title}</span>
+        <span className="tut-title">{t(card.titleKey)}</span>
 
         {step === 'sides' && (
           <div className="tut-halves" aria-hidden>
             <span className="tut-half p1">
               <Icon name="robot" size={22} color="#00e5ff" />
-              You
+              {t('combat.you')}
             </span>
             <span className="tut-half p2">
               <Icon name="robot" size={22} color="#ff2fd6" />
-              Rival
+              {t('combat.rival')}
             </span>
           </div>
         )}
@@ -721,13 +721,13 @@ function TutorialCoach({
           </span>
         )}
 
-        <span className="tut-text">{card.text}</span>
+        <span className="tut-text">{t(card.textKey)}</span>
 
         <button className="img-btn yellow tut-next" onClick={onNext}>
-          Got it!
+          {t('combat.gotIt')}
         </button>
         <button className="tut-skip" onClick={onSkip}>
-          Skip lessons
+          {t('combat.skipLessons')}
         </button>
       </div>
       {step === 'power' && (
@@ -764,6 +764,7 @@ function PlayerHeaders({
   const scoreW = clamp(W * 0.065, 45, 75);
   const fontSize = clamp(W * 0.018, 13, 20);
 
+  const t = useT();
   const indicatorW = clamp(W * 0.08, 50, 90);
   const indicatorH = clamp(H * 0.1, 60, 160);
   const poleW = clamp(W * 0.005, 3, 6);
@@ -849,7 +850,7 @@ function PlayerHeaders({
         <div
           className={`flag-img ${isP1Turn ? 'p1' : 'p2'}`}
           role="img"
-          aria-label={isP1Turn ? 'Player 1 turn' : 'Player 2 turn'}
+          aria-label={isP1Turn ? t('combat.p1turn') : t('combat.p2turn')}
           style={{
             top: indicatorH * 0.2,
             width: flagW,
@@ -1303,9 +1304,10 @@ function titleCase(s: string): string {
 }
 
 /** Catalog name for an engine effect type (falls back to title-cased type). */
-function effectLabel(type: string): string {
+function effectLabel(type: string, lang: Lang): string {
   const perkId = EFFECT_PERK_IDS[type];
-  return (perkId !== undefined && getPerk(perkId)?.name) || titleCase(type);
+  const perk = perkId !== undefined ? getPerk(perkId) : undefined;
+  return perk ? perkName(perk, lang) : titleCase(type);
 }
 
 /** The originating perk's glyph for an engine effect type, if known. */
@@ -1314,12 +1316,17 @@ function effectIcon(type: string, fallback: IconName): IconName {
   return perkId !== undefined ? perkIcon(perkId) : fallback;
 }
 
-function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): EffectEntry[] {
+function effectsForLane(
+  state: CombatGameState,
+  lane: Lane,
+  laneIndex: number,
+  lang: Lang,
+): EffectEntry[] {
   const entries: EffectEntry[] = [];
   for (const t of lane.triggers) {
     const offensive = OFFENSIVE_TRIGGERS.has(t.type);
     entries.push({
-      name: effectLabel(t.type),
+      name: effectLabel(t.type, lang),
       icon: effectIcon(t.type, offensive ? 'warning' : 'shield'),
       category: offensive ? 'offensive' : 'defensive',
       turnsLeft: t.turnsLeft,
@@ -1328,7 +1335,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   }
   for (const d of lane.deferred) {
     entries.push({
-      name: effectLabel(d.type),
+      name: effectLabel(d.type, lang),
       icon: effectIcon(d.type, 'schedule'),
       category: OFFENSIVE_DEFERRED.has(d.type) ? 'offensive' : 'utility',
       turnsLeft: 0,
@@ -1339,8 +1346,9 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     const sancs = side === 'player1' ? state.player1Sanctuaries : state.player2Sanctuaries;
     for (const s of sancs) {
       if (s.lane === laneIndex) {
+        const perk = getPerk(49);
         entries.push({
-          name: getPerk(49)?.name ?? 'Safe Zone',
+          name: perk ? perkName(perk, lang) : 'Safe Zone',
           icon: perkIcon(49),
           category: 'defensive',
           turnsLeft: s.turnsLeft,
@@ -1351,8 +1359,9 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
     const caps = side === 'player1' ? state.player1Captures : state.player2Captures;
     for (const c of caps) {
       if (c.lane === laneIndex) {
+        const perk = getPerk(50);
         entries.push({
-          name: getPerk(50)?.name ?? 'Magnet',
+          name: perk ? perkName(perk, lang) : 'Magnet',
           icon: perkIcon(50),
           category: 'offensive',
           turnsLeft: c.turnsLeft,
@@ -1364,7 +1373,7 @@ function effectsForLane(state: CombatGameState, lane: Lane, laneIndex: number): 
   for (const r of state.pendingRaids) {
     if (r.lane === laneIndex) {
       entries.push({
-        name: effectLabel(r.source),
+        name: effectLabel(r.source, lang),
         icon: effectIcon(r.source, 'raid'),
         category: 'offensive',
         turnsLeft: r.turnsUntilResolve,
@@ -1384,10 +1393,12 @@ function LaneEffects({
   cellH: number;
   halfW: number;
 }) {
+  const { lang } = useLang();
+  const t = useT();
   const out: ReactNode[] = [];
   state.lanes.forEach((lane, i) => {
     if (lane.winner) return;
-    const all = effectsForLane(state, lane, i);
+    const all = effectsForLane(state, lane, i, lang);
     (['player1', 'player2'] as PlayerSide[]).forEach((side) => {
       const effects = all.filter((e) => e.owner === side);
       if (effects.length === 0) return;
@@ -1408,7 +1419,7 @@ function LaneEffects({
           {effects.length > 2 ? (
             <span className="effect-pill" style={{ background: `${base}33`, color: base }}>
               <Icon name={effects[0].icon} size={10} color={base} />
-              {effects.length} effects
+              {t('combat.effects', { count: effects.length })}
             </span>
           ) : (
             effects.map((e, j) => (
@@ -1455,9 +1466,11 @@ function LaneSelection({
   bw: number;
   onLaneClick: (i: number) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const me = state.currentPlayer;
   const info = getPerk(selectedPerkId);
-  const perkName = info?.name ?? '';
+  const label = info ? perkName(info, lang) : '';
   const side = info?.targetSide ?? 'both';
   const style = sideStyleFor(selectedPerkId, info);
   const icon = perkIcon(selectedPerkId);
@@ -1499,7 +1512,7 @@ function LaneSelection({
               <div className="pill-center">
                 <span className="lane-pill" style={{ background: 'rgba(245,124,0,0.9)' }}>
                   <Icon name="check" size={14} color="#fff" />
-                  Lane {i + 1} ✓
+                  {t('combat.laneChecked', { n: i + 1 })}
                 </span>
               </div>
             </div>
@@ -1541,7 +1554,7 @@ function LaneSelection({
             <div className="pill-center">
               <span className="lane-pill" style={{ background: style.pill }}>
                 <Icon name={icon} size={14} color="#fff" />
-                {perkName} {i + 1}
+                {label} {i + 1}
               </span>
             </div>
           </div>
@@ -1566,18 +1579,20 @@ function TargetingHint({
   firstSelectedLane: number | null;
   onCancel: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const style = sideStyleFor(perkId, info);
   const where =
     info.targetSide === 'own'
-      ? 'on your side'
+      ? t('combat.where.own')
       : info.targetSide === 'enemy'
-        ? 'on the enemy side'
-        : 'on the board';
+        ? t('combat.where.enemy')
+        : t('combat.where.both');
   const instruction = DUAL_LANE_PERKS.has(perkId)
     ? firstSelectedLane === null
-      ? `Tap the first lane ${where}`
-      : `Tap the second lane ${where} (Lane ${firstSelectedLane + 1} picked)`
-    : `Tap a glowing lane ${where}`;
+      ? t('combat.aim.first', { where })
+      : t('combat.aim.second', { where, n: firstSelectedLane + 1 })
+    : t('combat.aim.single', { where });
 
   return (
     <div
@@ -1591,7 +1606,7 @@ function TargetingHint({
       <Icon name={perkIcon(perkId)} size={clamp(W * 0.022, 16, 24)} color={style.border} />
       <div className="info">
         <span className="name" style={{ fontSize: clamp(W * 0.016, 12, 18) }}>
-          {info.name}
+          {perkName(info, lang)}
         </span>
         <span
           className="hint"
@@ -1602,7 +1617,7 @@ function TargetingHint({
       </div>
       <button className="bar-btn cancel" onClick={onCancel}>
         <Icon name="close" size={14} color="#fff" />
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   );
@@ -1634,6 +1649,8 @@ function PerkPanel({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const aiMode = aiHighlight !== null;
   const ownerOf = (perkId: number): Character | undefined =>
     owners?.find((c) => c.perkIds.includes(perkId));
@@ -1653,21 +1670,21 @@ function PerkPanel({
           />
           <div className="info">
             <span className="row">
-              <span className="name">{selectedInfo.name}</span>
+              <span className="name">{perkName(selectedInfo, lang)}</span>
               {/* Where the perk lands, matching the lane highlight color */}
               <span
                 className="side-chip"
                 style={{ background: SIDE_CHIP_COLOR[selectedInfo.targetSide] }}
               >
                 <Icon name={perkIcon(selectedInfo.id)} size={10} color="#fff" />
-                {sideStyleFor(selectedInfo.id, selectedInfo).label}
+                {t(SIDE_LABEL_KEY[selectedInfo.targetSide])}
               </span>
             </span>
             <PerkPicto perkId={selectedInfo.id} size={13} />
             <span className="desc">
               {selectedInfo.requiresTarget
-                ? `${selectedInfo.description}. Next: tap a lane.`
-                : selectedInfo.description}
+                ? t('combat.descNext', { desc: perkDescription(selectedInfo, lang) })
+                : perkDescription(selectedInfo, lang)}
             </span>
           </div>
           <button
@@ -1676,7 +1693,7 @@ function PerkPanel({
             onClick={onConfirm}
           >
             <Icon name="check" size={14} color="#fff" />
-            Use
+            {t('combat.use')}
           </button>
           <button className="bar-btn cancel" onClick={onCancel}>
             <Icon name="close" size={14} color="#fff" />
@@ -1687,7 +1704,7 @@ function PerkPanel({
         {aiMode && (
           <span className="ai-chip">
             <Icon name="robot" size={12} color="#fff" />
-            AI
+            {t('combat.ai')}
           </span>
         )}
         {slots
@@ -1721,7 +1738,11 @@ function PerkPanel({
                   <Icon name={perkIcon(slot.perkId)} size={24} color={color} />
                 </span>
                 <span className="perk-chip-name">
-                  {recharging ? 'Recharging…' : (info?.name ?? slot.perkName)}
+                  {recharging
+                    ? t('combat.recharging')
+                    : info
+                      ? perkName(info, lang)
+                      : slot.perkName}
                 </span>
                 {!recharging && owner && (
                   <CharacterPortrait
@@ -1738,7 +1759,7 @@ function PerkPanel({
             <span className="perk-chip-glyph" style={{ color: '#8899bb' }}>
               <Icon name="skip" size={24} color={disabled ? '#757575' : '#8899bb'} />
             </span>
-            <span className="perk-chip-name">Pass</span>
+            <span className="perk-chip-name">{t('combat.pass')}</span>
           </button>
         )}
       </div>
@@ -1782,6 +1803,8 @@ function MoveLogOverlay({
   player2Hero: Character;
   onClose: () => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -1791,15 +1814,15 @@ function MoveLogOverlay({
       <div className="move-log" onClick={(e) => e.stopPropagation()}>
         <div className="move-log-title">
           <Icon name="list" size={18} color="#FFCA28" />
-          Battle Log
+          {t('combat.battleLog')}
           <button className="bar-btn cancel" style={{ marginLeft: 'auto' }} onClick={onClose}>
             <Icon name="close" size={14} color="#fff" />
-            Close
+            {t('common.close')}
           </button>
         </div>
         <div className="move-log-list" ref={listRef}>
           {entries.length === 0 && (
-            <span className="move-log-empty">Nothing has happened yet!</span>
+            <span className="move-log-empty">{t('combat.nothingYet')}</span>
           )}
           {entries.map((e, i) => {
             const hero = e.side === 'player1' ? player1Hero : player2Hero;
@@ -1808,7 +1831,7 @@ function MoveLogOverlay({
               <div key={i} className="move-log-row">
                 <span className="ply">{e.ply + 1}</span>
                 <span>
-                  <b style={{ color }}>{hero.name}</b> {e.text}
+                  <b style={{ color }}>{hero.name}</b> {formatMoveLog(e.msg, lang)}
                 </span>
               </div>
             );
@@ -1836,6 +1859,7 @@ function TurnDialog({
   isOpeningTurn: boolean;
   onReady: () => void;
 }) {
+  const t = useT();
   const playerColor = isP1 ? '#00e5ff' : '#ff2fd6';
   const cardW = clamp(W * 0.35, 220, 400);
   const padding = clamp(W * 0.025, 16, 30);
@@ -1865,7 +1889,7 @@ function TurnDialog({
         </span>
         <div style={{ height: padding * 0.25 }} />
         <span style={{ fontSize: clamp(W * 0.02, 14, 24), fontWeight: 500, color: '#fff' }}>
-          Your Turn!
+          {t('combat.yourTurn')}
         </span>
         {isOpeningTurn && (
           <>
@@ -1877,7 +1901,7 @@ function TurnDialog({
                 textAlign: 'center',
               }}
             >
-              Fair start: your first turn places a piece — perks unlock next turn!
+              {t('combat.fairStart')}
             </span>
           </>
         )}
@@ -1891,7 +1915,7 @@ function TurnDialog({
           }}
           onClick={isAI ? undefined : onReady}
         >
-          Ready!
+          {t('combat.ready')}
         </button>
       </div>
     </div>
