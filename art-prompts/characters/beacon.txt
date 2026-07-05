@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Beacon, the "Signal Scout" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are amber orange (#ff9f1c).
+Distinguishing features: a tall lighthouse-shaped head, one big searchlight cyclops eye, a radar-loop antenna, a friendly smile, and radiating signal rings glowing around the antenna.
+Personality: Always knows where the crowd is.

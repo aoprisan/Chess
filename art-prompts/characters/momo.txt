@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Momo, the "Safety Officer" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are laser green (#3dff8f).
+Distinguishing features: a dome-shaped helmet head, big gentle round eyes, no antenna, a kind smile, and a small glowing shield emblem on the chest.
+Personality: Keeps every bot safe and sound.

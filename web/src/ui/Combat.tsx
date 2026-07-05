@@ -824,7 +824,6 @@ function PlayerHeaders({
                 key={c.id}
                 character={c}
                 style={{ width: chipSize, height: chipSize, objectFit: 'contain' }}
-                initialScale={0.7}
               />
             ))}
           </div>
@@ -1014,7 +1013,7 @@ function GameBoard({
                 } as CSSProperties
               }
             >
-              <CharacterPortrait character={hero} className="portrait" initialScale={0.66} />
+              <CharacterPortrait character={hero} className="portrait"/>
             </div>,
           );
         });
@@ -1729,7 +1728,6 @@ function PerkPanel({
                     character={owner}
                     className="perk-chip-owner"
                     style={{ borderColor: owner.accent }}
-                    initialScale={0.6}
                   />
                 )}
               </button>

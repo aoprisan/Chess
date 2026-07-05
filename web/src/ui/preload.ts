@@ -3,7 +3,7 @@
 // behind the boot progress bar (see App.tsx) guarantees each screen paints
 // complete on its first frame. The UI chrome is CSS-drawn, so the only art
 // is the character portraits; missing files resolve instantly and the
-// CharacterPortrait fallback tile takes over.
+// procedural BotAvatar fallback takes over.
 
 import { CHARACTERS } from '../game/characters';
 import { asset } from './assets';

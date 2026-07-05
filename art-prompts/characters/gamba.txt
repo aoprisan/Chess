@@ -1,0 +1,13 @@
+STYLE
+Kid-friendly cyberpunk sticker art for a children's game. A cute chibi robot
+bust portrait (head and shoulders), centered, facing slightly toward the
+viewer. Thick clean outlines, smooth vector-like cel shading, glowing neon
+edge light. Background: dark navy tech panel (#0d1322) with faint glowing
+circuit traces. Big expressive glowing eyes, friendly and completely
+non-scary. Square 1:1 image. No text, no watermark, no humans.
+
+PROMPT
+Gamba, the "Deal Broker" — a cheerful little robot Fixer from Neon City.
+Its glow, eyes, and accent details are ultraviolet purple (#7b2fff).
+Distinguishing features: a dome head, cool half-closed capsule eyes, a loop antenna, a confident smile, and glowing dice-pip lights on the shoulder plates.
+Personality: Always trades up in the end.

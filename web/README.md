@@ -48,9 +48,9 @@ src/
     maps.test.ts     structural validation of the shipped maps vs the spec
     controller.test.ts respect/withdrawal/unlock/movement suite
   ui/                React components (App, MapSelect, CampaignMap, TeamPicker,
-                     Roster, CharacterSelect, Combat, CharacterPortrait)
+                     Roster, CharacterSelect, Combat, Story, CharacterPortrait)
 public/assets/
-  images/characters/  portrait asset slots ({id}.png; CSS fallback until art lands)
+  images/characters/  portrait asset slots ({id}.png; procedural BotAvatar until art lands)
   maps/               map_1..3.json (generated)
 scripts/
   generate-city.mjs   authoring tool that emits map_1..map_3.json;

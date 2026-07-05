@@ -240,7 +240,6 @@ export function CampaignMap({
                         key={id}
                         character={characterById(id)}
                         style={{ width: 16, height: 16, objectFit: 'contain' }}
-                        initialScale={0.7}
                       />
                     ))}
                     {defenders.length > 3 && (

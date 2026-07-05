@@ -10,11 +10,13 @@ import { CampaignMap } from './CampaignMap';
 import { MapSelect } from './MapSelect';
 import { Roster } from './Roster';
 import { HowToPlay } from './HowToPlay';
+import { Story } from './Story';
 import { Combat } from './Combat';
 
 type View =
   | { name: 'home' }
   | { name: 'howto' }
+  | { name: 'story' }
   // Campaign
   | { name: 'mapSelect' }
   | { name: 'roster' }
@@ -112,6 +114,17 @@ export function App() {
     return (
       <div className="app">
         <HowToPlay onBack={() => setView({ name: 'home' })} />
+      </div>
+    );
+  }
+
+  if (view.name === 'story') {
+    return (
+      <div className="app">
+        <Story
+          onBack={() => setView({ name: 'home' })}
+          onPlay={() => setView({ name: 'mapSelect' })}
+        />
       </div>
     );
   }
@@ -276,6 +289,10 @@ export function App() {
         onClick={() => setView({ name: 'duelCharSelect' })}
       >
         2 Players
+      </button>
+      <div style={{ height: 16 }} />
+      <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'story' })}>
+        The Story
       </button>
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'howto' })}>
