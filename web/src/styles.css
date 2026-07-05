@@ -85,21 +85,248 @@ button:disabled {
   flex-direction: column;
 }
 
-/* Neon city backdrop: dark gradient + faint grid + scanlines, with the
-   magenta holo-table glow rising from the bottom edge (per concept art). */
+/* Neon city backdrop — a painterly space scene per the concept art:
+   starfield layers, purple/cyan nebula blooms, a planet horizon glowing at
+   the bottom edge, all under a subtle scanline overlay. */
 .doodle-bg {
   background:
+    /* scanlines */
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 3px),
-    linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(123, 47, 255, 0.05) 1px, transparent 1px),
-    radial-gradient(ellipse 90% 45% at 50% 108%, rgba(255, 47, 214, 0.14) 0%, transparent 65%),
+    /* three drifting star layers (repeating tiles at co-prime sizes) */
+    radial-gradient(circle 1px at 22px 34px, rgba(232, 244, 255, 0.7) 99%, transparent),
+    radial-gradient(circle 1px at 110px 12px, rgba(160, 220, 255, 0.5) 99%, transparent),
+    radial-gradient(circle 1.5px at 60px 80px, rgba(255, 214, 250, 0.45) 99%, transparent),
+    /* nebula blooms */
+    radial-gradient(ellipse 45% 32% at 82% 18%, rgba(123, 47, 255, 0.2) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 28% at 12% 30%, rgba(0, 229, 255, 0.1) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 35% at 30% 85%, rgba(255, 47, 214, 0.12) 0%, transparent 70%),
+    /* planet horizon: cyan rim light over a dark limb rising from the bottom */
+    radial-gradient(
+      ellipse 130% 52% at 50% 132%,
+      transparent 54%,
+      rgba(0, 229, 255, 0.22) 57%,
+      rgba(0, 229, 255, 0.05) 60%,
+      transparent 64%
+    ),
+    radial-gradient(ellipse 130% 52% at 50% 132%, #10275a 0%, #0d1b3f 45%, transparent 58%),
+    /* deep space */
     radial-gradient(ellipse 120% 70% at 50% -10%, #1a2342 0%, var(--bg) 62%);
   background-size:
     100% 100%,
-    44px 44px,
-    44px 44px,
+    170px 190px,
+    230px 170px,
+    310px 260px,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
     100% 100%,
     100% 100%;
+}
+
+/* ---- Scene decorations (menu + shared holographic set dressing) ---- */
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.menu-home > *:not(.scene-layer) {
+  z-index: 1;
+}
+
+/* Floating holographic readout panels with fake text lines, like the
+   screens hovering around the concept-art scenes. */
+.holo-panel {
+  position: absolute;
+  border: 1px solid rgba(0, 229, 255, 0.55);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 229, 255, 0.16) 0 2px,
+      transparent 2px 7px
+    ),
+    linear-gradient(160deg, rgba(0, 229, 255, 0.1), rgba(19, 26, 46, 0.55));
+  background-size:
+    62% auto,
+    100% 100%;
+  background-repeat: no-repeat;
+  background-position:
+    9px 9px,
+    0 0;
+  box-shadow:
+    0 0 14px rgba(0, 229, 255, 0.28),
+    inset 0 0 18px rgba(0, 229, 255, 0.1);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  animation: holo-bob 5.2s ease-in-out infinite alternate;
+}
+.holo-panel::before {
+  /* header bar */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, rgba(0, 229, 255, 0.65), rgba(0, 229, 255, 0.08));
+}
+.holo-panel::after {
+  /* little diagram blob on the right, like the concept panels */
+  content: '';
+  position: absolute;
+  right: 9px;
+  top: 32%;
+  width: 26%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 229, 255, 0.6);
+  background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.35), transparent 68%);
+}
+.holo-panel.magenta {
+  border-color: rgba(255, 47, 214, 0.55);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 47, 214, 0.15) 0 2px,
+      transparent 2px 7px
+    ),
+    linear-gradient(160deg, rgba(255, 47, 214, 0.1), rgba(19, 26, 46, 0.55));
+  background-size:
+    62% auto,
+    100% 100%;
+  background-repeat: no-repeat;
+  background-position:
+    9px 9px,
+    0 0;
+  box-shadow:
+    0 0 14px rgba(255, 47, 214, 0.26),
+    inset 0 0 18px rgba(255, 47, 214, 0.1);
+}
+.holo-panel.magenta::before {
+  background: linear-gradient(90deg, rgba(255, 47, 214, 0.6), rgba(255, 47, 214, 0.08));
+}
+.holo-panel.magenta::after {
+  border-color: rgba(255, 47, 214, 0.6);
+  background: radial-gradient(circle at 50% 50%, rgba(255, 47, 214, 0.35), transparent 68%);
+}
+@keyframes holo-bob {
+  from {
+    transform: translateY(-4px) rotate(var(--tilt, -2deg));
+  }
+  to {
+    transform: translateY(5px) rotate(var(--tilt, -2deg));
+  }
+}
+
+/* The holographic game table glowing at the bottom of the menu scene. */
+.menu-table {
+  position: absolute;
+  left: 50%;
+  bottom: -6%;
+  width: min(620px, 96vw);
+  height: 34vh;
+  transform: translateX(-50%) perspective(420px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  background:
+    linear-gradient(rgba(0, 229, 255, 0.32) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.32) 1.5px, transparent 1.5px),
+    radial-gradient(ellipse 70% 90% at 50% 100%, rgba(0, 229, 255, 0.12), rgba(13, 18, 34, 0.25) 75%);
+  background-size:
+    12.5% 20%,
+    12.5% 20%,
+    100% 100%;
+  border: 2px solid rgba(0, 229, 255, 0.6);
+  box-shadow:
+    0 0 26px rgba(0, 229, 255, 0.35),
+    inset 0 0 40px rgba(0, 229, 255, 0.14);
+}
+.menu-table-glow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(760px, 110vw);
+  height: 30vh;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 55% 70% at 50% 100%, rgba(0, 229, 255, 0.2), transparent 70%);
+}
+
+/* Floating neon glyphs (the glowing shapes drifting in the menu art). */
+.menu-glyph {
+  position: absolute;
+  font-size: clamp(64px, 12vw, 110px);
+  font-weight: 900;
+  color: rgba(10, 14, 26, 0.15);
+  -webkit-text-stroke: 2.5px rgba(0, 229, 255, 0.85);
+  text-shadow:
+    0 0 12px rgba(0, 229, 255, 0.7),
+    0 0 34px rgba(0, 229, 255, 0.45);
+  transform: rotate(8deg);
+  animation: holo-bob 6.5s ease-in-out infinite alternate;
+}
+.menu-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 47, 214, 0.55);
+  box-shadow:
+    0 0 16px rgba(255, 47, 214, 0.4),
+    inset 0 0 16px rgba(255, 47, 214, 0.25);
+  animation: holo-bob 7.4s ease-in-out infinite alternate;
+}
+.menu-ring::after {
+  content: '';
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 47, 214, 0.5);
+}
+
+/* Slow-drifting glow motes, like the floating debris in the concept art. */
+.floaties {
+  position: absolute;
+  inset: 0;
+}
+.floaties::before,
+.floaties::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow:
+    14vw 82vh 0 0 rgba(0, 229, 255, 0.5),
+    28vw 34vh 1px 0 rgba(255, 47, 214, 0.45),
+    47vw 68vh 0 1px rgba(160, 220, 255, 0.5),
+    63vw 24vh 1px 0 rgba(255, 47, 214, 0.4),
+    78vw 58vh 0 0 rgba(0, 229, 255, 0.55),
+    88vw 80vh 1px 1px rgba(232, 244, 255, 0.4),
+    8vw 44vh 0 0 rgba(123, 47, 255, 0.5),
+    54vw 90vh 1px 0 rgba(0, 229, 255, 0.4);
+  animation: floaty-drift 16s linear infinite;
+}
+.floaties::after {
+  box-shadow:
+    20vw 12vh 0 0 rgba(255, 47, 214, 0.4),
+    38vw 78vh 1px 0 rgba(0, 229, 255, 0.5),
+    58vw 40vh 0 0 rgba(232, 244, 255, 0.45),
+    72vw 88vh 1px 1px rgba(123, 47, 255, 0.45),
+    92vw 30vh 0 0 rgba(0, 229, 255, 0.45),
+    5vw 66vh 1px 0 rgba(255, 214, 250, 0.4);
+  animation-duration: 22s;
+  animation-delay: -8s;
+}
+@keyframes floaty-drift {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-14vh);
+    opacity: 0.2;
+  }
 }
 
 /* ---- Neon buttons ---- */
@@ -153,6 +380,73 @@ button:disabled {
   align-items: center;
   justify-content: center;
 }
+/* Diamond logo badge behind the wordmark, per the menu mockup's emblem. */
+.menu-logo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 26px 12px;
+}
+.menu-logo-diamond {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(120px, 24vw, 170px);
+  height: clamp(120px, 24vw, 170px);
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: linear-gradient(135deg, rgba(123, 47, 255, 0.5), rgba(255, 47, 214, 0.35) 55%, rgba(0, 229, 255, 0.25));
+  border: 2.5px solid rgba(255, 47, 214, 0.75);
+  box-shadow:
+    0 0 22px rgba(255, 47, 214, 0.45),
+    inset 0 0 30px rgba(123, 47, 255, 0.5);
+  pointer-events: none;
+}
+.menu-logo-diamond::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(0, 229, 255, 0.55);
+}
+.menu-logo-spark {
+  position: absolute;
+  color: #fff;
+  text-shadow:
+    0 0 6px #fff,
+    0 0 14px var(--cyan);
+  font-size: 15px;
+  pointer-events: none;
+  animation: spark-twinkle 2.6s ease-in-out infinite;
+}
+.menu-logo-spark.s2 {
+  color: var(--amber);
+  text-shadow:
+    0 0 6px var(--amber),
+    0 0 14px rgba(255, 210, 63, 0.8);
+  animation-delay: -0.9s;
+  font-size: 12px;
+}
+.menu-logo-spark.s3 {
+  color: var(--magenta);
+  text-shadow:
+    0 0 6px var(--magenta),
+    0 0 14px rgba(255, 47, 214, 0.8);
+  animation-delay: -1.7s;
+  font-size: 18px;
+}
+@keyframes spark-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
 /* Magenta-led logo lockup with a cyan sub-line, per the menu mockup. */
 .neon-title {
   font-size: clamp(40px, 9vw, 72px);
@@ -652,14 +946,58 @@ button:disabled {
   width: 100%;
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px),
-    linear-gradient(rgba(0, 229, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(123, 47, 255, 0.06) 1px, transparent 1px),
+    /* lit intersection dots on the network lattice */
+    radial-gradient(circle 1.5px at 0.75px 0.75px, rgba(0, 229, 255, 0.4) 99%, transparent),
+    linear-gradient(rgba(0, 229, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(123, 47, 255, 0.07) 1px, transparent 1px),
+    /* holographic ambience blooms */
+    radial-gradient(ellipse 30% 18% at 82% 24%, rgba(255, 47, 214, 0.1), transparent 70%),
+    radial-gradient(ellipse 34% 20% at 14% 62%, rgba(0, 229, 255, 0.09), transparent 70%),
     radial-gradient(ellipse 130% 40% at 50% 0%, #182040 0%, var(--bg) 70%);
   background-size:
     100% 100%,
     52px 52px,
     52px 52px,
+    52px 52px,
+    100% 100%,
+    100% 100%,
     100% 100%;
+}
+/* Slow-spinning holo reticles floating over the network, per the board art. */
+.cm-canvas::before,
+.cm-canvas::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0, 229, 255, 0.3);
+  box-shadow:
+    0 0 18px rgba(0, 229, 255, 0.12),
+    inset 0 0 18px rgba(0, 229, 255, 0.08);
+  pointer-events: none;
+  animation: reticle-spin 26s linear infinite;
+}
+.cm-canvas::before {
+  width: 130px;
+  height: 130px;
+  left: 6%;
+  top: 9%;
+}
+.cm-canvas::after {
+  width: 170px;
+  height: 170px;
+  right: 4%;
+  bottom: 12%;
+  border-color: rgba(255, 47, 214, 0.26);
+  box-shadow:
+    0 0 18px rgba(255, 47, 214, 0.1),
+    inset 0 0 18px rgba(255, 47, 214, 0.08);
+  animation-duration: 34s;
+  animation-direction: reverse;
+}
+@keyframes reticle-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .cm-edges {
   position: absolute;
@@ -1172,23 +1510,49 @@ button:disabled {
 .game-field {
   position: relative;
   background:
-    linear-gradient(rgba(255, 47, 214, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 47, 214, 0.08) 1px, transparent 1px),
-    linear-gradient(180deg, #150f2a, #0b081a);
-  background-size:
-    36px 36px,
-    36px 36px,
-    100% 100%;
-  border: 1.5px solid rgba(255, 47, 214, 0.6);
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 90% 90% at 50% 50%, transparent 55%, rgba(4, 2, 12, 0.55) 100%),
+    radial-gradient(ellipse 60% 80% at 50% 50%, rgba(123, 47, 255, 0.1), transparent 70%),
+    linear-gradient(180deg, #170f30, #0b0620);
+  border: 2.5px solid rgba(255, 116, 231, 0.9);
   box-shadow:
-    inset 0 0 30px rgba(255, 47, 214, 0.09),
-    0 0 16px rgba(255, 47, 214, 0.28),
+    inset 0 0 46px rgba(255, 47, 214, 0.16),
+    inset 0 0 8px rgba(255, 47, 214, 0.35),
+    0 0 26px rgba(255, 47, 214, 0.5),
+    0 0 70px rgba(255, 47, 214, 0.18),
     0 0 14px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 .field-inner {
   position: absolute;
   inset: 0;
+}
+/* Cyan energy core rising from the board center, per the holo-table art. */
+.field-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  height: 90%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    rgba(0, 229, 255, 0.16),
+    rgba(123, 47, 255, 0.08) 55%,
+    transparent 78%
+  );
+  animation: core-pulse 3.6s ease-in-out infinite alternate;
+}
+@keyframes core-pulse {
+  from {
+    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
 }
 .center-line {
   position: absolute;
@@ -1207,15 +1571,34 @@ button:disabled {
   justify-content: center;
   border-radius: 22%;
 }
+/* Lit pad under each unit, like the figures standing on the holo grid. */
+.piece::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -13%;
+  height: 26%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse closest-side, currentcolor, transparent 72%);
+  opacity: 0.5;
+  pointer-events: none;
+}
 .piece.p1 {
-  background: radial-gradient(circle at 32% 28%, rgba(0, 229, 255, 0.4), rgba(19, 26, 46, 0.95) 75%);
+  color: var(--cyan);
+  background: radial-gradient(circle at 32% 28%, rgba(0, 229, 255, 0.45), rgba(19, 26, 46, 0.95) 75%);
   border: 1.5px solid var(--cyan);
-  box-shadow: 0 0 7px rgba(0, 229, 255, 0.55);
+  box-shadow:
+    0 0 9px rgba(0, 229, 255, 0.65),
+    inset 0 0 8px rgba(0, 229, 255, 0.35);
 }
 .piece.p2 {
-  background: radial-gradient(circle at 32% 28%, rgba(255, 47, 214, 0.4), rgba(19, 26, 46, 0.95) 75%);
+  color: var(--magenta);
+  background: radial-gradient(circle at 32% 28%, rgba(255, 47, 214, 0.45), rgba(19, 26, 46, 0.95) 75%);
   border: 1.5px solid var(--magenta);
-  box-shadow: 0 0 7px rgba(255, 47, 214, 0.55);
+  box-shadow:
+    0 0 9px rgba(255, 47, 214, 0.65),
+    inset 0 0 8px rgba(255, 47, 214, 0.35);
 }
 .piece .portrait {
   width: 78%;

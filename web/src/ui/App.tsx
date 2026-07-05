@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { CHARACTERS, CharacterId, characterById } from '../game/characters';
 import { CampaignMapDef, CampaignMapId, loadAllCampaignMaps } from '../campaign/model';
 import { CampaignController } from '../campaign/controller';
@@ -97,7 +98,7 @@ export function App() {
   if (!assetsReady || !controller) {
     const percent = Math.round(assetProgress * 100);
     return (
-      <div className="app screen menu-home boot-screen">
+      <div className="app screen doodle-bg menu-home boot-screen">
         <h1 className="boot-title neon-title">NEON CITY</h1>
         <div className="boot-bar">
           <div className="boot-bar-fill" style={{ width: `${percent}%` }} />
@@ -217,14 +218,48 @@ export function App() {
     );
   }
 
-  // Home — neon logo + the three game modes.
+  // Home — a full neon-city scene (holo panels, glyphs, glowing game table)
+  // behind the diamond logo badge and the three game modes.
   return (
     <div className="app screen doodle-bg menu-home">
-      <h1 className="neon-title menu-logo-text">
-        NEON CITY
-        <span className="neon-subtitle">Bug Busters</span>
-      </h1>
-      <div style={{ height: 40 }} />
+      <div className="scene-layer" aria-hidden>
+        <div className="floaties" />
+        <div
+          className="holo-panel"
+          style={{ left: '4%', top: '10%', width: 150, height: 92, '--tilt': '-4deg' } as CSSProperties}
+        />
+        <div
+          className="holo-panel magenta"
+          style={{ right: '5%', top: '16%', width: 130, height: 82, '--tilt': '3deg' } as CSSProperties}
+        />
+        <div
+          className="holo-panel"
+          style={{ right: '12%', bottom: '30%', width: 100, height: 64, '--tilt': '-2deg' } as CSSProperties}
+        />
+        <span className="menu-glyph" style={{ right: '14%', top: '30%' }}>
+          8
+        </span>
+        <div className="menu-ring" style={{ left: '9%', bottom: '26%', width: 74, height: 74 }} />
+        <div className="menu-table-glow" />
+        <div className="menu-table" />
+      </div>
+      <div className="menu-logo">
+        <div className="menu-logo-diamond" aria-hidden />
+        <span className="menu-logo-spark" style={{ top: 6, left: '18%' }} aria-hidden>
+          ✦
+        </span>
+        <span className="menu-logo-spark s2" style={{ top: 18, right: '14%' }} aria-hidden>
+          ✦
+        </span>
+        <span className="menu-logo-spark s3" style={{ bottom: 2, right: '24%' }} aria-hidden>
+          ✦
+        </span>
+        <h1 className="neon-title menu-logo-text">
+          NEON CITY
+          <span className="neon-subtitle">Bug Busters</span>
+        </h1>
+      </div>
+      <div style={{ height: 28 }} />
       <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'mapSelect' })}>
         Campaign
       </button>
