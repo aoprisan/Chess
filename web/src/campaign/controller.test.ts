@@ -117,6 +117,26 @@ describe('fresh campaign', () => {
     expect(c.respectLevel('popcorn')).toBe(0);
     expect(c.isOnCrew('popcorn')).toBe(false);
   });
+
+  it('resetProgress restores the starter roster, seats and saves the wipe', () => {
+    const c = newController();
+    c.recordBattleResult('map_1', 's1', 3);
+    c.recordBattleResult('map_1', 's2', 3);
+    c.recordBattleResult('map_1', 's3', 3);
+    expect(c.crew.length).toBeGreaterThan(STARTER_IDS.length);
+    expect(c.isMapCompleted('map_1')).toBe(true);
+
+    c.resetProgress();
+
+    expect(c.crew).toEqual([...STARTER_IDS]);
+    expect(c.seats).toBe(3);
+    expect(c.isMapCompleted('map_1')).toBe(false);
+    expect(c.campaignWon).toBe(false);
+    // The wipe is persisted: a fresh controller sees the same clean slate.
+    const c2 = new CampaignController(testMaps());
+    expect(c2.crew).toEqual([...STARTER_IDS]);
+    expect(c2.isMapCompleted('map_1')).toBe(false);
+  });
 });
 
 describe('respect derivation and recruitment', () => {

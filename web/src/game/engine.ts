@@ -444,6 +444,7 @@ export class CombatEngine {
     const l1 = this.state.lanes[lane1];
     const l2 = this.state.lanes[lane2];
     if (l1.winner !== null || l2.winner !== null) return false;
+    if (countPieces(l1, enemy) === 0 && countPieces(l2, enemy) === 0) return false;
 
     const tmp = columnsFor(l1, enemy).slice();
     if (enemy === 'player1') {
@@ -790,7 +791,12 @@ export class CombatEngine {
     if (lane.winner !== null) return false;
     const player = this.state.currentPlayer;
     const opponent = opponentOf(player);
-    if (isSideFilled(lane, opponent)) return false;
+    // The raid piece lands on the ENEMY side; if it would be their 5th it
+    // would win the lane FOR them, so the raid fizzles (same guard as Raid
+    // lane targeting and Retaliate). Matters when a blinded AI targets from
+    // a stale snapshot: targeting validated the belief state, not the real
+    // board.
+    if (countPieces(lane, opponent) >= SLOTS_PER_SIDE - 1) return false;
 
     this.addPiece(laneIndex, opponent);
     this.state.pendingRaids.push({
@@ -838,7 +844,14 @@ export class CombatEngine {
     const captureLane =
       remover !== undefined && remover !== pieceOwner ? this.getCaptureLane(remover) : null;
     const sanctuaryLane = this.getSanctuaryLane(pieceOwner);
-    if (captureLane !== null && this.state.lanes[captureLane].winner === null) {
+    if (
+      captureLane !== null &&
+      this.state.lanes[captureLane].winner === null &&
+      // A full capture zone can't hold the piece (addPiece would no-op and
+      // the piece would just vanish as a phantom "capture"); fall through to
+      // the Sanctuary/plain-removal branches instead.
+      getNextEmptyColumn(this.state.lanes[captureLane], remover!) !== -1
+    ) {
       this.removeFront(laneIndex, pieceOwner);
       this.addPiece(captureLane, remover!);
       outcome = 'captured';

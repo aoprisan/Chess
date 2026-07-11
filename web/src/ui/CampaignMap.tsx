@@ -3,19 +3,15 @@ import { CharacterId, characterById } from '../game/characters';
 import { CampaignController, BattleOutcome } from '../campaign/controller';
 import { CampaignMapId, CampaignNode } from '../campaign/model';
 import { CAMPAIGN_MAP_IDS } from '../campaign/model';
-import { Combat } from './Combat';
+import { Combat } from './combat/Combat';
 import { TeamPicker } from './TeamPicker';
 import { CharacterPortrait } from './CharacterPortrait';
+import { VictoryScreen } from './VictoryScreen';
 import { Icon } from './Icons';
+import { useToasts } from './useToasts';
 import { useLang, useT, mapName, difficultyLabel } from '../i18n';
 
 const WALK_STEP_MS = 220;
-
-interface Toast {
-  id: number;
-  text: string;
-  accent: string;
-}
 
 // The campaign map: a scrollable neon city grid of nodes. Tap a system node
 // to preview its defenders and assemble a team; junctions are free to walk.
@@ -40,8 +36,8 @@ export function CampaignMap({
   const [teamPickNode, setTeamPickNode] = useState<CampaignNode | null>(null);
   const [battle, setBattle] = useState<{ node: CampaignNode; team: CharacterId[] } | null>(null);
   const [walking, setWalking] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const toastId = useRef(0);
+  const [showVictory, setShowVictory] = useState(false);
+  const { toasts, pushToast, dismissToast } = useToasts();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(
     () => () => {
@@ -60,12 +56,6 @@ export function CampaignMap({
     el.scrollTop = Math.max(0, target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapId]);
-
-  const pushToast = (text: string, accent = '#00e5ff') => {
-    const id = ++toastId.current;
-    setToasts((t) => [...t, { id, text, accent }]);
-    timers.current.push(setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000));
-  };
 
   const announceOutcome = (outcome: BattleOutcome) => {
     if (outcome.respect > 0) {
@@ -92,12 +82,15 @@ export function CampaignMap({
       );
     }
     for (const completed of outcome.mapsCompleted) {
+      if (completed === 'map_3') {
+        // The AI Core fell — the campaign is won. A toast is not enough.
+        setShowVictory(true);
+        continue;
+      }
       pushToast(
-        completed === 'map_3'
-          ? t('toast.coreDone')
-          : t('toast.mapRestored', {
-              map: mapName(controller.maps[completed as CampaignMapId].name, lang),
-            }),
+        t('toast.mapRestored', {
+          map: mapName(controller.maps[completed as CampaignMapId].name, lang),
+        }),
         '#ffd23f',
       );
     }
@@ -119,17 +112,20 @@ export function CampaignMap({
     setWalking(true);
     path.forEach((stepId, i) => {
       timers.current.push(
-        setTimeout(() => {
-          controller.moveToNode(mapId, stepId);
-          bump();
-          if (i === path.length - 1) {
-            setWalking(false);
-            const dest = map.nodeById(stepId);
-            if (dest.kind === 'system' && !controller.isNodeCleared(mapId, dest)) {
-              openNode(dest);
+        setTimeout(
+          () => {
+            controller.moveToNode(mapId, stepId);
+            bump();
+            if (i === path.length - 1) {
+              setWalking(false);
+              const dest = map.nodeById(stepId);
+              if (dest.kind === 'system' && !controller.isNodeCleared(mapId, dest)) {
+                openNode(dest);
+              }
             }
-          }
-        }, (i + 1) * WALK_STEP_MS),
+          },
+          (i + 1) * WALK_STEP_MS,
+        ),
       );
     });
   };
@@ -176,6 +172,16 @@ export function CampaignMap({
             {t('campaign.criticalSecured', { cleared: criticalsCleared, total: criticalsTotal })}
           </span>
         </div>
+        {controller.campaignWon && (
+          <button
+            className="cm-trophy"
+            onClick={() => setShowVictory(true)}
+            aria-label={t('victory.reopen')}
+            title={t('victory.reopen')}
+          >
+            🏆
+          </button>
+        )}
         {controller.isMapCompleted(mapId) && nextMapId && (
           <button className="img-btn yellow cm-next" onClick={() => onOpenMap(nextMapId)}>
             {t('campaign.nextSystem')}
@@ -186,12 +192,7 @@ export function CampaignMap({
       {/* Scrollable city grid */}
       <div className="cm-scroll" ref={scrollRef}>
         <div className="cm-canvas" style={{ height: `${map.heightFactor * 100}vh` }}>
-          <svg
-            className="cm-edges"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            aria-hidden
-          >
+          <svg className="cm-edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
             {map.edges.map(([a, b]) => {
               const na = map.nodeById(a);
               const nb = map.nodeById(b);
@@ -277,14 +278,25 @@ export function CampaignMap({
         </div>
       </div>
 
-      {/* Toasts */}
+      {/* Toasts (tap to dismiss) */}
       <div className="cm-toasts">
         {toasts.map((t) => (
-          <div key={t.id} className="cm-toast" style={{ borderColor: t.accent }}>
+          <div
+            key={t.id}
+            className="cm-toast"
+            style={{ borderColor: t.accent }}
+            role="status"
+            onClick={() => dismissToast(t.id)}
+          >
             {t.text}
           </div>
         ))}
       </div>
+
+      {/* Campaign victory celebration */}
+      {showVictory && (
+        <VictoryScreen controller={controller} onClose={() => setShowVictory(false)} />
+      )}
 
       {/* Node preview popup */}
       {preview && (

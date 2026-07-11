@@ -29,6 +29,20 @@ export const UI: Record<string, UIString> = {
   'menu.story': { en: 'The Story', ro: 'Povestea' },
   'menu.howToPlay': { en: 'How to Play', ro: 'Cum se joacă' },
   'menu.shareGame': { en: 'Share Game', ro: 'Trimite jocul' },
+  'menu.settings': { en: 'Settings', ro: 'Setări' },
+
+  // --- Settings ----------------------------------------------------------------
+  'settings.title': { en: 'Settings', ro: 'Setări' },
+  'settings.resetProgress': { en: 'Reset progress', ro: 'Resetează progresul' },
+  'settings.resetConfirmBody': {
+    en: 'This erases your whole campaign — crew, respect and restored systems. Are you sure?',
+    ro: 'Aceasta șterge toată campania — echipaj, respect și sisteme restaurate. Ești sigur?',
+  },
+  'settings.resetConfirm': { en: 'Yes, erase it', ro: 'Da, șterge' },
+  'settings.resetDone': {
+    en: 'Progress erased. The city is glitched again!',
+    ro: 'Progres șters. Orașul e din nou defect!',
+  },
 
   // --- Common ----------------------------------------------------------------
   'common.back': { en: 'Back', ro: 'Înapoi' },
@@ -227,7 +241,10 @@ export const UI: Record<string, UIString> = {
     en: 'none — any power can appear',
     ro: 'niciuna — orice putere poate apărea',
   },
-  'team.startBattle': { en: 'Start battle ({count}/{seats})', ro: 'Începe lupta ({count}/{seats})' },
+  'team.startBattle': {
+    en: 'Start battle ({count}/{seats})',
+    ro: 'Începe lupta ({count}/{seats})',
+  },
 
   // --- Campaign map ----------------------------------------------------------
   'campaign.systems': { en: 'Systems', ro: 'Sisteme' },
@@ -267,14 +284,20 @@ export const UI: Record<string, UIString> = {
     en: '{count} undefended systems came back online!',
     ro: '{count} sisteme neapărate au revenit online!',
   },
-  'toast.coreDone': {
-    en: 'The AI Core is yours — Neon City reboots!',
-    ro: 'Nucleul AI e al tău — Neon City repornește!',
-  },
   'toast.mapRestored': {
     en: '{map} fully restored — new system and battle seat unlocked!',
     ro: '{map} complet restaurat — sistem nou și loc de luptă deblocate!',
   },
+
+  // --- Campaign victory --------------------------------------------------------
+  'victory.title': { en: 'Neon City reboots!', ro: 'Neon City repornește!' },
+  'victory.body': {
+    en: 'The AI Core is yours. Every system hums again — the whole city is bug-free thanks to your crew!',
+    ro: 'Nucleul AI e al tău. Toate sistemele funcționează din nou — tot orașul e fără bug-uri datorită echipajului tău!',
+  },
+  'victory.crew': { en: 'Your crew of {count} Fixers', ro: 'Echipajul tău de {count} Fixeri' },
+  'victory.back': { en: 'Back to the city', ro: 'Înapoi în oraș' },
+  'victory.reopen': { en: 'Replay the celebration', ro: 'Revezi sărbătoarea' },
 
   // --- Share -----------------------------------------------------------------
   'share.chip': { en: 'Share', ro: 'Trimite' },
@@ -295,6 +318,7 @@ export const UI: Record<string, UIString> = {
   'combat.moves': { en: 'Moves', ro: 'Mutări' },
   'combat.turn': { en: '{name} Turn', ro: 'Tura lui {name}' },
   'combat.wins': { en: '{name} Wins!', ro: '{name} câștigă!' },
+  'combat.starsEarned': { en: '{stars} of 3 stars earned', ro: '{stars} din 3 stele câștigate' },
   'combat.placing': { en: 'Placing piece...', ro: 'Se așază piesa...' },
   'combat.opponentTurn': { en: "Opponent's turn", ro: 'Tura adversarului' },
   'combat.exitToMap': { en: 'Back to Map', ro: 'Înapoi la hartă' },
@@ -334,7 +358,10 @@ export const UI: Record<string, UIString> = {
     en: 'Tap the second lane {where} (Lane {n} picked)',
     ro: 'Atinge a doua linie {where} (Linia {n} aleasă)',
   },
-  'combat.aim.single': { en: 'Tap a glowing lane {where}', ro: 'Atinge o linie strălucitoare {where}' },
+  'combat.aim.single': {
+    en: 'Tap a glowing lane {where}',
+    ro: 'Atinge o linie strălucitoare {where}',
+  },
   // Tutorial coach marks
   'tut.sides.title': { en: 'Welcome to the Grid!', ro: 'Bun venit în Rețea!' },
   'tut.sides.text': {

@@ -28,7 +28,7 @@ describe('perk catalog', () => {
 });
 
 describe('character-bound perk pools', () => {
-  it('slots 3/4 draw only from each side\'s own pools across many turns', () => {
+  it("slots 3/4 draw only from each side's own pools across many turns", () => {
     const e = new CombatEngine('test', {
       rng: new SeededRNG(7),
       player1PerkPools: { slot3: [4, 26], slot4: [42, 39] },
@@ -151,6 +151,50 @@ describe('removal & redirects', () => {
     expect(totalP2).toBe(0); // stolen piece gone from player2
     expect(countPieces(e.state.lanes[4], 'player1')).toBeGreaterThanOrEqual(1); // converted
     expect(totalP1).toBe(2); // capture conversion + Steal's unconditional +1
+  });
+
+  it('a full capture zone falls through to the victim Sanctuary', () => {
+    const e = engine();
+    // player1's Capture zone on lane 4 is already full on player1's side, so
+    // the capture cannot land — the piece must escape to player2's Sanctuary
+    // instead of silently vanishing.
+    e.state.player1Captures.push({ lane: 4, turnsLeft: 3 });
+    setPieces(e.state.lanes[4], 'player1', 5);
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    setPieces(e.state.lanes[2], 'player2', 2);
+    e.removeEnemyPiece(2);
+    expect(countPieces(e.state.lanes[3], 'player2')).toBe(1); // rescued
+    expect(countPieces(e.state.lanes[2], 'player2')).toBe(1);
+    expect(countPieces(e.state.lanes[4], 'player1')).toBe(5); // unchanged
+  });
+
+  it('a full capture zone without Sanctuary means plain removal, not a phantom capture', () => {
+    const e = engine();
+    e.state.player1Captures.push({ lane: 4, turnsLeft: 3 });
+    setPieces(e.state.lanes[4], 'player1', 5);
+    setPieces(e.state.lanes[2], 'player2', 2);
+    e.removeEnemyPiece(2);
+    expect(countPieces(e.state.lanes[2], 'player2')).toBe(1); // removed outright
+    const totalP1 = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player1'), 0);
+    expect(totalP1).toBe(5); // no converted piece appeared anywhere
+  });
+
+  it('Enlist gets the +1 growth (not +2) when a full capture zone lets the piece escape', () => {
+    const e = engine(3);
+    // player1 Enlists lane 2; their capture zone is full, player2 has a
+    // Sanctuary — the enemy piece survives, so no capture growth bonus.
+    e.state.player1Captures.push({ lane: 4, turnsLeft: 3 });
+    setPieces(e.state.lanes[4], 'player1', 5);
+    e.state.player2Sanctuaries.push({ lane: 3, turnsLeft: 4 });
+    setPieces(e.state.lanes[2], 'player1', 2);
+    setPieces(e.state.lanes[2], 'player2', 1);
+    e.state.lanes[2].deferred.push({ type: 'ENLIST', owner: 1, targetLane: 2 });
+    const p1Before = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player1'), 0);
+    e.autoPlace(); // resolves the deferred Enlist, then auto-places 1 piece
+    const p1After = e.state.lanes.reduce((sum, lane) => sum + countPieces(lane, 'player1'), 0);
+    // -1 Enlist cost, +1 growth (sanctuary escape), +1 auto-placement.
+    expect(p1After - p1Before).toBe(1);
+    expect(countPieces(e.state.lanes[3], 'player2')).toBe(1); // escaped piece
   });
 
   it('a raid placeholder is NOT rescued by Sanctuary when the raid resolves', () => {
@@ -379,6 +423,41 @@ describe('targeting', () => {
     setPieces(e.state.lanes[0], 'player2', 4);
     expect(getValidLanesForPerk(34, e.state, 'player1')).toEqual([0]);
     expect(getValidLanesForPerk(34, e.state, 'player1', 0)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('raid & disrupt engine guards', () => {
+  it('raidLane fizzles when the raid piece would win the lane for the enemy', () => {
+    const e = engine();
+    // A blinded AI can pick a stale lane the targeting rules never offered;
+    // the engine itself must refuse to hand the enemy their 5th piece.
+    setPieces(e.state.lanes[0], 'player2', 4);
+    expect(e.raidLane(0)).toBe(false);
+    expect(countPieces(e.state.lanes[0], 'player2')).toBe(4);
+    expect(e.state.lanes[0].winner).toBeNull();
+    expect(e.state.pendingRaids).toHaveLength(0);
+  });
+
+  it('raidLane still works against a 3-piece enemy lane (boundary)', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 3);
+    expect(e.raidLane(0)).toBe(true);
+    expect(countPieces(e.state.lanes[0], 'player2')).toBe(4);
+    expect(e.state.pendingRaids).toHaveLength(1);
+    expect(e.state.pendingRaids[0]).toMatchObject({ owner: 1, lane: 0, source: 'RAID' });
+  });
+
+  it('disruptEnemyPieces refuses when both lanes have no enemy pieces', () => {
+    const e = engine();
+    expect(e.disruptEnemyPieces(0, 1)).toBe(false);
+  });
+
+  it('disruptEnemyPieces swaps enemy columns when pieces exist', () => {
+    const e = engine();
+    setPieces(e.state.lanes[0], 'player2', 2);
+    expect(e.disruptEnemyPieces(0, 1)).toBe(true);
+    expect(countPieces(e.state.lanes[0], 'player2')).toBe(0);
+    expect(countPieces(e.state.lanes[1], 'player2')).toBe(2);
   });
 });
 
