@@ -102,15 +102,14 @@ button:disabled {
     radial-gradient(ellipse 55% 35% at 30% 85%, rgba(255, 47, 214, 0.12) 0%, transparent 70%),
     /* planet horizon: cyan rim light over a dark limb rising from the bottom */
     radial-gradient(
-      ellipse 130% 52% at 50% 132%,
-      transparent 54%,
-      rgba(0, 229, 255, 0.22) 57%,
-      rgba(0, 229, 255, 0.05) 60%,
-      transparent 64%
-    ),
+        ellipse 130% 52% at 50% 132%,
+        transparent 54%,
+        rgba(0, 229, 255, 0.22) 57%,
+        rgba(0, 229, 255, 0.05) 60%,
+        transparent 64%
+      ),
     radial-gradient(ellipse 130% 52% at 50% 132%, #10275a 0%, #0d1b3f 45%, transparent 58%),
-    /* deep space */
-    radial-gradient(ellipse 120% 70% at 50% -10%, #1a2342 0%, var(--bg) 62%);
+    /* deep space */ radial-gradient(ellipse 120% 70% at 50% -10%, #1a2342 0%, var(--bg) 62%);
   background-size:
     100% 100%,
     170px 190px,
@@ -142,11 +141,7 @@ button:disabled {
   position: absolute;
   border: 1px solid rgba(0, 229, 255, 0.55);
   background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(0, 229, 255, 0.16) 0 2px,
-      transparent 2px 7px
-    ),
+    repeating-linear-gradient(0deg, rgba(0, 229, 255, 0.16) 0 2px, transparent 2px 7px),
     linear-gradient(160deg, rgba(0, 229, 255, 0.1), rgba(19, 26, 46, 0.55));
   background-size:
     62% auto,
@@ -186,11 +181,7 @@ button:disabled {
 .holo-panel.magenta {
   border-color: rgba(255, 47, 214, 0.55);
   background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 47, 214, 0.15) 0 2px,
-      transparent 2px 7px
-    ),
+    repeating-linear-gradient(0deg, rgba(255, 47, 214, 0.15) 0 2px, transparent 2px 7px),
     linear-gradient(160deg, rgba(255, 47, 214, 0.1), rgba(19, 26, 46, 0.55));
   background-size:
     62% auto,
@@ -231,7 +222,11 @@ button:disabled {
   background:
     linear-gradient(rgba(0, 229, 255, 0.32) 1.5px, transparent 1.5px),
     linear-gradient(90deg, rgba(0, 229, 255, 0.32) 1.5px, transparent 1.5px),
-    radial-gradient(ellipse 70% 90% at 50% 100%, rgba(0, 229, 255, 0.12), rgba(13, 18, 34, 0.25) 75%);
+    radial-gradient(
+      ellipse 70% 90% at 50% 100%,
+      rgba(0, 229, 255, 0.12),
+      rgba(13, 18, 34, 0.25) 75%
+    );
   background-size:
     12.5% 20%,
     12.5% 20%,
@@ -396,7 +391,12 @@ button:disabled {
   width: clamp(120px, 24vw, 170px);
   height: clamp(120px, 24vw, 170px);
   transform: translate(-50%, -50%) rotate(45deg);
-  background: linear-gradient(135deg, rgba(123, 47, 255, 0.5), rgba(255, 47, 214, 0.35) 55%, rgba(0, 229, 255, 0.25));
+  background: linear-gradient(
+    135deg,
+    rgba(123, 47, 255, 0.5),
+    rgba(255, 47, 214, 0.35) 55%,
+    rgba(0, 229, 255, 0.25)
+  );
   border: 2.5px solid rgba(255, 47, 214, 0.75);
   box-shadow:
     0 0 22px rgba(255, 47, 214, 0.45),
@@ -584,7 +584,14 @@ button:disabled {
   background: var(--panel);
   border: 1.5px solid var(--purple);
   box-shadow: 0 0 12px rgba(123, 47, 255, 0.35);
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1163,6 +1170,8 @@ button:disabled {
   animation: toast-in 0.25s ease;
   max-width: min(480px, 92vw);
   text-align: center;
+  pointer-events: auto; /* parent .cm-toasts is pointer-events: none */
+  cursor: pointer;
 }
 @keyframes toast-in {
   from {
@@ -1177,7 +1186,14 @@ button:disabled {
 .cm-preview {
   background: var(--panel);
   border: 2px solid var(--magenta);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   box-shadow: 0 0 24px rgba(255, 47, 214, 0.35);
   width: min(380px, 92vw);
   padding: 18px;
@@ -1228,7 +1244,14 @@ button:disabled {
 .team-picker {
   background: var(--panel);
   border: 2px solid var(--cyan);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   box-shadow: 0 0 24px rgba(0, 229, 255, 0.3);
   width: min(560px, 94vw);
   max-height: 92%;
@@ -1382,7 +1405,14 @@ button:disabled {
 .modal {
   background: var(--panel);
   border: 2px solid var(--purple);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   padding: 24px 20px;
   width: 300px;
   max-width: 100%;
@@ -1586,7 +1616,11 @@ button:disabled {
 }
 .piece.p1 {
   color: var(--cyan);
-  background: radial-gradient(circle at 32% 28%, rgba(0, 229, 255, 0.45), rgba(19, 26, 46, 0.95) 75%);
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(0, 229, 255, 0.45),
+    rgba(19, 26, 46, 0.95) 75%
+  );
   border: 1.5px solid var(--cyan);
   box-shadow:
     0 0 9px rgba(0, 229, 255, 0.65),
@@ -1594,7 +1628,11 @@ button:disabled {
 }
 .piece.p2 {
   color: var(--magenta);
-  background: radial-gradient(circle at 32% 28%, rgba(255, 47, 214, 0.45), rgba(19, 26, 46, 0.95) 75%);
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(255, 47, 214, 0.45),
+    rgba(19, 26, 46, 0.95) 75%
+  );
   border: 1.5px solid var(--magenta);
   box-shadow:
     0 0 9px rgba(255, 47, 214, 0.65),
@@ -2036,7 +2074,14 @@ button:disabled {
 .move-log {
   background: var(--panel);
   border: 2px solid var(--amber);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   width: min(480px, 92vw);
   max-height: 82%;
   display: flex;
@@ -2124,7 +2169,14 @@ button:disabled {
   width: min(560px, 100%);
   background: var(--panel);
   border: 1.5px solid var(--line);
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
   padding: 14px 16px;
   color: var(--text);
 }
@@ -2306,7 +2358,14 @@ button:disabled {
 .tut-card {
   background: var(--panel);
   border: 2px solid var(--amber);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   box-shadow: 0 0 24px rgba(255, 210, 63, 0.35);
   padding: 18px 16px 12px;
   display: flex;
@@ -2446,4 +2505,111 @@ button:disabled {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- Campaign victory celebration ---- */
+.victory-panel {
+  background: var(--panel);
+  border: 2px solid var(--amber);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+  box-shadow: 0 0 32px rgba(255, 210, 63, 0.4);
+  width: min(420px, 92vw);
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.victory-glyph {
+  font-size: 44px;
+  line-height: 1;
+}
+.victory-title {
+  font-size: 26px;
+  margin: 0;
+}
+.victory-body {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.victory-crew-label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.victory-crew {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 340px;
+}
+.cm-trophy {
+  font-size: 18px;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  filter: drop-shadow(0 0 6px rgba(255, 210, 63, 0.8));
+}
+
+/* ---- Settings ---- */
+.settings-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 16px;
+}
+.settings-title {
+  font-size: 24px;
+  margin: 0;
+}
+.settings-section {
+  background: var(--panel);
+  border: 1.5px solid var(--cyan);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+  width: min(420px, 92vw);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.settings-section.danger {
+  border-color: var(--magenta);
+}
+.settings-label {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+.settings-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.settings-section .lang-toggle {
+  position: static;
 }

@@ -17,3 +17,13 @@ export const MAX_SEATS = 5;
 
 /** Best respect a single node battle can award (the 3-star analog). */
 export const MAX_NODE_RESPECT = 3;
+
+/**
+ * Stars for a battle result: 3 for a flawless win (rival took no lanes),
+ * 2 when the rival took one lane, 1 for any other win, 0 for a loss.
+ */
+export function starsForBattle(playerWon: boolean, rivalLanesWon: number): number {
+  if (!playerWon) return 0;
+  if (rivalLanesWon === 0) return 3;
+  return rivalLanesWon === 1 ? 2 : 1;
+}

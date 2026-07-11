@@ -6,6 +6,7 @@ import { getValidLanesForPerk, perkRequiresTarget } from '../game/targeting';
 import { getPerk, PerkCategory, PerkInfo, PerkSlot, PerkTargetSide } from '../game/perks';
 import { Character, buildPerkPools } from '../game/characters';
 import { CombatGameState, Lane, PlayerSide, isCloaked, isBlinded } from '../game/state';
+import { starsForBattle } from '../campaign/balance';
 
 import { CharacterPortrait } from './CharacterPortrait';
 import { Icon, IconName } from './Icons';
@@ -202,9 +203,7 @@ export function Combat({
     tutStepRef.current = s;
     setTutStepState(s);
   }, []);
-  const tutPending = useRef<TutorialStep | null>(
-    player2IsAI && !isTutorialDone() ? 'sides' : null,
-  );
+  const tutPending = useRef<TutorialStep | null>(player2IsAI && !isTutorialDone() ? 'sides' : null);
 
   // --- Turn loop -----------------------------------------------------------
 
@@ -430,6 +429,10 @@ export function Combat({
   const finished = state.status === 'finished';
   const winnerIsP1 = state.gameWinner === 'player1';
   const winnerHero = winnerIsP1 ? player1Hero : player2Hero;
+  const endResult: CombatResult = {
+    playerWon: winnerIsP1,
+    stars: starsForBattle(winnerIsP1, state.player2LanesWon),
+  };
 
   // Visibility (Flutter: viewer = currentPlayer in local play, null while dialog up)
   const viewer: PlayerSide | null = showTurnDialog ? null : state.currentPlayer;
@@ -557,6 +560,23 @@ export function Combat({
           >
             {t('combat.wins', { name: winnerHero.name })}
           </div>
+          {endResult.playerWon && player2IsAI && (
+            <div
+              className="winner-stars"
+              role="img"
+              aria-label={t('combat.starsEarned', { stars: endResult.stars })}
+              style={{ display: 'flex', gap: W * 0.008, marginTop: W * 0.01 }}
+            >
+              {Array.from({ length: 3 }, (_, i) => (
+                <Icon
+                  key={i}
+                  name="star"
+                  size={clamp(W * 0.028, 20, 34)}
+                  color={i < endResult.stars ? '#ffd23f' : '#2a3555'}
+                />
+              ))}
+            </div>
+          )}
           <div style={{ height: W * 0.012 }} />
           <button
             className="img-btn red"
@@ -565,12 +585,7 @@ export function Combat({
               height: clamp(W * 0.045, 36, 56),
               fontSize: clamp(W * 0.016, 12, 20),
             }}
-            onClick={() => {
-              const rivalLanes = state.player2LanesWon;
-              const playerWon = state.gameWinner === 'player1';
-              const stars = playerWon ? (rivalLanes === 0 ? 3 : rivalLanes === 1 ? 2 : 1) : 0;
-              onGameEnd({ playerWon, stars });
-            }}
+            onClick={() => onGameEnd(endResult)}
           >
             {exitLabel}
           </button>
@@ -1014,7 +1029,7 @@ function GameBoard({
                 } as CSSProperties
               }
             >
-              <CharacterPortrait character={hero} className="portrait"/>
+              <CharacterPortrait character={hero} className="portrait" />
             </div>,
           );
         });
@@ -1146,14 +1161,7 @@ function GameBoard({
                 [bw - 5.5, bh / 2 - 14, 4, 28],
               ] as const
             ).map(([x, y, w, h], i) => (
-              <rect
-                key={`ec${i}`}
-                x={x}
-                y={y}
-                width={w}
-                height={h}
-                fill="rgba(0,229,255,0.55)"
-              />
+              <rect key={`ec${i}`} x={x} y={y} width={w} height={h} fill="rgba(0,229,255,0.55)" />
             ))}
             {/* center emblem on the median line */}
             <g>
@@ -1821,9 +1829,7 @@ function MoveLogOverlay({
           </button>
         </div>
         <div className="move-log-list" ref={listRef}>
-          {entries.length === 0 && (
-            <span className="move-log-empty">{t('combat.nothingYet')}</span>
-          )}
+          {entries.length === 0 && <span className="move-log-empty">{t('combat.nothingYet')}</span>}
           {entries.map((e, i) => {
             const hero = e.side === 'player1' ? player1Hero : player2Hero;
             const color = e.side === 'player1' ? '#00e5ff' : '#ff2fd6';

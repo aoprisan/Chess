@@ -148,6 +148,64 @@ describe('Quick Match difficulty', () => {
   });
 });
 
+describe('Settings', () => {
+  it('opens from the menu and shows the language toggle', async () => {
+    await renderHome();
+    fireEvent.click(screen.getByText('Settings'));
+    expect(await screen.findByRole('radio', { name: 'Română' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Back to menu'));
+    expect(await screen.findByText('Quick Match')).toBeTruthy();
+  });
+
+  it('resets campaign progress after an explicit confirm', async () => {
+    // Seed a save with a recruit beyond the 5 starters so the wipe is visible.
+    localStorage.setItem(
+      'neon_meta_v1',
+      JSON.stringify({
+        version: 1,
+        roster: ['bitzy', 'pixel', 'cache', 'sparky', 'momo', 'popcorn'],
+        lastTeam: ['bitzy', 'pixel', 'cache'],
+        mapsCompleted: ['map_1'],
+        nodeRespect: { 'map_1:n01': 3 },
+        autoCleared: [],
+        perMap: {},
+      }),
+    );
+    await renderHome();
+    fireEvent.click(screen.getByText('Settings'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset progress' }));
+    expect(screen.getByText(/erases your whole campaign/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Yes, erase it'));
+    expect(screen.getByText(/Progress erased/)).toBeTruthy();
+
+    const meta = JSON.parse(localStorage.getItem('neon_meta_v1')!);
+    expect(meta.roster).toHaveLength(5);
+    expect(meta.mapsCompleted).toHaveLength(0);
+    expect(meta.nodeRespect).toEqual({});
+  });
+
+  it('keeps progress when the confirm step is cancelled', async () => {
+    localStorage.setItem(
+      'neon_meta_v1',
+      JSON.stringify({
+        version: 1,
+        roster: ['bitzy', 'pixel', 'cache', 'sparky', 'momo', 'popcorn'],
+        lastTeam: [],
+        mapsCompleted: [],
+        nodeRespect: { 'map_1:n01': 3 },
+        autoCleared: [],
+        perMap: {},
+      }),
+    );
+    await renderHome();
+    fireEvent.click(screen.getByText('Settings'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset progress' }));
+    fireEvent.click(screen.getByText('Cancel'));
+    const meta = JSON.parse(localStorage.getItem('neon_meta_v1')!);
+    expect(meta.roster).toContain('popcorn');
+  });
+});
+
 describe('first-battle tutorial', () => {
   async function startQuickMatch() {
     await renderHome();

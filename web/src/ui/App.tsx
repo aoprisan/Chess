@@ -12,6 +12,7 @@ import { Roster } from './Roster';
 import { HowToPlay } from './HowToPlay';
 import { Story } from './Story';
 import { ShareGame } from './ShareGame';
+import { Settings } from './Settings';
 import { Combat } from './Combat';
 import { useT } from '../i18n';
 import { LanguageToggle } from './LanguageToggle';
@@ -21,6 +22,7 @@ type View =
   | { name: 'howto' }
   | { name: 'story' }
   | { name: 'share' }
+  | { name: 'settings' }
   // Campaign
   | { name: 'mapSelect' }
   | { name: 'roster' }
@@ -142,6 +144,14 @@ export function App() {
     );
   }
 
+  if (view.name === 'settings') {
+    return (
+      <div className="app">
+        <Settings controller={controller} onBack={() => setView({ name: 'home' })} />
+      </div>
+    );
+  }
+
   if (view.name === 'mapSelect') {
     return (
       <div className="app">
@@ -253,15 +263,27 @@ export function App() {
         <div className="floaties" />
         <div
           className="holo-panel"
-          style={{ left: '4%', top: '10%', width: 150, height: 92, '--tilt': '-4deg' } as CSSProperties}
+          style={
+            { left: '4%', top: '10%', width: 150, height: 92, '--tilt': '-4deg' } as CSSProperties
+          }
         />
         <div
           className="holo-panel magenta"
-          style={{ right: '5%', top: '16%', width: 130, height: 82, '--tilt': '3deg' } as CSSProperties}
+          style={
+            { right: '5%', top: '16%', width: 130, height: 82, '--tilt': '3deg' } as CSSProperties
+          }
         />
         <div
           className="holo-panel"
-          style={{ right: '12%', bottom: '30%', width: 100, height: 64, '--tilt': '-2deg' } as CSSProperties}
+          style={
+            {
+              right: '12%',
+              bottom: '30%',
+              width: 100,
+              height: 64,
+              '--tilt': '-2deg',
+            } as CSSProperties
+          }
         />
         <span className="menu-glyph" style={{ right: '14%', top: '30%' }}>
           8
@@ -315,6 +337,10 @@ export function App() {
       <div style={{ height: 16 }} />
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'share' })}>
         {t('menu.shareGame')}
+      </button>
+      <div style={{ height: 16 }} />
+      <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'settings' })}>
+        {t('menu.settings')}
       </button>
     </div>
   );

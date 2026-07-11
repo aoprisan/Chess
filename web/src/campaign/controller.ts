@@ -14,7 +14,7 @@
 import { CharacterId, CHARACTERS, characterById } from '../game/characters';
 import { CampaignMapDef, CampaignMapId, CampaignNode, CAMPAIGN_MAP_IDS } from './model';
 import { JOIN_THRESHOLD, WITHDRAW_THRESHOLD } from './balance';
-import { CampaignMeta, loadMeta, saveMeta, seatsFor, nodeKey } from './meta';
+import { CampaignMeta, loadMeta, saveMeta, resetMeta, seatsFor, nodeKey } from './meta';
 
 /** Everything that changed as a result of one battle (for UI toasts). */
 export interface BattleOutcome {
@@ -157,6 +157,16 @@ export class CampaignController {
 
   get campaignWon(): boolean {
     return this.meta.mapsCompleted.has('map_3');
+  }
+
+  /**
+   * Wipe all campaign progress back to the starter crew. Replaces the meta in
+   * place so existing references to this controller keep working.
+   */
+  resetProgress(): void {
+    this.meta = resetMeta();
+    this.settleAutoClears();
+    this.save();
   }
 
   // --- Movement (BFS free-roam, ported from AdventureController) ---
