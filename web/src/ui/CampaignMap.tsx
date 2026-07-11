@@ -3,7 +3,7 @@ import { CharacterId, characterById } from '../game/characters';
 import { CampaignController, BattleOutcome } from '../campaign/controller';
 import { CampaignMapId, CampaignNode } from '../campaign/model';
 import { CAMPAIGN_MAP_IDS } from '../campaign/model';
-import { Combat } from './Combat';
+import { Combat } from './combat/Combat';
 import { TeamPicker } from './TeamPicker';
 import { CharacterPortrait } from './CharacterPortrait';
 import { VictoryScreen } from './VictoryScreen';

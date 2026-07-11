@@ -13,7 +13,7 @@ import { HowToPlay } from './HowToPlay';
 import { Story } from './Story';
 import { ShareGame } from './ShareGame';
 import { Settings } from './Settings';
-import { Combat } from './Combat';
+import { Combat } from './combat/Combat';
 import { useT } from '../i18n';
 import { LanguageToggle } from './LanguageToggle';
 
