@@ -9,6 +9,7 @@ Full combat rules live in `GAME_RULES_V2_COMPLETE.md` (perk mechanics are unchan
 ## Tech Stack
 
 - **App**: TypeScript + React 18 + Vite + vite-plugin-pwa (`web/`)
+- **Mobile**: Capacitor 8 wraps the same bundle as Android/iOS apps (`web/MOBILE.md`)
 - **Tests**: Vitest (engine, balance regression, campaign, and UI suites)
 - **Balance reference**: Python simulation in `templates/sim/` (reference-only)
 
@@ -22,7 +23,9 @@ Chess/
 │   │   │                   # 23 characters, targeting, CombatEngine, AI
 │   │   ├── campaign/       # City maps, respect/recruitment, persistence
 │   │   └── ui/             # React components (App, CampaignMap, Combat, …)
-│   └── public/assets/      # Character portrait slots and map JSONs
+│   ├── public/assets/      # Character portrait slots and map JSONs
+│   ├── scripts/mobile/     # Local Android/iOS build scripts (Capacitor)
+│   └── capacitor.config.ts # Native shell config (android/ and ios/ are generated)
 ├── templates/sim/          # Python balance simulation (reference only)
 ├── docs/                   # Additional documentation
 └── *.md                    # Game rules and design docs
@@ -45,6 +48,17 @@ npm run build      # typecheck + production build -> dist/
 npm run preview    # serve the production build
 ```
 
+### Mobile apps
+
+```bash
+cd web
+npm run android:build     # debug APK -> web/dist-mobile/android/
+npm run ios:build         # simulator build -> web/dist-mobile/ios/ (macOS only)
+```
+
+Built locally only — there is no CI workflow for the store builds. Prerequisites,
+signing, live reload and troubleshooting are in `web/MOBILE.md`.
+
 ## Features
 
 - **Campaign** — 3 city systems (Street Grid, Metro Net, Sky Core; 24/48/72 nodes) with free-roam movement, defended nodes, and critical systems that gate the next map.
@@ -56,6 +70,8 @@ npm run preview    # serve the production build
 ## Deployment
 
 The app is static. A GitHub Actions workflow (`.github/workflows/pages.yml`) builds `web/` and deploys to GitHub Pages on pushes to `main`. See `web/README.md` for base-path configuration and alternative hosts.
+
+The Android and iOS builds are **not** wired into CI — store artifacts are produced on a developer machine with `npm run android:release` / `npm run ios:release`, so signing keys never live in the repo.
 
 ## License
 

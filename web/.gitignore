@@ -3,3 +3,12 @@ dist
 dev-dist
 *.local
 .DS_Store
+
+# Capacitor: the native projects are generated output (`npx cap add`), not
+# sources. scripts/mobile/*.sh scaffold them on demand, capacitor.config.ts
+# holds the settings worth keeping, and `npm run mobile:assets` regenerates the
+# icons and splash screens. Delete the folder to pick up a Capacitor upgrade.
+/android
+/ios
+# Built .apk/.aab/.ipa/.xcarchive land here.
+/dist-mobile
