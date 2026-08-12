@@ -3,3 +3,8 @@ dev-dist
 node_modules
 public
 package-lock.json
+# Capacitor-generated native projects and their build output
+android
+ios
+dist-mobile
+resources

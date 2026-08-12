@@ -12,6 +12,7 @@
 - `cd web && npx vitest run src/game/engine.test.ts`: run a single suite.
 - `cd web && npm run build`: typecheck (`tsc`) + production build to `dist/`.
 - `cd web && npm run preview`: serve the production build.
+- `cd web && npm run android:build` / `ios:build`: local Capacitor app builds (see `web/MOBILE.md`). Mobile builds stay local — no CI workflow. `web/android/` and `web/ios/` are generated and gitignored; edit `web/capacitor.config.ts` and `web/scripts/mobile/*.sh` instead.
 - `cd templates/sim && python -m pytest tests/ -v`: run simulator tests (reference).
 
 ## Coding Style & Naming Conventions

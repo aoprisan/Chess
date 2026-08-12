@@ -64,6 +64,12 @@ body {
   width: 100%;
   position: relative;
   overflow: hidden;
+  /* Keep the UI clear of notches, rounded corners and the home indicator in
+     the native (Capacitor) shell and in installed PWAs. `.screen` children are
+     absolutely positioned with inset:0, which resolves against this padding
+     box, so every screen inherits the inset. Zero in ordinary browsers. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
 button {
