@@ -383,4 +383,85 @@ export const UI: Record<string, UIString> = {
     en: 'Fix 3 lines to win the battle!',
     ro: 'Repară 3 linii ca să câștigi bătălia!',
   },
+
+  // Training Grid — the step-by-step tutorial level
+  'train.step': { en: 'Step {n} / {total}', ro: 'Pasul {n} / {total}' },
+  'train.skip': { en: 'Skip the training', ro: 'Sari peste antrenament' },
+  'train.welcome.title': { en: 'Training Grid', ro: 'Rețeaua de antrenament' },
+  'train.welcome.text': {
+    en: 'Hi, I am Bitzy! I will show you every move, one step at a time.',
+    ro: 'Salut, eu sunt Bitzy! Îți arăt fiecare mutare, pas cu pas.',
+  },
+  'train.sides.title': { en: 'Two Sides', ro: 'Două părți' },
+  'train.sides.text': {
+    en: 'Blue bots on the left are yours. Pink bots on the right are your rival.',
+    ro: 'Roboții albaștri din stânga sunt ai tăi. Cei roz din dreapta sunt ai rivalului.',
+  },
+  'train.watchDeploy.title': { en: 'Watch your bot', ro: 'Privește robotul tău' },
+  'train.watchDeploy.text': {
+    en: 'Every turn starts with one of your bots landing by itself.',
+    ro: 'Fiecare tură începe cu un robot de-al tău care se așază singur.',
+  },
+  'train.deployed.title': { en: 'One bot landed!', ro: 'Un robot a aterizat!' },
+  'train.deployed.text': {
+    en: 'Five bots on the same line fix it. That line is then yours.',
+    ro: 'Cinci roboți pe aceeași linie o repară. Linia devine a ta.',
+  },
+  'train.powers.title': { en: 'Your Powers', ro: 'Puterile tale' },
+  'train.powers.text': {
+    en: 'After your bot lands, you play one power from the bar down here.',
+    ro: 'După ce robotul aterizează, joci o putere din bara de jos.',
+  },
+  'train.pickDeploy.title': { en: 'Tap Deploy Bot', ro: 'Atinge Trimite robot' },
+  'train.pickDeploy.text': {
+    en: 'It sends one extra bot to any line you choose.',
+    ro: 'Trimite încă un robot pe linia pe care o alegi.',
+  },
+  'train.useDeploy.title': { en: 'Tap USE', ro: 'Atinge FOLOSEȘTE' },
+  'train.useDeploy.text': {
+    en: 'The card tells you what the power does. USE locks it in.',
+    ro: 'Cartonașul îți spune ce face puterea. FOLOSEȘTE o pornește.',
+  },
+  'train.targetDeploy.title': { en: 'Pick a line', ro: 'Alege o linie' },
+  'train.targetDeploy.text': {
+    en: 'Tap a glowing line on your blue side to send the bot there.',
+    ro: 'Atinge o linie strălucitoare din partea ta albastră ca să trimiți robotul acolo.',
+  },
+  'train.rivalTurn.title': { en: 'Rival turn', ro: 'Tura rivalului' },
+  'train.rivalTurn.text': {
+    en: 'Now watch: the rival deploys a bot and plays a power too.',
+    ro: 'Acum privește: rivalul trimite un robot și joacă și el o putere.',
+  },
+  'train.pickZap.title': { en: 'Tap Debug Zap', ro: 'Atinge Zap de depanare' },
+  'train.pickZap.text': {
+    en: 'Your turn again! This power knocks one rival bot off the grid.',
+    ro: 'Din nou tura ta! Puterea asta scoate un robot rival de pe grilă.',
+  },
+  'train.useZap.title': { en: 'Tap USE', ro: 'Atinge FOLOSEȘTE' },
+  'train.useZap.text': {
+    en: 'Same as before: read the card, then lock the power in.',
+    ro: 'La fel ca înainte: citește cartonașul, apoi pornește puterea.',
+  },
+  'train.targetZap.title': { en: 'Pick a rival line', ro: 'Alege o linie a rivalului' },
+  'train.targetZap.text': {
+    en: 'Tap a glowing line on the pink side to zap a bot there.',
+    ro: 'Atinge o linie strălucitoare din partea roz ca să zapezi un robot de acolo.',
+  },
+  'train.goal.title': { en: 'How to win', ro: 'Cum câștigi' },
+  'train.goal.text': {
+    en: 'Fix 3 of the 5 lines before your rival does. Your turn to lead!',
+    ro: 'Repară 3 din cele 5 linii înaintea rivalului. E rândul tău să conduci!',
+  },
+  'train.playOn.title': { en: 'Your move', ro: 'Mutarea ta' },
+  'train.playOn.text': {
+    en: 'Deploy, zap, repeat — fill a whole line to fix it.',
+    ro: 'Trimite, zapează, repetă — umple o linie întreagă ca să o repari.',
+  },
+  'train.lineFixed.title': { en: 'Line fixed!', ro: 'Linie reparată!' },
+  'train.lineFixed.text': {
+    en: 'That is 1 of the 3 you need. You know everything now — go win it!',
+    ro: 'Asta e 1 din cele 3 de care ai nevoie. Știi tot acum — hai, câștigă!',
+  },
+  'menu.tutorial': { en: 'Training Grid', ro: 'Antrenament' },
+  'menu.new': { en: 'START HERE', ro: 'ÎNCEPE AICI' },
 };

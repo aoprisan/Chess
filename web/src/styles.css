@@ -2464,6 +2464,116 @@ button:disabled {
   }
 }
 
+/* ---- Training Grid (step-by-step tutorial level) ---- */
+.tut-step {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--amber);
+  padding: 2px 8px;
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+}
+.tut-glyph.zap {
+  background: rgba(255, 210, 63, 0.12);
+  border-color: rgba(255, 210, 63, 0.55);
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.35);
+}
+.tut-glyph.row.goal {
+  background: rgba(255, 210, 63, 0.1);
+  border-color: rgba(255, 210, 63, 0.5);
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.3);
+}
+/* Coach bar: floats over the board while the player performs the step. */
+.tut-bar {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 24px));
+  z-index: 27;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  text-align: center;
+  background: rgba(10, 14, 26, 0.92);
+  border: 1.5px solid var(--amber);
+  box-shadow: 0 0 18px rgba(255, 210, 63, 0.3);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+  animation: toast-in 0.25s ease;
+  pointer-events: none;
+}
+.tut-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tut-bar-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--amber);
+  text-shadow: 0 0 10px rgba(255, 210, 63, 0.5);
+}
+.tut-bar-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tut-bar .tut-skip {
+  pointer-events: auto;
+}
+.tut-arrow.docked {
+  position: absolute;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  z-index: 27;
+  pointer-events: none;
+}
+/* The one control the current step wants tapped. */
+.tut-target {
+  animation: tut-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes tut-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.7);
+  }
+  to {
+    box-shadow: 0 0 10px 4px rgba(255, 210, 63, 0.15);
+  }
+}
+.pass-chip.dimmed {
+  opacity: 0.4;
+}
+/* Home menu: "START HERE" badge on the untried Training Grid. */
+.tutorial-btn {
+  position: relative;
+}
+.menu-badge {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: var(--magenta);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 10px rgba(255, 47, 214, 0.7);
+  padding: 2px 6px;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+}
+
 /* ---- Language toggle (home screen, top-right) ---- */
 .lang-toggle {
   position: absolute;

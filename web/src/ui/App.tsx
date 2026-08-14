@@ -16,10 +16,13 @@ import { Settings } from './Settings';
 import { Combat } from './combat/Combat';
 import { useT } from '../i18n';
 import { LanguageToggle } from './LanguageToggle';
+import { isTutorialLevelDone } from './tutorial';
+import { TUTORIAL_AI_DIFFICULTY, tutorialPlayerTeam, tutorialRivalTeam } from './tutorialLevel';
 
 type View =
   | { name: 'home' }
   | { name: 'howto' }
+  | { name: 'tutorial' }
   | { name: 'story' }
   | { name: 'share' }
   | { name: 'settings' }
@@ -121,6 +124,22 @@ export function App() {
     return (
       <div className="app">
         <HowToPlay onBack={() => setView({ name: 'home' })} />
+      </div>
+    );
+  }
+
+  // Training Grid: a guided battle that walks the player through every move.
+  if (view.name === 'tutorial') {
+    return (
+      <div className="app">
+        <Combat
+          player1Team={tutorialPlayerTeam()}
+          player2Team={tutorialRivalTeam()}
+          aiDifficulty={TUTORIAL_AI_DIFFICULTY}
+          tutorial
+          exitLabel={t('combat.exitToMenu')}
+          onGameEnd={() => setView({ name: 'home' })}
+        />
       </div>
     );
   }
@@ -255,7 +274,9 @@ export function App() {
   }
 
   // Home — a full neon-city scene (holo panels, glyphs, glowing game table)
-  // behind the diamond logo badge and the three game modes.
+  // behind the diamond logo badge and the game modes. Re-read on every render
+  // so finishing the Training Grid moves it out of the "start here" slot.
+  const tutorialDone = isTutorialLevelDone();
   return (
     <div className="app screen doodle-bg menu-home">
       <LanguageToggle />
@@ -309,6 +330,19 @@ export function App() {
         </h1>
       </div>
       <div style={{ height: 28 }} />
+      {/* Until it has been played once, the Training Grid leads the menu. */}
+      {!tutorialDone && (
+        <>
+          <button
+            className="img-btn yellow menu-btn tutorial-btn"
+            onClick={() => setView({ name: 'tutorial' })}
+          >
+            {t('menu.tutorial')}
+            <span className="menu-badge">{t('menu.new')}</span>
+          </button>
+          <div style={{ height: 16 }} />
+        </>
+      )}
       <button className="img-btn yellow menu-btn" onClick={() => setView({ name: 'mapSelect' })}>
         {t('menu.campaign')}
       </button>
@@ -331,6 +365,14 @@ export function App() {
         {t('menu.story')}
       </button>
       <div style={{ height: 16 }} />
+      {tutorialDone && (
+        <>
+          <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'tutorial' })}>
+            {t('menu.tutorial')}
+          </button>
+          <div style={{ height: 16 }} />
+        </>
+      )}
       <button className="img-btn grey menu-btn" onClick={() => setView({ name: 'howto' })}>
         {t('menu.howToPlay')}
       </button>

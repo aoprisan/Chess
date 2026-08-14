@@ -16,6 +16,10 @@ export function PerkPanel({
   aiHighlight,
   selectedPerkId,
   selectedInfo,
+  allowedPerkIds,
+  allowPass = true,
+  highlightPerkId = null,
+  highlightConfirm = false,
   onPerk,
   onPass,
   onConfirm,
@@ -28,6 +32,12 @@ export function PerkPanel({
   aiHighlight: number | null;
   selectedPerkId: number | null;
   selectedInfo?: PerkInfo;
+  /** Tutorial gate: only these powers are tappable (undefined = all of them). */
+  allowedPerkIds?: number[];
+  allowPass?: boolean;
+  /** Tutorial: the power the coach bar is pointing at. */
+  highlightPerkId?: number | null;
+  highlightConfirm?: boolean;
   onPerk: (perkId: number) => void;
   onPass: () => void;
   onConfirm: () => void;
@@ -36,6 +46,8 @@ export function PerkPanel({
   const t = useT();
   const { lang } = useLang();
   const aiMode = aiHighlight !== null;
+  const gated = (perkId: number) =>
+    allowedPerkIds !== undefined && !allowedPerkIds.includes(perkId);
   const ownerOf = (perkId: number): Character | undefined =>
     owners?.find((c) => c.perkIds.includes(perkId));
   return (
@@ -72,7 +84,7 @@ export function PerkPanel({
             </span>
           </div>
           <button
-            className="bar-btn"
+            className={`bar-btn${highlightConfirm ? ' tut-target' : ''}`}
             style={{ background: CATEGORY_COLOR[selectedInfo.category] }}
             onClick={onConfirm}
           >
@@ -99,13 +111,15 @@ export function PerkPanel({
             const isAiChoice = aiHighlight === slot.perkId;
             const isSel = selectedPerkId === slot.perkId;
             const recharging = slot.disabled === true;
+            const locked = !aiMode && gated(slot.perkId);
+            const isTutTarget = !aiMode && highlightPerkId === slot.perkId;
             const owner = slot.slotIndex >= 2 ? ownerOf(slot.perkId) : undefined;
             const color =
-              (disabled && !aiMode) || recharging ? '#757575' : CATEGORY_COLOR[category];
+              (disabled && !aiMode) || recharging || locked ? '#757575' : CATEGORY_COLOR[category];
             return (
               <button
                 key={slot.slotIndex}
-                className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}`}
+                className={`perk-chip${isSel ? ' selected' : ''}${aiMode ? (isAiChoice ? ' ai-choice' : ' dimmed') : ''}${recharging ? ' dimmed' : ''}${locked ? ' dimmed' : ''}${isTutTarget ? ' tut-target' : ''}`}
                 style={
                   isSel
                     ? {
@@ -114,7 +128,7 @@ export function PerkPanel({
                       }
                     : undefined
                 }
-                disabled={disabled || recharging}
+                disabled={disabled || recharging || locked}
                 onClick={() => onPerk(slot.perkId)}
               >
                 {/* The glyph leads so pre-readers can pick powers by picture. */}
@@ -139,9 +153,13 @@ export function PerkPanel({
             );
           })}
         {!aiMode && (
-          <button className="pass-chip" disabled={disabled} onClick={onPass}>
+          <button
+            className={`pass-chip${!allowPass ? ' dimmed' : ''}`}
+            disabled={disabled || !allowPass}
+            onClick={onPass}
+          >
             <span className="perk-chip-glyph" style={{ color: '#8899bb' }}>
-              <Icon name="skip" size={24} color={disabled ? '#757575' : '#8899bb'} />
+              <Icon name="skip" size={24} color={disabled || !allowPass ? '#757575' : '#8899bb'} />
             </span>
             <span className="perk-chip-name">{t('combat.pass')}</span>
           </button>

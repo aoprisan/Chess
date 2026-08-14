@@ -67,6 +67,12 @@ src/
     controller.test.ts respect/withdrawal/unlock/movement suite
   ui/                React components (App, MapSelect, CampaignMap, TeamPicker,
                      Roster, CharacterSelect, Combat, Story, CharacterPortrait)
+    tutorialScript.ts  the Training Grid lesson script (pure step machine:
+                       lessons, input gates, advance())
+    tutorialLevel.ts   the tutorial battle's fixed matchup + seeded engine setup
+    tutorial.ts        localStorage flags (coach marks, tutorial level done)
+    combat/useTutorialDirector.ts  script position + input gate for Combat
+    combat/TutorialGuide.tsx       lesson cards and the coach bar
 public/assets/
   images/characters/  portrait asset slots ({id}.png; procedural BotAvatar until art lands)
   maps/               map_1..3.json (generated)
@@ -79,6 +85,28 @@ scripts/
   mobile/             local Android/iOS build scripts (see MOBILE.md)
 capacitor.config.ts   native shell config (app id, name, WebView colours)
 ```
+
+## The Training Grid (tutorial level)
+
+A guided battle that teaches the game one move at a time. It leads the home
+menu (badged **START HERE**) until it has been played once, and stays
+replayable afterwards.
+
+- **Deterministic**: fixed matchup (Bitzy vs Pixel), seeded RNG, perk slots
+  3/4 pinned to one power each, `firstMoveCompensation: 'none'` so the very
+  first turn already has a perk phase, and the easiest AI.
+- **14 lessons** (`src/ui/tutorialScript.ts`): welcome → the two sides → watch
+  a bot auto-deploy → the power bar → play **Deploy Bot** (select → use →
+  target) → watch the rival turn → play **Debug Zap** → the win condition →
+  free play → first line fixed → finish.
+- **Gated input**: while a lesson is up, only the power it teaches is
+  tappable (everything else, Pass included, is dimmed and disabled), and the
+  taught control pulses. Modal lesson cards pause the turn loop; the coach bar
+  lets the battle run.
+- **Never stranded**: a lesson whose power is unplayable this round (nothing
+  to zap, slot recharging) is skipped, and **Skip the training** hands the
+  battle back at any point. Both completion and skipping mark
+  `neon_tutorial_level_v1` and retire the older first-battle coach marks.
 
 ## How the campaign works
 

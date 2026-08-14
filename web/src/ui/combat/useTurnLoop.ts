@@ -60,6 +60,8 @@ export function useTurnLoop({
   bump,
   later,
   onAIPerk,
+  scripted = false,
+  pauseRef,
 }: {
   engine: CombatEngine;
   /** false = pass-and-play: both sides are humans sharing this device. */
@@ -69,6 +71,13 @@ export function useTurnLoop({
   later: Later;
   /** Fired when the AI plays a perk, so the UI can flash it. */
   onAIPerk: (perkId: number, side: PlayerSide) => void;
+  /**
+   * Tutorial level: the lesson script drives the pacing, so the ad-hoc
+   * first-battle coach marks stay out of the way.
+   */
+  scripted?: boolean;
+  /** External hold on the loop (a tutorial card is up); polled, never stale. */
+  pauseRef?: { current: boolean };
 }) {
   // Turn dialog: tap-gated only on the opening turn (fair-start hint); AI
   // turns show it briefly as a cue, later human turns flow straight through.
@@ -93,7 +102,9 @@ export function useTurnLoop({
     tutStepRef.current = s;
     setTutStepState(s);
   }, []);
-  const tutPending = useRef<TutorialStep | null>(player2IsAI && !isTutorialDone() ? 'sides' : null);
+  const tutPending = useRef<TutorialStep | null>(
+    player2IsAI && !scripted && !isTutorialDone() ? 'sides' : null,
+  );
 
   const tick = useCallback(
     function tickFn() {
@@ -104,11 +115,12 @@ export function useTurnLoop({
       }
       if (showTurnDialogRef.current) return; // paused while the turn dialog is up
       if (tutStepRef.current !== null) return; // paused while a coach mark is up
+      if (pauseRef?.current) return; // paused while a tutorial lesson card is up
 
       if (s.currentPhase === 'autoPlacement') {
         const placeDelay = engine.isCurrentPlayerAI ? AI_PLACE_DELAY : HUMAN_PLACE_DELAY;
         later(() => {
-          if (showTurnDialogRef.current || tutStepRef.current !== null) return;
+          if (showTurnDialogRef.current || tutStepRef.current !== null || pauseRef?.current) return;
           if (engine.state.currentPhase !== 'autoPlacement') {
             tickFn();
             return;
@@ -138,6 +150,12 @@ export function useTurnLoop({
         if (aiPerkInProgress.current) return;
         aiPerkInProgress.current = true;
         later(() => {
+          if (pauseRef?.current) {
+            // A lesson card went up mid-think: hand the turn back to the loop,
+            // which re-enters here once the player dismisses the card.
+            aiPerkInProgress.current = false;
+            return;
+          }
           const [perkId, target, second] = chooseAIPerk(engine);
           engine.lastAIPerkId = perkId > 0 ? perkId : null;
           bump();
@@ -159,7 +177,7 @@ export function useTurnLoop({
     // afterMutation is intentionally omitted: it and tick are mutually
     // recursive, and both are stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [engine, bump, later, onAIPerk],
+    [engine, bump, later, onAIPerk, pauseRef],
   );
 
   /** After any engine mutation: detect turn changes (turn dialog) and resume the loop. */
@@ -239,5 +257,7 @@ export function useTurnLoop({
     onTutorialSkip,
     lastPlacement,
     afterMutation,
+    /** Restart the loop after an external pause (tutorial card dismissed). */
+    resume: tick,
   };
 }
