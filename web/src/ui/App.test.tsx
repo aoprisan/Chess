@@ -52,6 +52,30 @@ describe('home menu', () => {
       expect(screen.getByText(label)).toBeTruthy();
     }
   });
+
+  it('leads with the Training Grid until it has been played', async () => {
+    await renderHome();
+    expect(screen.getByText('START HERE')).toBeTruthy();
+    const buttons = [...document.querySelectorAll('.menu-btn')].map((b) => b.textContent);
+    expect(buttons[0]).toContain('Training Grid'); // first thing a new player sees
+
+    localStorage.setItem('neon_tutorial_level_v1', 'done');
+    cleanup();
+    await renderHome();
+    expect(screen.queryByText('START HERE')).toBeNull();
+    expect(screen.getByText('Training Grid')).toBeTruthy(); // still replayable
+  });
+});
+
+describe('Training Grid', () => {
+  it('starts the guided battle from the menu', async () => {
+    await renderHome();
+    fireEvent.click(screen.getByText('Training Grid'));
+    // The walkthrough opens on its welcome card, behind the hand-off dialog.
+    fireEvent.click(await screen.findByText('Ready!'));
+    expect(screen.getByText('Step 1 / 14')).toBeTruthy();
+    expect(screen.getByText(/I will show you every move/)).toBeTruthy();
+  });
 });
 
 describe('The Story', () => {

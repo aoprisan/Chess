@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import { CombatEngine } from '../../game/engine';
 import { getValidLanesForPerk, perkRequiresTarget } from '../../game/targeting';
@@ -6,6 +6,8 @@ import { getPerk } from '../../game/perks';
 import { Character, buildPerkPools } from '../../game/characters';
 import { PlayerSide, isCloaked, isBlinded } from '../../game/state';
 import { starsForBattle } from '../../campaign/balance';
+import { tutorialEngineConfig } from '../tutorialLevel';
+import type { TutorialCtx } from '../tutorialScript';
 
 import { Icon } from '../Icons';
 import { perkIcon } from '../perkTheme';
@@ -14,6 +16,8 @@ import { useLang, useT, perkName } from '../../i18n';
 import { clamp, DUAL_LANE_PERKS, CombatResult } from './theme';
 import { useLaterTimers, useTurnLoop } from './useTurnLoop';
 import { TutorialCoach } from './TutorialCoach';
+import { TutorialGuide } from './TutorialGuide';
+import { useTutorialDirector } from './useTutorialDirector';
 import { PlayerHeaders } from './PlayerHeaders';
 import { GameBoard } from './GameBoard';
 import { TargetingHint } from './TargetingHint';
@@ -32,6 +36,7 @@ export function Combat({
   aiDifficulty,
   player2IsAI = true,
   usePerkPools = false,
+  tutorial = false,
   exitLabel = 'Back to Map',
   onGameEnd,
 }: {
@@ -43,6 +48,11 @@ export function Combat({
   player2IsAI?: boolean;
   /** Campaign battles: restrict perk slots 3/4 to each team's own perks. */
   usePerkPools?: boolean;
+  /**
+   * Training Grid: run the step-by-step lesson script over a deterministic
+   * battle, gating input to the move being taught.
+   */
+  tutorial?: boolean;
   exitLabel?: string;
   onGameEnd: (result: CombatResult) => void;
 }) {
@@ -61,11 +71,12 @@ export function Combat({
       player2AIDifficulty: aiDifficulty,
       player1PerkPools: usePerkPools ? buildPerkPools(player1Team.map((c) => c.id)) : undefined,
       player2PerkPools: usePerkPools ? buildPerkPools(player2Team.map((c) => c.id)) : undefined,
+      ...(tutorial ? tutorialEngineConfig() : {}),
     });
   }
   const engine = engineRef.current;
 
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
   const [selectedPerkId, setSelectedPerkId] = useState<number | null>(null);
@@ -116,6 +127,9 @@ export function Combat({
     [later],
   );
 
+  // Training Grid: the lesson script owns the pacing and the input gate.
+  const tut = useTutorialDirector(tutorial);
+
   const {
     showTurnDialog,
     dismissTurnDialog,
@@ -124,7 +138,16 @@ export function Combat({
     onTutorialSkip,
     lastPlacement,
     afterMutation,
-  } = useTurnLoop({ engine, player2IsAI, bump, later, onAIPerk: flashPerk });
+    resume,
+  } = useTurnLoop({
+    engine,
+    player2IsAI,
+    bump,
+    later,
+    onAIPerk: flashPerk,
+    scripted: tutorial,
+    pauseRef: tut.pausedRef,
+  });
 
   // --- Human perk interactions ---------------------------------------------
   const humanTurn =
@@ -133,25 +156,69 @@ export function Combat({
     state.status === 'playing' &&
     !showTurnDialog;
 
+  // Snapshot of the battle the lesson script reasons about. Read fresh on every
+  // call (the engine mutates in place), so it is deliberately not memoized.
+  const tutorialCtx = (): TutorialCtx => ({
+    state: engine.state,
+    humanTurn:
+      engine.state.currentPhase === 'perkSelection' &&
+      !engine.isCurrentPlayerAI &&
+      engine.state.status === 'playing',
+    playablePerkIds: engine.currentPerkSlots
+      .filter((s) => !s.disabled)
+      .map((s) => s.perkId)
+      .filter(
+        (id) =>
+          !perkRequiresTarget(id) ||
+          getValidLanesForPerk(id, engine.state, engine.state.currentPlayer).length > 0,
+      ),
+  });
+
+  // Every engine mutation re-renders (bump); feed that through to the script so
+  // the "watch this happen" lessons advance on their own.
+  const emitSync = tut.emit;
+  useEffect(() => {
+    if (!tutorial) return;
+    emitSync({ type: 'sync' }, tutorialCtx());
+    // tutorialCtx reads live engine state; re-running it on every version bump
+    // (and lesson change) is the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutorial, version, showTurnDialog, emitSync, tut.lesson]);
+
+  // Resume the turn loop when a lesson card comes down.
+  const wasPausedRef = useRef(true);
+  useEffect(() => {
+    if (!tutorial) return;
+    if (wasPausedRef.current && !tut.paused && !showTurnDialog) resume();
+    wasPausedRef.current = tut.paused;
+  }, [tutorial, tut.paused, showTurnDialog, resume]);
+
   const onPerkClick = (perkId: number) => {
     if (!humanTurn) return;
+    if (!tut.allowsPerk(perkId)) return;
     if (engine.currentPerkSlots.some((s) => s.perkId === perkId && s.disabled)) return;
     // Tapping the selected perk again collapses its explanation.
-    setSelectedPerkId((prev) => (prev === perkId ? null : perkId));
+    const unselecting = selectedPerkId === perkId;
+    setSelectedPerkId(unselecting ? null : perkId);
     setIsSelectingLane(false);
     setFirstSelectedLane(null);
+    tut.emit(unselecting ? { type: 'cancelPerk' } : { type: 'selectPerk', perkId }, tutorialCtx());
   };
 
   const onConfirmPerk = () => {
     if (selectedPerkId === null) return;
     if (perkRequiresTarget(selectedPerkId) || DUAL_LANE_PERKS.has(selectedPerkId)) {
       setIsSelectingLane(true);
+      tut.emit({ type: 'confirmPerk', perkId: selectedPerkId }, tutorialCtx());
       return;
     }
-    flashPerk(selectedPerkId, state.currentPlayer);
-    engine.executePerk(selectedPerkId, -1);
+    const perkId = selectedPerkId;
+    flashPerk(perkId, state.currentPlayer);
+    engine.executePerk(perkId, -1);
     resetSelection();
     afterMutation();
+    tut.emit({ type: 'confirmPerk', perkId }, tutorialCtx());
+    tut.emit({ type: 'playPerk', perkId }, tutorialCtx());
   };
 
   const onLaneClick = (laneIndex: number) => {
@@ -164,23 +231,31 @@ export function Combat({
     );
     if (!validLanes.includes(laneIndex)) return;
 
-    if (DUAL_LANE_PERKS.has(selectedPerkId)) {
+    const perkId = selectedPerkId;
+    if (DUAL_LANE_PERKS.has(perkId)) {
       if (firstSelectedLane === null) {
         setFirstSelectedLane(laneIndex);
         return;
       }
-      flashPerk(selectedPerkId, state.currentPlayer);
-      engine.executePerk(selectedPerkId, laneIndex, firstSelectedLane);
+      flashPerk(perkId, state.currentPlayer);
+      engine.executePerk(perkId, laneIndex, firstSelectedLane);
     } else {
-      flashPerk(selectedPerkId, state.currentPlayer);
-      engine.executePerk(selectedPerkId, laneIndex);
+      flashPerk(perkId, state.currentPlayer);
+      engine.executePerk(perkId, laneIndex);
     }
     resetSelection();
     afterMutation();
+    tut.emit({ type: 'playPerk', perkId }, tutorialCtx());
+  };
+
+  const onCancelSelection = () => {
+    resetSelection();
+    tut.emit({ type: 'cancelPerk' }, tutorialCtx());
   };
 
   const onPass = () => {
     if (!humanTurn) return;
+    if (!tut.allowsPass()) return;
     engine.passTurn();
     resetSelection();
     afterMutation();
@@ -226,6 +301,8 @@ export function Combat({
 
   const gap = H * 0.005;
   const selectedInfo = selectedPerkId !== null ? getPerk(selectedPerkId) : undefined;
+  const tutTargetPerkId =
+    tut.lesson?.pointer === 'perkBar' ? (tut.lesson.gate?.perkIds?.[0] ?? null) : null;
 
   return (
     <div className="combat doodle-bg" ref={rootRef}>
@@ -392,7 +469,7 @@ export function Combat({
             perkId={selectedPerkId}
             info={selectedInfo}
             firstSelectedLane={firstSelectedLane}
-            onCancel={resetSelection}
+            onCancel={onCancelSelection}
           />
         ) : (
           <PerkPanel
@@ -408,10 +485,14 @@ export function Combat({
             aiHighlight={engine.lastAIPerkId}
             selectedPerkId={selectedPerkId}
             selectedInfo={selectedInfo}
+            allowedPerkIds={tut.lesson?.gate?.perkIds}
+            allowPass={tut.allowsPass()}
+            highlightPerkId={tutTargetPerkId}
+            highlightConfirm={tut.lesson?.pointer === 'confirm'}
             onPerk={onPerkClick}
             onPass={onPass}
             onConfirm={onConfirmPerk}
-            onCancel={resetSelection}
+            onCancel={onCancelSelection}
           />
         )
       ) : (
@@ -435,14 +516,29 @@ export function Combat({
           hero={currentHero}
           isP1={state.currentPlayer === 'player1'}
           isAI={engine.isCurrentPlayerAI}
-          isOpeningTurn={lastPlacement.current === null && state.currentPlayer === 'player1'}
+          isOpeningTurn={
+            // The Training Grid keeps the opening perk phase, so the
+            // fair-start note would be wrong there.
+            !tutorial && lastPlacement.current === null && state.currentPlayer === 'player1'
+          }
           onReady={dismissTurnDialog}
         />
       )}
 
-      {/* First-battle coach marks */}
+      {/* First-battle coach marks (normal battles) */}
       {tutStep && !finished && (
         <TutorialCoach W={W} step={tutStep} onNext={onTutorialNext} onSkip={onTutorialSkip} />
+      )}
+
+      {/* Training Grid: the step-by-step walkthrough */}
+      {tut.lesson && !finished && !showTurnDialog && (
+        <TutorialGuide
+          W={W}
+          lesson={tut.lesson}
+          lessonNo={tut.lessonNo}
+          onNext={() => tut.emit({ type: 'next' }, tutorialCtx())}
+          onSkip={tut.skipAll}
+        />
       )}
     </div>
   );

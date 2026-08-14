@@ -69,6 +69,7 @@ build logic in `web/scripts/mobile/*.sh`. App version/build number derive from
   - `meta.ts` — single-key localStorage persistence (`neon_meta_v1`)
   - `controller.ts` — respect derivation, recruitment, withdrawal + auto-restore, map unlocks, BFS free-roam movement
 - **ui/**: React components — `App.tsx` (screen routing), `MapSelect.tsx`, `CampaignMap.tsx`, `TeamPicker.tsx`, `Roster.tsx`, `CharacterSelect.tsx`, `Combat.tsx` (lane combat incl. team perk pools), `Story.tsx` (intro story), `CharacterPortrait.tsx` (asset slot + procedural `BotAvatar.tsx` fallback)
+  - **Training Grid** (the step-by-step tutorial level): `tutorialScript.ts` (pure lesson/gate/advance machine), `tutorialLevel.ts` (fixed matchup + seeded engine config), `tutorial.ts` (localStorage flags), `combat/useTutorialDirector.ts`, `combat/TutorialGuide.tsx`. `Combat` runs it via the `tutorial` prop; see `web/README.md` for the lesson list.
 - **public/assets/**: character portrait slots (`images/characters/{id}.png`) and generated `maps/map_1..3.json`
 - **scripts/**: authoring tools (`generate-city.mjs` for maps, `generate-icons.mjs` for PWA icons, `generate-mobile-assets.mjs` for native icons/splash) and `mobile/` (Android/iOS build scripts)
 - **resources/**: source images for the native icon/splash generation (committed)
